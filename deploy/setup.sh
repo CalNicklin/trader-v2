@@ -32,6 +32,7 @@ DB_PATH=/opt/trader-v2/data/trader.db
 LOG_LEVEL=info
 NODE_ENV=production
 DAILY_API_BUDGET_USD=0
+FINNHUB_API_KEY=
 ENVEOF
 
 echo ">>> IMPORTANT: Edit /opt/trader-v2/.env and fill in API keys <<<"

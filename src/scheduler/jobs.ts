@@ -11,6 +11,7 @@ export type JobName =
 	| "trade_review"
 	| "pattern_analysis"
 	| "earnings_calendar_sync"
+	| "news_poll"
 	| "heartbeat";
 
 let jobRunning = false;
@@ -26,20 +27,22 @@ export async function runJob(name: JobName): Promise<void> {
 	const start = Date.now();
 	log.info({ job: name }, "Job starting");
 
-	try {
-		const jobPromise = executeJob(name);
-		const timeoutPromise = new Promise<never>((_, reject) => {
-			setTimeout(
-				() => reject(new Error(`Job ${name} timed out after ${JOB_TIMEOUT_MS / 60000}min`)),
-				JOB_TIMEOUT_MS,
-			);
-		});
+	let timeoutId: ReturnType<typeof setTimeout> | undefined;
+	const jobPromise = executeJob(name);
+	const timeoutPromise = new Promise<never>((_, reject) => {
+		timeoutId = setTimeout(
+			() => reject(new Error(`Job ${name} timed out after ${JOB_TIMEOUT_MS / 60000}min`)),
+			JOB_TIMEOUT_MS,
+		);
+	});
 
+	try {
 		await Promise.race([jobPromise, timeoutPromise]);
 		log.info({ job: name, durationMs: Date.now() - start }, "Job completed");
 	} catch (error) {
 		log.error({ job: name, error, durationMs: Date.now() - start }, "Job failed");
 	} finally {
+		clearTimeout(timeoutId);
 		jobRunning = false;
 	}
 }
@@ -75,12 +78,23 @@ async function executeJob(name: JobName): Promise<void> {
 			break;
 		}
 
+		case "news_poll": {
+			const { runNewsPoll } = await import("./news-poll-job.ts");
+			await runNewsPoll();
+			break;
+		}
+
+		case "earnings_calendar_sync": {
+			const { runEarningsSync } = await import("./earnings-sync-job.ts");
+			await runEarningsSync();
+			break;
+		}
+
 		// Stubs for future phases — log and return
 		case "weekly_digest":
 		case "strategy_evolution":
 		case "trade_review":
 		case "pattern_analysis":
-		case "earnings_calendar_sync":
 			log.info({ job: name }, "Job not yet implemented (future phase)");
 			break;
 	}

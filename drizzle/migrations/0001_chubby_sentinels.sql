@@ -1,0 +1,1 @@
+CREATE INDEX `news_events_headline_idx` ON `news_events` (`headline`);

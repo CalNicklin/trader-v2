@@ -1,4 +1,4 @@
-import { integer, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 
 // ── Strategies ──────────────────────────────────────────────────────────────
 
@@ -221,22 +221,28 @@ export const strategyMutations = sqliteTable("strategy_mutations", {
 
 // ── News ────────────────────────────────────────────────────────────────────
 
-export const newsEvents = sqliteTable("news_events", {
-	id: integer("id").primaryKey({ autoIncrement: true }),
-	source: text("source").notNull(),
-	headline: text("headline").notNull(),
-	url: text("url"),
-	symbols: text("symbols"), // JSON: string[]
-	sentiment: real("sentiment"),
-	confidence: real("confidence"),
-	tradeable: integer("tradeable", { mode: "boolean" }),
-	eventType: text("event_type"),
-	urgency: text("urgency", { enum: ["low", "medium", "high"] }),
-	classifiedAt: text("classified_at"),
-	createdAt: text("created_at")
-		.notNull()
-		.$defaultFn(() => new Date().toISOString()),
-});
+export const newsEvents = sqliteTable(
+	"news_events",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		source: text("source").notNull(),
+		headline: text("headline").notNull(),
+		url: text("url"),
+		symbols: text("symbols"), // JSON: string[]
+		sentiment: real("sentiment"),
+		confidence: real("confidence"),
+		tradeable: integer("tradeable", { mode: "boolean" }),
+		eventType: text("event_type"),
+		urgency: text("urgency", { enum: ["low", "medium", "high"] }),
+		classifiedAt: text("classified_at"),
+		createdAt: text("created_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => ({
+		headlineIdx: index("news_events_headline_idx").on(table.headline),
+	}),
+);
 
 // ── Operational ─────────────────────────────────────────────────────────────
 

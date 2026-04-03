@@ -8,6 +8,13 @@
       "when": 1775249818536,
       "tag": "0000_first_nitro",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1775255230064,
+      "tag": "0001_chubby_sentinels",
+      "breakpoints": true
     }
   ]
 }
