@@ -90,11 +90,9 @@ export async function checkGraduation(strategyId: number): Promise<GraduationRes
 	}
 
 	// Walk-forward validation: signal must be profitable on most recent 20% of trades
-	if (metrics.sampleSize >= CRITERIA.minSampleSize) {
-		const walkForwardResult = await checkWalkForward(strategyId, metrics.sampleSize);
-		if (!walkForwardResult) {
-			failures.push("Walk-forward validation failed: not profitable on recent 20% of trades");
-		}
+	const walkForwardResult = await checkWalkForward(strategyId);
+	if (!walkForwardResult) {
+		failures.push("Walk-forward validation failed: not profitable on recent 20% of trades");
 	}
 
 	return { passes: failures.length === 0, failures };
@@ -104,7 +102,7 @@ export async function checkGraduation(strategyId: number): Promise<GraduationRes
  * Walk-forward validation: check that the strategy is profitable
  * on the most recent 20% of its trades (out-of-sample window).
  */
-async function checkWalkForward(strategyId: number, _sampleSize: number): Promise<boolean> {
+async function checkWalkForward(strategyId: number): Promise<boolean> {
 	const db = getDb();
 	const trades = await db
 		.select({ pnl: paperTrades.pnl, createdAt: paperTrades.createdAt })

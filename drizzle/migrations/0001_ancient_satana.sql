@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `strategy_metrics_strategy_id_unique` ON `strategy_metrics` (`strategy_id`);

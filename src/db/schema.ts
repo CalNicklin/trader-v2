@@ -162,22 +162,28 @@ export const earningsCalendar = sqliteTable("earnings_calendar", {
 
 // ── Strategy Metrics & Graduation ───────────────────────────────────────────
 
-export const strategyMetrics = sqliteTable("strategy_metrics", {
-	id: integer("id").primaryKey({ autoIncrement: true }),
-	strategyId: integer("strategy_id").notNull(),
-	sampleSize: integer("sample_size").notNull().default(0),
-	winRate: real("win_rate"),
-	expectancy: real("expectancy"),
-	profitFactor: real("profit_factor"),
-	sharpeRatio: real("sharpe_ratio"),
-	sortinoRatio: real("sortino_ratio"),
-	maxDrawdownPct: real("max_drawdown_pct"),
-	calmarRatio: real("calmar_ratio"),
-	consistencyScore: integer("consistency_score"), // profitable weeks out of last 4
-	updatedAt: text("updated_at")
-		.notNull()
-		.$defaultFn(() => new Date().toISOString()),
-});
+export const strategyMetrics = sqliteTable(
+	"strategy_metrics",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		strategyId: integer("strategy_id").notNull(),
+		sampleSize: integer("sample_size").notNull().default(0),
+		winRate: real("win_rate"),
+		expectancy: real("expectancy"),
+		profitFactor: real("profit_factor"),
+		sharpeRatio: real("sharpe_ratio"),
+		sortinoRatio: real("sortino_ratio"),
+		maxDrawdownPct: real("max_drawdown_pct"),
+		calmarRatio: real("calmar_ratio"),
+		consistencyScore: integer("consistency_score"), // profitable weeks out of last 4
+		updatedAt: text("updated_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => ({
+		strategyIdUnique: unique("strategy_metrics_strategy_id_unique").on(table.strategyId),
+	}),
+);
 
 export const graduationEvents = sqliteTable("graduation_events", {
 	id: integer("id").primaryKey({ autoIncrement: true }),
