@@ -1,4 +1,3 @@
-import { and, eq } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { newsEvents, quotesCache } from "../db/schema.ts";
 import { createChildLogger } from "../utils/logger.ts";
@@ -8,7 +7,7 @@ const log = createChildLogger({ module: "sentiment-writer" });
 /**
  * Update the news_sentiment column in quotes_cache for a symbol.
  * Creates the cache row if it doesn't exist.
- * Does NOT overwrite price data.
+ * Does NOT overwrite price data — uses upsert to avoid race conditions.
  */
 export async function writeSentiment(
 	symbol: string,
@@ -16,24 +15,13 @@ export async function writeSentiment(
 	sentiment: number,
 ): Promise<void> {
 	const db = getDb();
-	const existing = await db
-		.select()
-		.from(quotesCache)
-		.where(and(eq(quotesCache.symbol, symbol), eq(quotesCache.exchange, exchange)))
-		.limit(1);
-
-	if (existing.length > 0) {
-		await db
-			.update(quotesCache)
-			.set({ newsSentiment: sentiment, updatedAt: new Date().toISOString() })
-			.where(and(eq(quotesCache.symbol, symbol), eq(quotesCache.exchange, exchange)));
-	} else {
-		await db.insert(quotesCache).values({
-			symbol,
-			exchange,
-			newsSentiment: sentiment,
+	await db
+		.insert(quotesCache)
+		.values({ symbol, exchange, newsSentiment: sentiment })
+		.onConflictDoUpdate({
+			target: [quotesCache.symbol, quotesCache.exchange],
+			set: { newsSentiment: sentiment, updatedAt: new Date().toISOString() },
 		});
-	}
 
 	log.debug({ symbol, exchange, sentiment }, "Sentiment written to cache");
 }

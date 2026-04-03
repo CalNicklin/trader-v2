@@ -55,7 +55,8 @@ export async function processArticle(
 		return "filtered";
 	}
 
-	// Classify with Haiku
+	// Classify against primary symbol only — multi-symbol articles (e.g. mergers)
+	// get the same sentiment written to all symbols. Acceptable trade-off for cost.
 	const primarySymbol = article.symbols[0];
 	if (!primarySymbol) return "failed";
 
