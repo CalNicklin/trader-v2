@@ -31,6 +31,7 @@ export function parseFinnhubArticle(raw: Record<string, unknown>): NewsArticle |
 		.filter((s) => s.length > 0);
 
 	const datetime = typeof raw.datetime === "number" ? raw.datetime : 0;
+	if (datetime === 0) return null;
 
 	return {
 		headline,
@@ -44,7 +45,6 @@ export function parseFinnhubArticle(raw: Record<string, unknown>): NewsArticle |
 
 /**
  * Fetch recent news articles for a symbol from Finnhub.
- * Returns parsed articles, deduped by headline.
  */
 export async function fetchCompanyNews(symbol: string, apiKey: string): Promise<NewsArticle[]> {
 	const url = buildFinnhubUrl(symbol, apiKey);

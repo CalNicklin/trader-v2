@@ -51,6 +51,13 @@ describe("finnhub news client", () => {
 		expect(parseFinnhubArticle(raw)).toBeNull();
 	});
 
+	test("parseFinnhubArticle returns null for missing datetime", async () => {
+		const { parseFinnhubArticle } = await import("../../src/news/finnhub.ts");
+
+		const raw = { headline: "Some headline", related: "AAPL" };
+		expect(parseFinnhubArticle(raw)).toBeNull();
+	});
+
 	test("buildFinnhubUrl constructs correct URL", async () => {
 		const { buildFinnhubUrl } = await import("../../src/news/finnhub.ts");
 

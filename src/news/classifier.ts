@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getConfig } from "../config.ts";
 import { canAffordCall } from "../utils/budget.ts";
 import { createChildLogger } from "../utils/logger.ts";
+import { withRetry } from "../utils/retry.ts";
 import { recordUsage } from "../utils/token-tracker.ts";
 
 const log = createChildLogger({ module: "news-classifier" });
@@ -46,11 +47,31 @@ export function parseClassificationResponse(text: string): ClassificationResult 
 		const validUrgency = ["low", "medium", "high"];
 		if (!validUrgency.includes(parsed.urgency)) return null;
 
+		const validEventTypes = new Set([
+			"earnings_beat",
+			"earnings_miss",
+			"guidance_raise",
+			"guidance_lower",
+			"fda_approval",
+			"fda_rejection",
+			"acquisition",
+			"merger",
+			"buyback",
+			"dividend",
+			"profit_warning",
+			"upgrade",
+			"downgrade",
+			"legal",
+			"restructuring",
+			"other",
+		]);
+		const eventType = validEventTypes.has(parsed.event_type) ? parsed.event_type : "other";
+
 		return {
 			tradeable: parsed.tradeable,
 			sentiment: Math.max(-1, Math.min(1, parsed.sentiment)),
 			confidence: Math.max(0, Math.min(1, parsed.confidence)),
-			eventType: parsed.event_type,
+			eventType,
 			urgency: parsed.urgency as "low" | "medium" | "high",
 		};
 	} catch {
@@ -74,12 +95,17 @@ export async function classifyHeadline(
 		const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 		const userMessage = buildClassificationPrompt(headline, symbol);
 
-		const response = await client.messages.create({
-			model: config.CLAUDE_MODEL_FAST,
-			max_tokens: 150,
-			system: SYSTEM_PROMPT,
-			messages: [{ role: "user", content: userMessage }],
-		});
+		const response = await withRetry(
+			async () =>
+				client.messages.create({
+					model: config.CLAUDE_MODEL_FAST,
+					max_tokens: 150,
+					system: SYSTEM_PROMPT,
+					messages: [{ role: "user", content: userMessage }],
+				}),
+			`classify-${symbol}`,
+			{ maxAttempts: 2, baseDelayMs: 1000 },
+		);
 
 		const text = response.content[0]?.type === "text" ? response.content[0].text : "";
 
