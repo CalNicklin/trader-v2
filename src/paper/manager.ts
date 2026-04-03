@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { paperPositions, paperTrades, strategies } from "../db/schema.ts";
 import { getTradeFriction } from "../utils/fx.ts";
@@ -33,6 +33,7 @@ export async function openPaperPosition(input: OpenPositionInput): Promise<void>
 		strategyId: input.strategyId,
 		symbol: input.symbol,
 		exchange: input.exchange,
+		side: input.side,
 		quantity: input.quantity,
 		entryPrice: input.price,
 		currentPrice: input.price,
@@ -50,18 +51,13 @@ export async function openPaperPosition(input: OpenPositionInput): Promise<void>
 		reasoning: input.reasoning,
 	});
 
-	// Deduct position value + friction from virtual balance
-	const [strat] = await db
-		.select({ virtualBalance: strategies.virtualBalance })
-		.from(strategies)
+	// Atomic balance deduction — safe even if evaluator is ever parallelized
+	await db
+		.update(strategies)
+		.set({
+			virtualBalance: sql`${strategies.virtualBalance} - ${positionValue + friction}`,
+		})
 		.where(eq(strategies.id, input.strategyId));
-
-	if (strat) {
-		await db
-			.update(strategies)
-			.set({ virtualBalance: strat.virtualBalance - positionValue - friction })
-			.where(eq(strategies.id, input.strategyId));
-	}
 }
 
 export async function closePaperPosition(input: ClosePositionInput): Promise<void> {
@@ -74,16 +70,7 @@ export async function closePaperPosition(input: ClosePositionInput): Promise<voi
 
 	if (!position) throw new Error(`Position ${input.positionId} not found`);
 
-	// Find the entry trade to determine original side
-	const [entryTrade] = await db
-		.select()
-		.from(paperTrades)
-		.where(
-			and(eq(paperTrades.strategyId, input.strategyId), eq(paperTrades.symbol, position.symbol)),
-		)
-		.limit(1);
-
-	const entrySide = (entryTrade?.side ?? "BUY") as "BUY" | "SELL";
+	const entrySide = position.side as "BUY" | "SELL";
 	const exitSide = entrySide === "BUY" ? "SELL" : "BUY";
 	const entryFrictionPct = getTradeFriction(position.exchange, entrySide);
 	const exitFrictionPct = getTradeFriction(position.exchange, exitSide);
@@ -117,19 +104,14 @@ export async function closePaperPosition(input: ClosePositionInput): Promise<voi
 		reasoning: input.reasoning,
 	});
 
-	// Return proceeds to virtual balance
+	// Atomic balance credit — safe even if evaluator is ever parallelized
 	const proceeds = position.quantity * input.exitPrice - exitFriction;
-	const [strat] = await db
-		.select({ virtualBalance: strategies.virtualBalance })
-		.from(strategies)
+	await db
+		.update(strategies)
+		.set({
+			virtualBalance: sql`${strategies.virtualBalance} + ${proceeds}`,
+		})
 		.where(eq(strategies.id, input.strategyId));
-
-	if (strat) {
-		await db
-			.update(strategies)
-			.set({ virtualBalance: strat.virtualBalance + proceeds })
-			.where(eq(strategies.id, input.strategyId));
-	}
 }
 
 export async function getOpenPositions(strategyId: number) {

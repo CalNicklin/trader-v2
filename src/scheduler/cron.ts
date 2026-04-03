@@ -21,9 +21,9 @@ export function startScheduler(): void {
 		}),
 	);
 
-	// Strategy evaluation every 10 minutes during market hours (08:00-20:00 UK)
+	// Strategy evaluation offset by 5 min from quote refresh to avoid global job lock collision
 	tasks.push(
-		cron.schedule("*/10 8-20 * * 1-5", () => runJob("strategy_evaluation"), {
+		cron.schedule("5,15,25,35,45,55 8-20 * * 1-5", () => runJob("strategy_evaluation"), {
 			timezone: "Europe/London",
 		}),
 	);

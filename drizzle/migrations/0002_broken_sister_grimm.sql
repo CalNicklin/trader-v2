@@ -1,0 +1,1 @@
+ALTER TABLE `paper_positions` ADD `side` text DEFAULT 'BUY' NOT NULL;

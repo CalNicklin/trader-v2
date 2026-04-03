@@ -1,6 +1,6 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
-import { paperTrades, strategyMetrics } from "../db/schema.ts";
+import { paperTrades, strategies, strategyMetrics } from "../db/schema.ts";
 import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "metrics" });
@@ -62,6 +62,13 @@ export async function recalculateMetrics(strategyId: number): Promise<void> {
 	const downsideDev = Math.sqrt(downsideVariance);
 	const sortinoRatio = downsideDev > 0 ? (mean / downsideDev) * Math.sqrt(252) : null;
 
+	// Fetch the strategy's virtual balance to use as denominator
+	const [strat] = await db
+		.select({ virtualBalance: strategies.virtualBalance })
+		.from(strategies)
+		.where(eq(strategies.id, strategyId));
+	const startingBalance = (strat?.virtualBalance ?? 10000) + Math.abs(totalPnl);
+
 	// Max drawdown (peak-to-trough in cumulative P&L)
 	let peak = 0;
 	let cumPnl = 0;
@@ -72,12 +79,18 @@ export async function recalculateMetrics(strategyId: number): Promise<void> {
 		const drawdown = peak - cumPnl;
 		if (drawdown > maxDrawdown) maxDrawdown = drawdown;
 	}
-	// Express as % of starting virtual balance (10000)
-	const maxDrawdownPct = (maxDrawdown / 10000) * 100;
+	const maxDrawdownPct = (maxDrawdown / startingBalance) * 100;
 
 	// Calmar ratio: annualized return / max drawdown
-	const annualizedReturn = totalPnl * (252 / Math.max(sampleSize, 1));
-	const calmarRatio = maxDrawdownPct > 0 ? annualizedReturn / 10000 / (maxDrawdownPct / 100) : null;
+	// Use actual time span between first and last trade for annualization
+	const firstTradeDate = new Date(trades[0]!.createdAt);
+	const lastTradeDate = new Date(trades[trades.length - 1]!.createdAt);
+	const tradingDays = Math.max(
+		(lastTradeDate.getTime() - firstTradeDate.getTime()) / (1000 * 60 * 60 * 24),
+		1,
+	);
+	const annualizedReturnPct = (totalPnl / startingBalance) * (252 / tradingDays);
+	const calmarRatio = maxDrawdownPct > 0 ? annualizedReturnPct / (maxDrawdownPct / 100) : null;
 
 	// Consistency: profitable in how many of the last 4 weeks?
 	const consistencyScore = calcConsistency(trades);

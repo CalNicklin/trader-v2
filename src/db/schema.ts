@@ -31,6 +31,9 @@ export const paperPositions = sqliteTable("paper_positions", {
 	strategyId: integer("strategy_id").notNull(),
 	symbol: text("symbol").notNull(),
 	exchange: text("exchange").notNull(),
+	side: text("side", { enum: ["BUY", "SELL"] })
+		.notNull()
+		.default("BUY"),
 	quantity: real("quantity").notNull(),
 	entryPrice: real("entry_price").notNull(),
 	currentPrice: real("current_price"),

@@ -36,7 +36,7 @@ export async function runDailySummary(): Promise<void> {
 				<td>${m?.winRate != null ? `${(m.winRate * 100).toFixed(0)}%` : "—"}</td>
 				<td>${m?.profitFactor?.toFixed(2) ?? "—"}</td>
 				<td>${m?.sharpeRatio?.toFixed(2) ?? "—"}</td>
-				<td>${m?.maxDrawdownPct?.toFixed(1) ?? "—"}%</td>
+				<td>${m?.maxDrawdownPct != null ? `${m.maxDrawdownPct.toFixed(1)}%` : "—"}</td>
 				<td>$${s.virtualBalance.toFixed(0)}</td>
 			</tr>`;
 		})
