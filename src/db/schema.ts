@@ -1,0 +1,290 @@
+import { integer, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+
+// ── Strategies ──────────────────────────────────────────────────────────────
+
+export const strategies = sqliteTable("strategies", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	name: text("name").notNull(),
+	description: text("description").notNull(),
+	parameters: text("parameters").notNull(), // JSON
+	signals: text("signals"), // JSON: { entry_long, entry_short, exit }
+	universe: text("universe"), // JSON: string[]
+	status: text("status", {
+		enum: ["paper", "probation", "active", "core", "retired"],
+	})
+		.notNull()
+		.default("paper"),
+	virtualBalance: real("virtual_balance").notNull().default(10000),
+	parentStrategyId: integer("parent_strategy_id"),
+	generation: integer("generation").notNull().default(1),
+	createdBy: text("created_by").default("seed"), // "seed" | "evolution" | "human"
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+	retiredAt: text("retired_at"),
+});
+
+// ── Paper Trading ───────────────────────────────────────────────────────────
+
+export const paperPositions = sqliteTable("paper_positions", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	strategyId: integer("strategy_id").notNull(),
+	symbol: text("symbol").notNull(),
+	exchange: text("exchange").notNull(),
+	quantity: real("quantity").notNull(),
+	entryPrice: real("entry_price").notNull(),
+	currentPrice: real("current_price"),
+	stopLoss: real("stop_loss"),
+	trailingStop: real("trailing_stop"),
+	highWaterMark: real("high_water_mark"),
+	unrealizedPnl: real("unrealized_pnl"),
+	openedAt: text("opened_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+	closedAt: text("closed_at"),
+});
+
+export const paperTrades = sqliteTable("paper_trades", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	strategyId: integer("strategy_id").notNull(),
+	symbol: text("symbol").notNull(),
+	exchange: text("exchange").notNull().default("NASDAQ"),
+	side: text("side", { enum: ["BUY", "SELL"] }).notNull(),
+	quantity: real("quantity").notNull(),
+	price: real("price").notNull(),
+	friction: real("friction").notNull().default(0), // stamp duty + FX cost deducted
+	pnl: real("pnl"),
+	signalType: text("signal_type").notNull(), // entry_long, entry_short, exit
+	reasoning: text("reasoning"),
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Live Trading ────────────────────────────────────────────────────────────
+
+export const livePositions = sqliteTable(
+	"live_positions",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		strategyId: integer("strategy_id"),
+		symbol: text("symbol").notNull(),
+		exchange: text("exchange").notNull(),
+		currency: text("currency").notNull().default("USD"),
+		quantity: real("quantity").notNull(),
+		avgCost: real("avg_cost").notNull(),
+		currentPrice: real("current_price"),
+		unrealizedPnl: real("unrealized_pnl"),
+		marketValue: real("market_value"),
+		stopLossPrice: real("stop_loss_price"),
+		trailingStopPrice: real("trailing_stop_price"),
+		highWaterMark: real("high_water_mark"),
+		updatedAt: text("updated_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => ({
+		symbolExchangeUnique: unique("live_positions_symbol_exchange_unique").on(
+			table.symbol,
+			table.exchange,
+		),
+	}),
+);
+
+export const liveTrades = sqliteTable("live_trades", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	strategyId: integer("strategy_id"),
+	symbol: text("symbol").notNull(),
+	exchange: text("exchange").notNull(),
+	side: text("side", { enum: ["BUY", "SELL"] }).notNull(),
+	quantity: real("quantity").notNull(),
+	orderType: text("order_type", { enum: ["LIMIT", "MARKET"] }).notNull(),
+	limitPrice: real("limit_price"),
+	fillPrice: real("fill_price"),
+	commission: real("commission"),
+	friction: real("friction").notNull().default(0),
+	status: text("status", {
+		enum: ["PENDING", "SUBMITTED", "FILLED", "PARTIALLY_FILLED", "CANCELLED", "ERROR"],
+	})
+		.notNull()
+		.default("PENDING"),
+	ibOrderId: integer("ib_order_id"),
+	reasoning: text("reasoning"),
+	confidence: real("confidence"),
+	pnl: real("pnl"),
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+	updatedAt: text("updated_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+	filledAt: text("filled_at"),
+});
+
+// ── Market Data ─────────────────────────────────────────────────────────────
+
+export const quotesCache = sqliteTable(
+	"quotes_cache",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		symbol: text("symbol").notNull(),
+		exchange: text("exchange").notNull(),
+		last: real("last"),
+		bid: real("bid"),
+		ask: real("ask"),
+		volume: integer("volume"),
+		avgVolume: integer("avg_volume"),
+		changePercent: real("change_percent"),
+		newsSentiment: real("news_sentiment"), // written by news event bus
+		updatedAt: text("updated_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => ({
+		symbolExchangeUnique: unique("quotes_cache_symbol_exchange_unique").on(
+			table.symbol,
+			table.exchange,
+		),
+	}),
+);
+
+export const earningsCalendar = sqliteTable("earnings_calendar", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	symbol: text("symbol").notNull(),
+	exchange: text("exchange").notNull(),
+	date: text("date").notNull(),
+	estimatedEps: real("estimated_eps"),
+	source: text("source"),
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Strategy Metrics & Graduation ───────────────────────────────────────────
+
+export const strategyMetrics = sqliteTable("strategy_metrics", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	strategyId: integer("strategy_id").notNull(),
+	sampleSize: integer("sample_size").notNull().default(0),
+	winRate: real("win_rate"),
+	expectancy: real("expectancy"),
+	profitFactor: real("profit_factor"),
+	sharpeRatio: real("sharpe_ratio"),
+	sortinoRatio: real("sortino_ratio"),
+	maxDrawdownPct: real("max_drawdown_pct"),
+	calmarRatio: real("calmar_ratio"),
+	consistencyScore: integer("consistency_score"), // profitable weeks out of last 4
+	updatedAt: text("updated_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
+
+export const graduationEvents = sqliteTable("graduation_events", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	strategyId: integer("strategy_id").notNull(),
+	event: text("event", {
+		enum: ["graduated", "promoted", "demoted", "killed"],
+	}).notNull(),
+	fromTier: text("from_tier"),
+	toTier: text("to_tier"),
+	evidence: text("evidence"), // JSON: statistical summary
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Evolution ───────────────────────────────────────────────────────────────
+
+export const strategyMutations = sqliteTable("strategy_mutations", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	parentId: integer("parent_id").notNull(),
+	childId: integer("child_id").notNull(),
+	mutationType: text("mutation_type", {
+		enum: ["parameter_tweak", "new_variant", "code_change"],
+	}).notNull(),
+	parameterDiff: text("parameter_diff"), // JSON
+	parentSharpe: real("parent_sharpe"),
+	childSharpe: real("child_sharpe"),
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
+
+// ── News ────────────────────────────────────────────────────────────────────
+
+export const newsEvents = sqliteTable("news_events", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	source: text("source").notNull(),
+	headline: text("headline").notNull(),
+	url: text("url"),
+	symbols: text("symbols"), // JSON: string[]
+	sentiment: real("sentiment"),
+	confidence: real("confidence"),
+	tradeable: integer("tradeable", { mode: "boolean" }),
+	eventType: text("event_type"),
+	urgency: text("urgency", { enum: ["low", "medium", "high"] }),
+	classifiedAt: text("classified_at"),
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
+
+// ── Operational ─────────────────────────────────────────────────────────────
+
+export const tokenUsage = sqliteTable("token_usage", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	job: text("job").notNull(),
+	inputTokens: integer("input_tokens").notNull(),
+	outputTokens: integer("output_tokens").notNull(),
+	cacheCreationTokens: integer("cache_creation_tokens"),
+	cacheReadTokens: integer("cache_read_tokens"),
+	estimatedCostUsd: real("estimated_cost_usd").notNull(),
+	status: text("status"),
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
+
+export const agentLogs = sqliteTable("agent_logs", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	level: text("level", { enum: ["INFO", "WARN", "ERROR", "DECISION", "ACTION"] }).notNull(),
+	phase: text("phase"),
+	message: text("message").notNull(),
+	data: text("data"),
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
+
+export const dailySnapshots = sqliteTable("daily_snapshots", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	date: text("date").notNull().unique(),
+	portfolioValue: real("portfolio_value").notNull(),
+	cashBalance: real("cash_balance").notNull(),
+	positionsValue: real("positions_value").notNull(),
+	dailyPnl: real("daily_pnl").notNull(),
+	dailyPnlPercent: real("daily_pnl_percent").notNull(),
+	totalPnl: real("total_pnl").notNull(),
+	paperStrategiesActive: integer("paper_strategies_active").notNull().default(0),
+	liveStrategiesActive: integer("live_strategies_active").notNull().default(0),
+	tradesCount: integer("trades_count").notNull().default(0),
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
+
+export const improvementProposals = sqliteTable("improvement_proposals", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	title: text("title").notNull(),
+	description: text("description").notNull(),
+	filesChanged: text("files_changed"),
+	prUrl: text("pr_url"),
+	status: text("status", {
+		enum: ["PROPOSED", "PR_CREATED", "ISSUE_CREATED", "MERGED", "REJECTED"],
+	})
+		.notNull()
+		.default("PROPOSED"),
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
