@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d944ba66-6a5e-46e4-b0d8-9101e0a3ace8",
+  "id": "e25d6a9e-d222-496d-9e79-67d6400c3b93",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "agent_logs": {
@@ -727,6 +727,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "side": {
+          "name": "side",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'BUY'"
+        },
         "quantity": {
           "name": "quantity",
           "type": "real",
@@ -1183,7 +1191,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "strategy_metrics_strategy_id_unique": {
+          "name": "strategy_metrics_strategy_id_unique",
+          "columns": [
+            "strategy_id"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

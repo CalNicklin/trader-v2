@@ -113,6 +113,7 @@ CREATE TABLE `paper_positions` (
 	`strategy_id` integer NOT NULL,
 	`symbol` text NOT NULL,
 	`exchange` text NOT NULL,
+	`side` text DEFAULT 'BUY' NOT NULL,
 	`quantity` real NOT NULL,
 	`entry_price` real NOT NULL,
 	`current_price` real,
@@ -185,6 +186,7 @@ CREATE TABLE `strategy_metrics` (
 	`updated_at` text NOT NULL
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `strategy_metrics_strategy_id_unique` ON `strategy_metrics` (`strategy_id`);--> statement-breakpoint
 CREATE TABLE `strategy_mutations` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`parent_id` integer NOT NULL,
