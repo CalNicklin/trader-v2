@@ -90,12 +90,12 @@ export async function refreshQuote(symbol: string, exchange: string): Promise<Qu
 			symbol,
 			exchange,
 			last: quote.regularMarketPrice ?? null,
-			bid: "bid" in quote ? (quote.bid as number | undefined) ?? null : null,
-			ask: "ask" in quote ? (quote.ask as number | undefined) ?? null : null,
+			bid: "bid" in quote ? ((quote.bid as number | undefined) ?? null) : null,
+			ask: "ask" in quote ? ((quote.ask as number | undefined) ?? null) : null,
 			volume: quote.regularMarketVolume ?? null,
 			avgVolume:
 				"averageDailyVolume3Month" in quote
-					? (quote.averageDailyVolume3Month as number | undefined) ?? null
+					? ((quote.averageDailyVolume3Month as number | undefined) ?? null)
 					: null,
 			changePercent: quote.regularMarketChangePercent ?? null,
 		};

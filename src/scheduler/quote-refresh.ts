@@ -1,6 +1,6 @@
+import { refreshQuote } from "../data/quotes.ts";
 import { getDb } from "../db/client.ts";
 import { quotesCache } from "../db/schema.ts";
-import { refreshQuote } from "../data/quotes.ts";
 import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "quote-refresh" });

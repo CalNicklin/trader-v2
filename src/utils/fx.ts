@@ -42,11 +42,7 @@ export async function getExchangeRate(from: string, to: string): Promise<number>
 	return fallbacks[key] ?? 1;
 }
 
-export async function convertCurrency(
-	amount: number,
-	from: string,
-	to: string,
-): Promise<number> {
+export async function convertCurrency(amount: number, from: string, to: string): Promise<number> {
 	const rate = await getExchangeRate(from, to);
 	return amount * rate;
 }

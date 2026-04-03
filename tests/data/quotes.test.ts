@@ -27,10 +27,7 @@ describe("quotes", () => {
 			volume: 50000000,
 		});
 
-		const rows = await db
-			.select()
-			.from(quotesCache)
-			.where(eq(quotesCache.symbol, "AAPL"));
+		const rows = await db.select().from(quotesCache).where(eq(quotesCache.symbol, "AAPL"));
 		expect(rows).toHaveLength(1);
 		expect(rows[0]!.last).toBe(185.5);
 	});
@@ -42,10 +39,7 @@ describe("quotes", () => {
 		await upsertQuote({ symbol: "AAPL", exchange: "NASDAQ", last: 185.5 });
 		await upsertQuote({ symbol: "AAPL", exchange: "NASDAQ", last: 186.0 });
 
-		const rows = await db
-			.select()
-			.from(quotesCache)
-			.where(eq(quotesCache.symbol, "AAPL"));
+		const rows = await db.select().from(quotesCache).where(eq(quotesCache.symbol, "AAPL"));
 		expect(rows).toHaveLength(1);
 		expect(rows[0]!.last).toBe(186.0);
 	});
