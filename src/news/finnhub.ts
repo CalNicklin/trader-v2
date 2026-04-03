@@ -60,7 +60,7 @@ export async function fetchCompanyNews(symbol: string, apiKey: string): Promise<
 		{ maxAttempts: 2, baseDelayMs: 2000 },
 	);
 
-	const data: unknown[] = await response.json();
+	const data: unknown = await response.json();
 
 	if (!Array.isArray(data)) {
 		log.warn({ symbol }, "Finnhub returned non-array response");
