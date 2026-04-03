@@ -21,9 +21,21 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// Strategy evaluation every 10 minutes during market hours (08:00-20:00 UK)
+	tasks.push(
+		cron.schedule("*/10 8-20 * * 1-5", () => runJob("strategy_evaluation"), {
+			timezone: "Europe/London",
+		}),
+	);
+
+	// Daily summary at 21:05 weekdays (after market close)
+	tasks.push(
+		cron.schedule("5 21 * * 1-5", () => runJob("daily_summary"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	// Stubs for future phases — will be activated as phases are built
-	// Strategy evaluation: every 10 min during market hours
-	// Daily summary: 21:05 weekdays
 	// Weekly digest: 17:30 Friday
 	// Strategy evolution: 20:00 Sunday
 	// Trade review: 17:15 weekdays

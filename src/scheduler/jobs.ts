@@ -63,9 +63,19 @@ async function executeJob(name: JobName): Promise<void> {
 			break;
 		}
 
+		case "strategy_evaluation": {
+			const { runStrategyEvaluation } = await import("./strategy-eval-job.ts");
+			await runStrategyEvaluation();
+			break;
+		}
+
+		case "daily_summary": {
+			const { runDailySummary } = await import("./daily-summary-job.ts");
+			await runDailySummary();
+			break;
+		}
+
 		// Stubs for future phases — log and return
-		case "strategy_evaluation":
-		case "daily_summary":
 		case "weekly_digest":
 		case "strategy_evolution":
 		case "trade_review":

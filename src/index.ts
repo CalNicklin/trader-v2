@@ -16,6 +16,11 @@ async function boot() {
 	migrate(db, { migrationsFolder: "./drizzle/migrations" });
 	log.info("Database connected and migrated");
 
+	// Ensure seed strategies exist
+	const { ensureSeedStrategies } = await import("./strategy/seed.ts");
+	await ensureSeedStrategies();
+	log.info("Seed strategies verified");
+
 	// Start the scheduler
 	startScheduler();
 	log.info("Scheduler started — trader v2 is running");
