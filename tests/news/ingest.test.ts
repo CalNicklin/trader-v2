@@ -76,6 +76,39 @@ describe("news ingest orchestrator", () => {
 		expect(events[0]!.classifiedAt).toBeNull();
 	});
 
+	test("processArticle returns duplicate for seen headlines", async () => {
+		const { processArticle } = await import("../../src/news/ingest.ts");
+		const { newsEvents } = await import("../../src/db/schema.ts");
+
+		// Insert existing headline
+		await db.insert(newsEvents).values({
+			source: "finnhub",
+			headline: "Apple beats earnings estimates",
+			symbols: JSON.stringify(["AAPL"]),
+		});
+
+		const result = await processArticle(
+			{
+				headline: "Apple beats earnings estimates",
+				symbols: ["AAPL"],
+				url: "https://example.com",
+				source: "finnhub",
+				publishedAt: new Date(),
+				finnhubId: 789,
+			},
+			"NASDAQ",
+			async () => {
+				throw new Error("should not be called");
+			},
+		);
+
+		expect(result).toBe("duplicate");
+
+		// Should not have added a second row
+		const events = await db.select().from(newsEvents);
+		expect(events).toHaveLength(1);
+	});
+
 	test("deduplicates headlines already in news_events", async () => {
 		const { isHeadlineSeen } = await import("../../src/news/ingest.ts");
 		const { newsEvents } = await import("../../src/db/schema.ts");

@@ -35,6 +35,9 @@ export async function processArticle(
 	exchange: string,
 	classify: ClassifyFn,
 ): Promise<"duplicate" | "filtered" | "classified" | "failed"> {
+	// Dedup check
+	if (await isHeadlineSeen(article.headline)) return "duplicate";
+
 	// Check pre-filter
 	if (!shouldClassify(article.headline)) {
 		// Store unclassified for record-keeping
