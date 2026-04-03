@@ -4,7 +4,7 @@ import { getDb } from "../db/client.ts";
 import { strategies } from "../db/schema.ts";
 import { classifyHeadline } from "../news/classifier.ts";
 import { fetchCompanyNews } from "../news/finnhub.ts";
-import { isHeadlineSeen, processArticle } from "../news/ingest.ts";
+import { processArticle } from "../news/ingest.ts";
 import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "news-poll-job" });
@@ -24,7 +24,13 @@ async function getWatchlistSymbols(): Promise<Array<{ symbol: string; exchange: 
 
 	for (const strat of paperStrategies) {
 		if (!strat.universe) continue;
-		const universe: string[] = JSON.parse(strat.universe);
+		let universe: string[];
+		try {
+			universe = JSON.parse(strat.universe);
+		} catch {
+			log.warn({ universe: strat.universe }, "Malformed universe JSON — skipping");
+			continue;
+		}
 		for (const spec of universe) {
 			const [symbol, exchange] = spec.includes(":") ? spec.split(":") : [spec, "NASDAQ"];
 			const key = `${symbol}:${exchange}`;
@@ -70,21 +76,15 @@ export async function runNewsPoll(): Promise<void> {
 		const articles = await fetchCompanyNews(fhSymbol, config.FINNHUB_API_KEY);
 
 		for (const article of articles) {
-			// Ensure symbol mapping back from Finnhub format
 			if (article.symbols.length === 0) {
 				article.symbols = [symbol];
-			}
-
-			const seen = await isHeadlineSeen(article.headline);
-			if (seen) {
-				duplicates++;
-				continue;
 			}
 
 			totalArticles++;
 			const result = await processArticle(article, exchange, classifyHeadline);
 			if (result === "classified") classified++;
-			if (result === "filtered") filtered++;
+			else if (result === "filtered") filtered++;
+			else if (result === "duplicate") duplicates++;
 		}
 
 		// Respect Finnhub rate limit: 60 calls/min

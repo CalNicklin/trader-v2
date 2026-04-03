@@ -50,27 +50,35 @@ export async function runEarningsSync(): Promise<void> {
 		const db = getDb();
 		let inserted = 0;
 
+		// N+1 insert loop is acceptable here: dataset is typically <100 entries for 2 weeks.
+		// earningsCalendar has no unique constraint, so we use select-then-insert to avoid dups.
 		for (const earning of earnings) {
 			if (!earning.symbol || !earning.date) continue;
 
-			// Upsert: skip if already exists for this symbol+date
-			const existing = await db
-				.select({ id: earningsCalendar.id })
-				.from(earningsCalendar)
-				.where(
-					sql`${earningsCalendar.symbol} = ${earning.symbol} AND ${earningsCalendar.date} = ${earning.date}`,
-				)
-				.limit(1);
+			try {
+				const existing = await db
+					.select({ id: earningsCalendar.id })
+					.from(earningsCalendar)
+					.where(
+						sql`${earningsCalendar.symbol} = ${earning.symbol} AND ${earningsCalendar.date} = ${earning.date}`,
+					)
+					.limit(1);
 
-			if (existing.length === 0) {
-				await db.insert(earningsCalendar).values({
-					symbol: earning.symbol,
-					exchange: "NASDAQ", // Finnhub calendar is primarily US
-					date: earning.date,
-					estimatedEps: earning.epsEstimate,
-					source: "finnhub",
-				});
-				inserted++;
+				if (existing.length === 0) {
+					await db.insert(earningsCalendar).values({
+						symbol: earning.symbol,
+						exchange: "NASDAQ", // Finnhub calendar is primarily US
+						date: earning.date,
+						estimatedEps: earning.epsEstimate,
+						source: "finnhub",
+					});
+					inserted++;
+				}
+			} catch (rowError) {
+				log.warn(
+					{ symbol: earning.symbol, date: earning.date, error: rowError },
+					"Failed to upsert earnings row — skipping",
+				);
 			}
 		}
 

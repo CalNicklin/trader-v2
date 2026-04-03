@@ -27,20 +27,22 @@ export async function runJob(name: JobName): Promise<void> {
 	const start = Date.now();
 	log.info({ job: name }, "Job starting");
 
-	try {
-		const jobPromise = executeJob(name);
-		const timeoutPromise = new Promise<never>((_, reject) => {
-			setTimeout(
-				() => reject(new Error(`Job ${name} timed out after ${JOB_TIMEOUT_MS / 60000}min`)),
-				JOB_TIMEOUT_MS,
-			);
-		});
+	let timeoutId: ReturnType<typeof setTimeout> | undefined;
+	const jobPromise = executeJob(name);
+	const timeoutPromise = new Promise<never>((_, reject) => {
+		timeoutId = setTimeout(
+			() => reject(new Error(`Job ${name} timed out after ${JOB_TIMEOUT_MS / 60000}min`)),
+			JOB_TIMEOUT_MS,
+		);
+	});
 
+	try {
 		await Promise.race([jobPromise, timeoutPromise]);
 		log.info({ job: name, durationMs: Date.now() - start }, "Job completed");
 	} catch (error) {
 		log.error({ job: name, error, durationMs: Date.now() - start }, "Job failed");
 	} finally {
+		clearTimeout(timeoutId);
 		jobRunning = false;
 	}
 }
