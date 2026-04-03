@@ -41,6 +41,20 @@ export function startScheduler(): void {
 	// Trade review: 17:15 weekdays
 	// Pattern analysis: 19:00 Wednesday + Friday
 
+	// News poll every 10 minutes during market hours, offset to :02 to avoid collision
+	tasks.push(
+		cron.schedule("2,12,22,32,42,52 8-20 * * 1-5", () => runJob("news_poll"), {
+			timezone: "Europe/London",
+		}),
+	);
+
+	// Earnings calendar sync at 06:00 weekdays (before market open)
+	tasks.push(
+		cron.schedule("0 6 * * 1-5", () => runJob("earnings_calendar_sync"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	log.info({ jobCount: tasks.length }, "Scheduler started");
 }
 

@@ -11,6 +11,7 @@ export type JobName =
 	| "trade_review"
 	| "pattern_analysis"
 	| "earnings_calendar_sync"
+	| "news_poll"
 	| "heartbeat";
 
 let jobRunning = false;
@@ -75,12 +76,23 @@ async function executeJob(name: JobName): Promise<void> {
 			break;
 		}
 
+		case "news_poll": {
+			const { runNewsPoll } = await import("./news-poll-job.ts");
+			await runNewsPoll();
+			break;
+		}
+
+		case "earnings_calendar_sync": {
+			const { runEarningsSync } = await import("./earnings-sync-job.ts");
+			await runEarningsSync();
+			break;
+		}
+
 		// Stubs for future phases — log and return
 		case "weekly_digest":
 		case "strategy_evolution":
 		case "trade_review":
 		case "pattern_analysis":
-		case "earnings_calendar_sync":
 			log.info({ job: name }, "Job not yet implemented (future phase)");
 			break;
 	}
