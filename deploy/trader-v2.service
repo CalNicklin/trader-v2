@@ -1,0 +1,20 @@
+[Unit]
+Description=Trader v2 — autonomous strategy discovery engine
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/opt/trader-v2
+ExecStart=/home/deploy/.bun/bin/bun src/index.ts
+Restart=always
+RestartSec=10
+EnvironmentFile=/opt/trader-v2/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trader-v2
+
+[Install]
+WantedBy=multi-user.target
