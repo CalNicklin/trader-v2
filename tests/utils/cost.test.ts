@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { estimateCost, PRICING } from "../../src/utils/cost.ts";
+import { estimateCost } from "../../src/utils/cost.ts";
 
 describe("estimateCost", () => {
 	test("calculates Haiku cost correctly", () => {
