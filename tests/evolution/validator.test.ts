@@ -16,6 +16,7 @@ function makeParent(overrides: Partial<StrategyPerformance> = {}): StrategyPerfo
 		metrics: null,
 		recentTrades: [],
 		virtualBalance: 10000,
+		insightSummary: [],
 		...overrides,
 	};
 }

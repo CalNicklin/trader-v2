@@ -11,6 +11,7 @@ export interface StrategyPerformance {
 	metrics: MetricsSummary | null;
 	recentTrades: TradeSummary[];
 	virtualBalance: number;
+	insightSummary: string[];
 }
 
 export interface SignalDef {

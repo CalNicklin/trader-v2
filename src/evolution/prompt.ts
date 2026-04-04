@@ -87,6 +87,12 @@ export function buildEvolutionPrompt(landscape: PerformanceLandscape): {
 				"metrics:",
 				formatMetrics(s),
 			];
+			if (s.insightSummary.length > 0) {
+				lines.push("Learning loop insights:");
+				for (const insight of s.insightSummary.slice(0, 5)) {
+					lines.push(`  - ${insight}`);
+				}
+			}
 			return lines.join("\n");
 		})
 		.join("\n\n");
