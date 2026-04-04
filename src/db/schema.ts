@@ -219,6 +219,41 @@ export const strategyMutations = sqliteTable("strategy_mutations", {
 		.$defaultFn(() => new Date().toISOString()),
 });
 
+// ── Learning Loop ──────────────────────────────────────────────────────────
+
+export const tradeInsights = sqliteTable("trade_insights", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	strategyId: integer("strategy_id").notNull(),
+	tradeId: integer("trade_id"),
+	insightType: text("insight_type", {
+		enum: ["trade_review", "pattern_analysis", "graduation"],
+	}).notNull(),
+	tags: text("tags"), // JSON: string[]
+	observation: text("observation").notNull(),
+	suggestedAction: text("suggested_action"), // JSON: { parameter, direction, reasoning }
+	confidence: real("confidence"),
+	promptVersion: integer("prompt_version"),
+	ledToImprovement: integer("led_to_improvement", { mode: "boolean" }),
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
+
+export const learningLoopConfig = sqliteTable("learning_loop_config", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	configType: text("config_type", {
+		enum: ["trade_review", "pattern_analysis", "graduation"],
+	}).notNull(),
+	promptVersion: integer("prompt_version").notNull().default(1),
+	promptText: text("prompt_text").notNull(),
+	active: integer("active", { mode: "boolean" }).notNull().default(true),
+	hitRate: real("hit_rate"),
+	createdAt: text("created_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+	retiredAt: text("retired_at"),
+});
+
 // ── News ────────────────────────────────────────────────────────────────────
 
 export const newsEvents = sqliteTable(
