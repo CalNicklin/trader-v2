@@ -13,6 +13,8 @@ import { runTournaments } from "./tournament";
 
 const log = createChildLogger({ module: "evolution" });
 
+const EVOLUTION_ESTIMATED_COST_USD = 0.05;
+
 export async function runEvolutionCycle(): Promise<{
 	drawdownKills: number[];
 	tournaments: number;
@@ -61,7 +63,7 @@ export async function runEvolutionCycle(): Promise<{
 	}
 
 	// Step 7: Budget check
-	const canAfford = await canAffordCall(0.05);
+	const canAfford = await canAffordCall(EVOLUTION_ESTIMATED_COST_USD);
 	if (!canAfford) {
 		log.warn("Skipping evolution: insufficient budget for Sonnet call");
 		return {
@@ -126,10 +128,14 @@ export async function runEvolutionCycle(): Promise<{
 			continue;
 		}
 
-		const childId = await spawnChild(validation.mutation);
-		spawned.push(childId);
-		slotsUsed++;
-		log.info({ childId, parentId: proposal.parentId, name: proposal.name }, "Spawned child strategy");
+		try {
+			const childId = await spawnChild(validation.mutation);
+			spawned.push(childId);
+			slotsUsed++;
+			log.info({ childId, parentId: proposal.parentId, name: proposal.name }, "Spawned child strategy");
+		} catch (err) {
+			log.warn({ err, proposalName: proposal.name, parentId: proposal.parentId }, "Failed to spawn child strategy, skipping");
+		}
 	}
 
 	return {
