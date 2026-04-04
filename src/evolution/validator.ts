@@ -30,16 +30,21 @@ export function clampParameters(params: Record<string, number>): Record<string, 
 	return result;
 }
 
+// Chebyshev (max-delta) distance over shared parameters only.
+// Using the intersection avoids a bypass where adding a junk key to one set
+// makes every pair look diverse. The `1` floor in the denominator dampens
+// relative differences for small-valued params (e.g. a delta of 0.01 on a
+// param near 0 should not dominate).
+// Completely different parameter shapes (empty intersection) are treated as
+// maximally diverse (distance = 1).
 function parameterDistance(a: Record<string, number>, b: Record<string, number>): number {
-	const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+	const sharedKeys = Object.keys(a).filter((k) => k in b);
+	if (sharedKeys.length === 0) return 1; // completely different params = diverse
+
 	let maxDelta = 0;
-	for (const key of keys) {
-		const aVal = a[key] ?? 0;
-		const bVal = b[key] ?? 0;
-		const delta = Math.abs(aVal - bVal) / Math.max(Math.abs(aVal), Math.abs(bVal), 1);
-		if (delta > maxDelta) {
-			maxDelta = delta;
-		}
+	for (const key of sharedKeys) {
+		const denom = Math.max(Math.abs(a[key]), Math.abs(b[key]), 1);
+		maxDelta = Math.max(maxDelta, Math.abs(a[key] - b[key]) / denom);
 	}
 	return maxDelta;
 }
@@ -78,10 +83,20 @@ export function validateMutation(
 
 	// 5. Build parameterDiff
 	const parameterDiff: Record<string, { from: number; to: number }> = {};
+	const parentParams = parent.parameters ?? {};
+	// Track added/changed params.
+	// Note: parameter_tweak inherits parent params so unchanged keys are omitted;
+	// new_variant defines all its own params so every key will appear here.
 	for (const [key, value] of Object.entries(clamped)) {
-		const parentValue = parent.parameters[key];
+		const parentValue = parentParams[key];
 		if (parentValue === undefined || parentValue !== value) {
 			parameterDiff[key] = { from: parentValue ?? 0, to: value };
+		}
+	}
+	// Track removed params (keys present in parent but absent from child).
+	for (const key of Object.keys(parentParams)) {
+		if (!(key in clamped)) {
+			parameterDiff[key] = { from: parentParams[key], to: 0 };
 		}
 	}
 
