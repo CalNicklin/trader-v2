@@ -15,7 +15,8 @@
     "eval": "bun src/evals/run.ts",
     "eval:classifier": "bun src/evals/run.ts classifier",
     "eval:pre-filter": "bun src/evals/run.ts pre-filter",
-    "eval:pipeline": "bun src/evals/run.ts pipeline"
+    "eval:pipeline": "bun src/evals/run.ts pipeline",
+    "eval:evolution": "bun run src/evals/run.ts evolution"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.15",

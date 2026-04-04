@@ -34,4 +34,9 @@ if (suite === "all" || suite === "pipeline") {
 	await runPipelineEvals({ trials, tags, saveDir });
 }
 
+if (suite === "evolution") {
+	const { runEvolutionEvalSuite } = await import("./evolution/suite.ts");
+	await runEvolutionEvalSuite({ trials, suiteName: "evolution" });
+}
+
 console.log(`\nTotal duration: ${Date.now() - start}ms`);
