@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@octokit/rest": "^22.0.1",
     "drizzle-orm": "^0.45.1",
     "node-cron": "^4.2.1",
     "pino": "^10.3.1",
