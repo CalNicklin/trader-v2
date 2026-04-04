@@ -25,7 +25,7 @@ export async function runEvolutionEvalSuite(options?: Partial<SuiteOptions>): Pr
 
 			const response = await client.messages.create({
 				model: config.CLAUDE_MODEL,
-				max_tokens: 1024,
+				max_tokens: 4096,
 				system,
 				messages: [{ role: "user", content: user }],
 			});

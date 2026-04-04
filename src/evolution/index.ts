@@ -84,7 +84,7 @@ export async function runEvolutionCycle(): Promise<{
 		() =>
 			client.messages.create({
 				model: config.CLAUDE_MODEL,
-				max_tokens: 1024,
+				max_tokens: 4096,
 				system,
 				messages: [{ role: "user", content: user }],
 			}),

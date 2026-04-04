@@ -278,4 +278,18 @@ describe("parseEvolutionResponse", () => {
 		const result = parseEvolutionResponse(JSON.stringify([tweak, variant]));
 		expect(result).toHaveLength(2);
 	});
+
+	test("salvages complete objects from truncated JSON array", () => {
+		const full = JSON.stringify([validProposal, validProposal]);
+		// Truncate mid-way through second object
+		const truncated = full.slice(0, full.length - 20);
+		const result = parseEvolutionResponse(truncated);
+		expect(result).toHaveLength(1);
+		expect(result[0]!.parentId).toBe(validProposal.parentId);
+	});
+
+	test("returns [] when truncation is too severe to salvage", () => {
+		const result = parseEvolutionResponse('[{"parentId": 1, "type":');
+		expect(result).toEqual([]);
+	});
 });

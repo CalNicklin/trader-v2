@@ -110,6 +110,45 @@ Propose mutations to improve this portfolio. Guidelines:
 	return { system: SYSTEM_PROMPT, user };
 }
 
+/** Try to recover complete objects from a truncated JSON array */
+function salvageTruncatedArray(text: string): unknown[] | null {
+	// Walk backwards to find the last complete top-level object boundary
+	// by tracking brace depth from the start
+	let depth = 0;
+	let lastObjectEnd = -1;
+
+	for (let i = 0; i < text.length; i++) {
+		const ch = text[i];
+		if (ch === '"') {
+			// Skip strings (including escaped quotes)
+			i++;
+			while (i < text.length && text[i] !== '"') {
+				if (text[i] === "\\") i++;
+				i++;
+			}
+		} else if (ch === "{") {
+			depth++;
+		} else if (ch === "}") {
+			depth--;
+			if (depth === 0) {
+				// Closed a top-level object within the array
+				lastObjectEnd = i;
+			}
+		}
+	}
+
+	if (lastObjectEnd === -1) return null;
+
+	const candidate = `${text.slice(0, lastObjectEnd + 1)}]`;
+	try {
+		const parsed = JSON.parse(candidate);
+		if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+	} catch {
+		// Still broken — give up
+	}
+	return null;
+}
+
 export function parseEvolutionResponse(raw: string): MutationProposal[] {
 	let jsonText = raw.trim();
 
@@ -123,7 +162,9 @@ export function parseEvolutionResponse(raw: string): MutationProposal[] {
 	try {
 		parsed = JSON.parse(jsonText);
 	} catch {
-		return [];
+		// Attempt to salvage truncated JSON — find last complete object in array
+		parsed = salvageTruncatedArray(jsonText);
+		if (!parsed) return [];
 	}
 
 	if (!Array.isArray(parsed)) return [];
