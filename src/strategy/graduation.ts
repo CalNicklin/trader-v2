@@ -86,10 +86,14 @@ export async function checkGraduation(strategyId: number): Promise<GraduationRes
 	const [strat] = await db.select().from(strategies).where(eq(strategies.id, strategyId)).limit(1);
 
 	if (strat) {
-		const params = JSON.parse(strat.parameters);
-		const paramCount = Object.keys(params).length;
-		if (paramCount > CRITERIA.maxParameters) {
-			failures.push(`Too many parameters: ${paramCount} > ${CRITERIA.maxParameters}`);
+		try {
+			const params = JSON.parse(strat.parameters);
+			const paramCount = Object.keys(params).length;
+			if (paramCount > CRITERIA.maxParameters) {
+				failures.push(`Too many parameters: ${paramCount} > ${CRITERIA.maxParameters}`);
+			}
+		} catch {
+			failures.push("Could not parse strategy parameters");
 		}
 	}
 

@@ -73,18 +73,23 @@ export function parsePatternAnalysisResponse(text: string): PatternObservation[]
 				tags: Array.isArray(obs.tags)
 					? (obs.tags as unknown[]).filter((t): t is string => typeof t === "string")
 					: [],
-				suggestedAction:
-					obs.suggested_action != null &&
-					typeof (obs.suggested_action as Record<string, unknown>).parameter === "string"
-						? {
-								parameter: (obs.suggested_action as Record<string, string>).parameter,
-								direction: (obs.suggested_action as Record<string, string>).direction as
-									| "increase"
-									| "decrease"
-									| "none",
-								reasoning: (obs.suggested_action as Record<string, string>).reasoning,
-							}
-						: null,
+				suggestedAction: (() => {
+					if (obs.suggested_action == null) return null;
+					const act = obs.suggested_action as Record<string, unknown>;
+					const validDirections = ["increase", "decrease", "none"];
+					if (
+						typeof act.parameter !== "string" ||
+						typeof act.direction !== "string" ||
+						!validDirections.includes(act.direction) ||
+						typeof act.reasoning !== "string"
+					)
+						return null;
+					return {
+						parameter: act.parameter,
+						direction: act.direction as "increase" | "decrease" | "none",
+						reasoning: act.reasoning,
+					};
+				})(),
 				confidence: Math.max(0, Math.min(1, obs.confidence as number)),
 			}));
 	} catch {
@@ -126,7 +131,11 @@ export async function getRecentTradeClusters(lookbackDays = 7): Promise<Strategy
 		const tagsByTradeId = new Map<number, string[]>();
 		for (const insight of insights) {
 			if (insight.tradeId != null && insight.tags) {
-				tagsByTradeId.set(insight.tradeId, JSON.parse(insight.tags));
+				try {
+					tagsByTradeId.set(insight.tradeId, JSON.parse(insight.tags));
+				} catch {
+					tagsByTradeId.set(insight.tradeId, []);
+				}
 			}
 		}
 
@@ -172,7 +181,7 @@ export async function runPatternAnalysis(): Promise<{
 			() =>
 				client.messages.create({
 					model: config.CLAUDE_MODEL_FAST,
-					max_tokens: 500,
+					max_tokens: 1500,
 					system: promptText,
 					messages: [{ role: "user", content: userMessage }],
 				}),

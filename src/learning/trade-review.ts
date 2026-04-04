@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { and, eq, gte, isNotNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull } from "drizzle-orm";
 import { getConfig } from "../config.ts";
 import { getDb } from "../db/client.ts";
 import { newsEvents, paperTrades, strategies, tradeInsights } from "../db/schema.ts";
@@ -48,11 +48,13 @@ export function parseTradeReviewResponse(text: string, tradeId: number): TradeRe
 		if (typeof parsed.confidence !== "number") return null;
 
 		let suggestedAdj = null;
+		const validDirections = ["increase", "decrease", "none"];
 		if (parsed.suggested_parameter_adjustment != null) {
 			const adj = parsed.suggested_parameter_adjustment;
 			if (
 				typeof adj.parameter === "string" &&
 				typeof adj.direction === "string" &&
+				validDirections.includes(adj.direction) &&
 				typeof adj.reasoning === "string"
 			) {
 				suggestedAdj = {
@@ -103,7 +105,7 @@ export async function getTodaysClosedTrades(): Promise<TradeForReview[]> {
 			.where(eq(strategies.id, trade.strategyId))
 			.limit(1);
 
-		// Find matching entry trade for this position
+		// Find most recent entry trade for this position (before the exit)
 		const entryTrades = await db
 			.select()
 			.from(paperTrades)
@@ -113,9 +115,12 @@ export async function getTodaysClosedTrades(): Promise<TradeForReview[]> {
 					eq(paperTrades.symbol, trade.symbol),
 					eq(paperTrades.exchange, trade.exchange),
 				),
-			);
+			)
+			.orderBy(desc(paperTrades.createdAt));
 		const entryTrade = entryTrades.find(
-			(t) => t.signalType === "entry_long" || t.signalType === "entry_short",
+			(t) =>
+				(t.signalType === "entry_long" || t.signalType === "entry_short") &&
+				t.createdAt <= trade.createdAt,
 		);
 
 		const entryPrice = entryTrade?.price ?? trade.price;
@@ -134,14 +139,27 @@ export async function getTodaysClosedTrades(): Promise<TradeForReview[]> {
 			const entryTime = new Date(entryTrade.createdAt);
 			const windowStart = new Date(entryTime.getTime() - 24 * 60 * 60 * 1000);
 			const recentNews = await db
-				.select({ headline: newsEvents.headline })
+				.select({ headline: newsEvents.headline, symbols: newsEvents.symbols })
 				.from(newsEvents)
 				.where(
 					and(gte(newsEvents.createdAt, windowStart.toISOString()), eq(newsEvents.tradeable, true)),
 				)
-				.limit(3);
-			if (recentNews.length > 0) {
-				newsContext = recentNews.map((n) => n.headline).join("; ");
+				.limit(20);
+			// Filter to news mentioning this trade's symbol
+			const symbolNews = recentNews.filter((n) => {
+				if (!n.symbols) return false;
+				try {
+					const syms: string[] = JSON.parse(n.symbols);
+					return syms.includes(trade.symbol);
+				} catch {
+					return false;
+				}
+			});
+			if (symbolNews.length > 0) {
+				newsContext = symbolNews
+					.slice(0, 3)
+					.map((n) => n.headline)
+					.join("; ");
 			}
 		}
 

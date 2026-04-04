@@ -19,7 +19,8 @@ const JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 export async function runJob(name: JobName): Promise<void> {
 	if (jobRunning) {
-		log.debug({ job: name }, "Skipping — previous job still running");
+		const level = name === "trade_review" || name === "pattern_analysis" ? "warn" : "debug";
+		log[level]({ job: name }, "Skipping — previous job still running");
 		return;
 	}
 
