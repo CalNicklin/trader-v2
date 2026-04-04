@@ -4,7 +4,7 @@
 // than miss a tradeable event. Haiku calls are ~$0.0001 each.
 
 const BLOCK_PATTERNS = [
-	/\banalyst\s+reiterates?\b/i,
+	/\banalysts?\s+reiterates?\b/i,
 	/\broutine\s+filing\b/i,
 	/\bboard\s+(appointment|member|director)\b/i,
 	/\bESG\s+report\b/i,
