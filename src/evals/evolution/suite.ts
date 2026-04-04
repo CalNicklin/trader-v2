@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { getConfig } from "../../config.ts";
 import { buildEvolutionPrompt, parseEvolutionResponse } from "../../evolution/prompt.ts";
 import type { MutationProposal } from "../../evolution/types.ts";
 import { runSuite, type SuiteOptions } from "../harness.ts";
@@ -11,6 +12,7 @@ export async function runEvolutionEvalSuite(options?: Partial<SuiteOptions>): Pr
 	const { trials = 2, suiteName = "evolution" } = options ?? {};
 
 	const client = new Anthropic();
+	const config = getConfig();
 
 	const tasks = EVOLUTION_TASKS;
 
@@ -22,7 +24,7 @@ export async function runEvolutionEvalSuite(options?: Partial<SuiteOptions>): Pr
 			const { system, user } = buildEvolutionPrompt(input.landscape);
 
 			const response = await client.messages.create({
-				model: "claude-haiku-4-5",
+				model: config.CLAUDE_MODEL,
 				max_tokens: 1024,
 				system,
 				messages: [{ role: "user", content: user }],
