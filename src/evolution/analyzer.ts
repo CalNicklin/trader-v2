@@ -1,8 +1,10 @@
 import { desc, eq, ne } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { paperTrades, strategies, strategyMetrics } from "../db/schema";
-import { getLogger } from "../utils/logger";
+import { createChildLogger } from "../utils/logger";
 import type { MetricsSummary, PerformanceLandscape, SignalDef, StrategyPerformance, TradeSummary } from "./types";
+
+const log = createChildLogger({ module: "evolution:analyzer" });
 
 const RECENT_TRADES_LIMIT = 20;
 
@@ -82,13 +84,14 @@ export async function getPerformanceLandscape(): Promise<PerformanceLandscape> {
 		.where(ne(strategies.status, "retired"))
 		.all();
 
+	// N+1 is acceptable here — population cap of 8 means max 24 queries
 	const performances = await Promise.all(nonRetired.map((s) => getStrategyPerformance(s.id)));
 
 	const validPerformances = performances.filter((p): p is StrategyPerformance => p !== null);
 
 	const activePaperCount = validPerformances.filter((p) => p.status === "paper").length;
 
-	getLogger().info({ component: "evolution:analyzer" }, `Landscape built: ${validPerformances.length} strategies, ${activePaperCount} paper`);
+	log.info(`Landscape built: ${validPerformances.length} strategies, ${activePaperCount} paper`);
 
 	return {
 		strategies: validPerformances,
