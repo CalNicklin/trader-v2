@@ -96,10 +96,19 @@ async function executeJob(name: JobName): Promise<void> {
 			break;
 		}
 
+		case "trade_review": {
+			const { runTradeReviewJob } = await import("./trade-review-job.ts");
+			await runTradeReviewJob();
+			break;
+		}
+		case "pattern_analysis": {
+			const { runPatternAnalysisJob } = await import("./pattern-analysis-job.ts");
+			await runPatternAnalysisJob();
+			break;
+		}
+
 		// Stubs for future phases — log and return
 		case "weekly_digest":
-		case "trade_review":
-		case "pattern_analysis":
 			log.info({ job: name }, "Job not yet implemented (future phase)");
 			break;
 	}

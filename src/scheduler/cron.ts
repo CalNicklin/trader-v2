@@ -42,10 +42,22 @@ export function startScheduler(): void {
 		}),
 	);
 
-	// Stubs for future phases — will be activated as phases are built
+	// Daily trade review — 21:15 weekdays (after daily summary at 21:05)
+	tasks.push(
+		cron.schedule("15 21 * * 1-5", () => runJob("trade_review"), {
+			timezone: "Europe/London",
+		}),
+	);
+
+	// Pattern analysis — Tuesday and Friday at 21:30
+	tasks.push(
+		cron.schedule("30 21 * * 2,5", () => runJob("pattern_analysis"), {
+			timezone: "Europe/London",
+		}),
+	);
+
+	// Stubs for future phases
 	// Weekly digest: 17:30 Friday
-	// Trade review: 17:15 weekdays
-	// Pattern analysis: 19:00 Wednesday + Friday
 
 	// News poll every 10 minutes during market hours, offset to :02 to avoid collision
 	tasks.push(
