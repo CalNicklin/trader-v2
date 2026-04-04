@@ -74,6 +74,7 @@ export async function runTournaments(): Promise<TournamentResult[]> {
 		const parentSharpe = parentMetrics.sharpeRatio ?? -Infinity;
 		const childSharpe = childMetrics.sharpeRatio ?? -Infinity;
 
+		// Tie favors parent (conservative — require child to prove strictly better)
 		// 7. Child wins if childSharpe > parentSharpe, otherwise parent wins
 		const childWins = childSharpe > parentSharpe;
 		const winnerId = childWins ? mutation.childId : mutation.parentId;
@@ -99,14 +100,11 @@ export async function runTournaments(): Promise<TournamentResult[]> {
 		});
 
 		// 10. Update strategyMutations row with parentSharpe and childSharpe
-		const storedParentSharpe = parentMetrics.sharpeRatio ?? -Infinity;
-		const storedChildSharpe = childMetrics.sharpeRatio ?? -Infinity;
-
 		await db
 			.update(strategyMutations)
 			.set({
-				parentSharpe: storedParentSharpe,
-				childSharpe: storedChildSharpe,
+				parentSharpe: parentSharpe,
+				childSharpe: childSharpe,
 			})
 			.where(eq(strategyMutations.id, mutation.id));
 
@@ -116,8 +114,8 @@ export async function runTournaments(): Promise<TournamentResult[]> {
 		results.push({
 			parentId: mutation.parentId,
 			childId: mutation.childId,
-			parentSharpe: storedParentSharpe,
-			childSharpe: storedChildSharpe,
+			parentSharpe: parentSharpe,
+			childSharpe: childSharpe,
 			winnerId,
 			loserId,
 			reason,
