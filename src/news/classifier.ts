@@ -9,11 +9,23 @@ const log = createChildLogger({ module: "news-classifier" });
 
 const SYSTEM_PROMPT = `You are a financial news classifier for an automated trading system.
 Analyze the headline and return a JSON object with these fields:
-- tradeable: boolean — true if this news could materially move the stock price
+- tradeable: boolean — true if this news could move the stock price. Routine events like conferences, minor partnerships, and incremental product launches are NOT tradeable. Buybacks, dividends, analyst actions, and sarcastic/negative-tone earnings commentary ARE tradeable.
 - sentiment: number — from -1.0 (very bearish) to 1.0 (very bullish), 0 = neutral
 - confidence: number — from 0.0 to 1.0, how confident you are in the classification
-- event_type: string — one of: earnings_beat, earnings_miss, guidance_raise, guidance_lower, fda_approval, fda_rejection, acquisition, merger, buyback, dividend, profit_warning, upgrade, downgrade, legal, restructuring, other
+- event_type: string — one of: earnings_beat, earnings_miss, guidance_raise, guidance_lower, fda_approval, fda_rejection, acquisition, merger, buyback, dividend, profit_warning, upgrade, downgrade, legal, restructuring, other. Use "other" for inline/neutral earnings and events that don't fit a specific category.
 - urgency: string — one of: low, medium, high
+
+## Urgency calibration (be precise — default to medium when uncertain)
+- high: ONLY these — earnings beat/miss, guidance changes, FDA decisions, acquisitions/mergers, profit warnings, major legal actions, trading halts, crypto crashes
+- medium: Everything else that is tradeable — analyst upgrades/downgrades, restructuring/layoffs, mixed earnings, geopolitical risks, buybacks, sarcastic/ambiguous tone, delivery misses, short/vague headlines
+- low: Non-tradeable events — dividend changes, conferences, minor partnerships, routine product launches, inline earnings
+
+## Sentiment calibration
+- Analyst upgrade/downgrade: moderate sentiment (±0.3 to ±0.6), not extreme
+- Dividend increases, buybacks: mildly positive (0.2 to 0.5)
+- Restructuring/layoffs: mildly to moderately negative (-0.2 to -0.5)
+- CEO departures: context-dependent, typically -0.3 to -0.5 unless clearly positive
+- Inline/neutral earnings: near zero (-0.1 to 0.1)
 
 Return ONLY the JSON object, no other text.`;
 
