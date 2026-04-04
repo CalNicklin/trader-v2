@@ -20,20 +20,14 @@ export async function computeHitRates(): Promise<Record<ConfigType, number>> {
 			.select({ count: sql<number>`count(*)` })
 			.from(tradeInsights)
 			.where(
-				and(
-					eq(tradeInsights.insightType, configType),
-					isNotNull(tradeInsights.ledToImprovement),
-				),
+				and(eq(tradeInsights.insightType, configType), isNotNull(tradeInsights.ledToImprovement)),
 			);
 
 		const improved = await db
 			.select({ count: sql<number>`count(*)` })
 			.from(tradeInsights)
 			.where(
-				and(
-					eq(tradeInsights.insightType, configType),
-					eq(tradeInsights.ledToImprovement, true),
-				),
+				and(eq(tradeInsights.insightType, configType), eq(tradeInsights.ledToImprovement, true)),
 			);
 
 		const totalCount = total[0]?.count ?? 0;
@@ -45,20 +39,12 @@ export async function computeHitRates(): Promise<Record<ConfigType, number>> {
 	return rates;
 }
 
-export async function updatePromptHitRate(
-	configType: ConfigType,
-	hitRate: number,
-): Promise<void> {
+export async function updatePromptHitRate(configType: ConfigType, hitRate: number): Promise<void> {
 	const db = getDb();
 	await db
 		.update(learningLoopConfig)
 		.set({ hitRate })
-		.where(
-			and(
-				eq(learningLoopConfig.configType, configType),
-				eq(learningLoopConfig.active, true),
-			),
-		);
+		.where(and(eq(learningLoopConfig.configType, configType), eq(learningLoopConfig.active, true)));
 }
 
 export async function runMetaEvolutionUpdate(): Promise<void> {

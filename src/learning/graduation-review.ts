@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { and, eq } from "drizzle-orm";
+import { getConfig } from "../config.ts";
 import { getDb } from "../db/client.ts";
 import { tradeInsights } from "../db/schema.ts";
-import { getConfig } from "../config.ts";
 import { canAffordCall } from "../utils/budget.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
@@ -20,18 +20,20 @@ export function buildGraduationPrompt(input: GraduationReviewInput): string {
 		``,
 		`Metrics:`,
 		`  Sample size: ${input.metrics.sampleSize}`,
-		`  Win rate: ${input.metrics.winRate != null ? (input.metrics.winRate * 100).toFixed(1) + "%" : "N/A"}`,
+		`  Win rate: ${input.metrics.winRate != null ? `${(input.metrics.winRate * 100).toFixed(1)}%` : "N/A"}`,
 		`  Expectancy: ${input.metrics.expectancy ?? "N/A"}`,
 		`  Profit factor: ${input.metrics.profitFactor ?? "N/A"}`,
 		`  Sharpe ratio: ${input.metrics.sharpeRatio ?? "N/A"}`,
-		`  Max drawdown: ${input.metrics.maxDrawdownPct != null ? (input.metrics.maxDrawdownPct * 100).toFixed(1) + "%" : "N/A"}`,
+		`  Max drawdown: ${input.metrics.maxDrawdownPct != null ? `${(input.metrics.maxDrawdownPct * 100).toFixed(1)}%` : "N/A"}`,
 		`  Consistency: ${input.metrics.consistencyScore ?? "N/A"}/4 profitable weeks`,
 		``,
 		`Recent trades (last ${input.recentTrades.length}):`,
 	];
 
 	for (const trade of input.recentTrades) {
-		lines.push(`  ${trade.symbol} ${trade.side} | PnL: ${trade.pnl ?? "open"} | ${trade.createdAt}`);
+		lines.push(
+			`  ${trade.symbol} ${trade.side} | PnL: ${trade.pnl ?? "open"} | ${trade.createdAt}`,
+		);
 	}
 
 	if (input.patternInsights.length > 0) {
@@ -65,18 +67,14 @@ export function parseGraduationResponse(text: string): GraduationReviewResult | 
 				? parsed.risk_flags.filter((f: unknown) => typeof f === "string")
 				: [],
 			suggestedConditions:
-				typeof parsed.suggested_conditions === "string"
-					? parsed.suggested_conditions
-					: "",
+				typeof parsed.suggested_conditions === "string" ? parsed.suggested_conditions : "",
 		};
 	} catch {
 		return null;
 	}
 }
 
-export async function getPatternInsightsForStrategy(
-	strategyId: number,
-): Promise<string[]> {
+export async function getPatternInsightsForStrategy(strategyId: number): Promise<string[]> {
 	const db = getDb();
 	const insights = await db
 		.select({ observation: tradeInsights.observation, tags: tradeInsights.tags })
@@ -127,7 +125,10 @@ export async function reviewForGraduation(
 
 		const result = parseGraduationResponse(text);
 		if (!result) {
-			log.warn({ strategyId: input.strategyId, response: text }, "Failed to parse graduation review");
+			log.warn(
+				{ strategyId: input.strategyId, response: text },
+				"Failed to parse graduation review",
+			);
 			return null;
 		}
 

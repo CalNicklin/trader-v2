@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { and, eq, gte, desc } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
+import { getConfig } from "../config.ts";
 import { getDb } from "../db/client.ts";
 import { paperTrades, strategies, tradeInsights } from "../db/schema.ts";
-import { getConfig } from "../config.ts";
 import { canAffordCall } from "../utils/budget.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
@@ -35,8 +35,7 @@ export function buildPatternAnalysisPrompt(clusters: StrategyTradeCluster[]): st
 		lines.push(`Trades (${cluster.trades.length}):`);
 
 		for (const trade of cluster.trades) {
-			const tags =
-				trade.patternTags.length > 0 ? ` [tags: ${trade.patternTags.join(", ")}]` : "";
+			const tags = trade.patternTags.length > 0 ? ` [tags: ${trade.patternTags.join(", ")}]` : "";
 			lines.push(
 				`  ${trade.symbol} ${trade.side} | PnL: ${trade.pnl} | Hold: ${trade.holdDays}d | Signal: ${trade.signalType}${tags}`,
 			);
@@ -93,9 +92,7 @@ export function parsePatternAnalysisResponse(text: string): PatternObservation[]
 	}
 }
 
-export async function getRecentTradeClusters(
-	lookbackDays = 7,
-): Promise<StrategyTradeCluster[]> {
+export async function getRecentTradeClusters(lookbackDays = 7): Promise<StrategyTradeCluster[]> {
 	const db = getDb();
 	const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
 
@@ -110,9 +107,7 @@ export async function getRecentTradeClusters(
 		const trades = await db
 			.select()
 			.from(paperTrades)
-			.where(
-				and(eq(paperTrades.strategyId, strategy.id), gte(paperTrades.createdAt, since)),
-			)
+			.where(and(eq(paperTrades.strategyId, strategy.id), gte(paperTrades.createdAt, since)))
 			.orderBy(desc(paperTrades.createdAt));
 
 		if (trades.length < 3) continue; // skip strategies with insufficient data

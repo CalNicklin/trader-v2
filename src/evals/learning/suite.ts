@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { runSuite } from "../harness.ts";
-import { tradeReviewTasks } from "./tasks.ts";
-import { validJsonGrader, hasPatternTagsGrader, adjustmentPresenceGrader } from "./graders.ts";
 import { getActivePrompt } from "../../learning/prompts.ts";
+import { runSuite } from "../harness.ts";
+import { adjustmentPresenceGrader, hasPatternTagsGrader, validJsonGrader } from "./graders.ts";
+import { tradeReviewTasks } from "./tasks.ts";
 
 interface TradeReviewOutput {
 	rawResponse: string;
@@ -22,11 +22,7 @@ export async function runLearningEvalSuite(options: {
 	const { promptText } = await getActivePrompt("trade_review");
 	const client = new Anthropic();
 
-	const results = await runSuite<
-		{ tradePrompt: string },
-		TradeReviewOutput,
-		TradeReviewReference
-	>(
+	const results = await runSuite<{ tradePrompt: string }, TradeReviewOutput, TradeReviewReference>(
 		tradeReviewTasks,
 		async (input) => {
 			const response = await client.messages.create({

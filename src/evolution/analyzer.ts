@@ -2,13 +2,21 @@ import { desc, eq, ne } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { paperTrades, strategies, strategyMetrics, tradeInsights } from "../db/schema";
 import { createChildLogger } from "../utils/logger";
-import type { MetricsSummary, PerformanceLandscape, SignalDef, StrategyPerformance, TradeSummary } from "./types";
+import type {
+	MetricsSummary,
+	PerformanceLandscape,
+	SignalDef,
+	StrategyPerformance,
+	TradeSummary,
+} from "./types";
 
 const log = createChildLogger({ module: "evolution:analyzer" });
 
 const RECENT_TRADES_LIMIT = 20;
 
-export async function getStrategyPerformance(strategyId: number): Promise<StrategyPerformance | null> {
+export async function getStrategyPerformance(
+	strategyId: number,
+): Promise<StrategyPerformance | null> {
 	const db = getDb();
 
 	const strategy = await db.select().from(strategies).where(eq(strategies.id, strategyId)).get();

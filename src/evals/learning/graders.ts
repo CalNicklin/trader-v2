@@ -1,5 +1,5 @@
-import type { Grader } from "../types.ts";
 import { parseTradeReviewResponse } from "../../learning/trade-review.ts";
+import type { Grader } from "../types.ts";
 
 interface TradeReviewOutput {
 	rawResponse: string;

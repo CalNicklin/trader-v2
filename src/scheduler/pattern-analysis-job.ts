@@ -1,6 +1,6 @@
-import { createChildLogger } from "../utils/logger.ts";
-import { runPatternAnalysis } from "../learning/pattern-analysis.ts";
 import { runMetaEvolutionUpdate } from "../learning/meta-evolution.ts";
+import { runPatternAnalysis } from "../learning/pattern-analysis.ts";
+import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "pattern-analysis-job" });
 

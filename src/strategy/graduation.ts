@@ -1,8 +1,11 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { graduationEvents, paperTrades, strategies, strategyMetrics } from "../db/schema.ts";
+import {
+	getPatternInsightsForStrategy,
+	reviewForGraduation,
+} from "../learning/graduation-review.ts";
 import { createChildLogger } from "../utils/logger.ts";
-import { reviewForGraduation, getPatternInsightsForStrategy } from "../learning/graduation-review.ts";
 
 const log = createChildLogger({ module: "graduation" });
 
@@ -171,7 +174,12 @@ export async function runGraduationGate(strategyId: number): Promise<void> {
 
 		if (qualReview && qualReview.recommendation === "concerns") {
 			log.info(
-				{ strategyId, strategy: strat.name, reasoning: qualReview.reasoning, riskFlags: qualReview.riskFlags },
+				{
+					strategyId,
+					strategy: strat.name,
+					reasoning: qualReview.reasoning,
+					riskFlags: qualReview.riskFlags,
+				},
 				"Graduation blocked by qualitative review: concerns",
 			);
 			return;
@@ -179,7 +187,12 @@ export async function runGraduationGate(strategyId: number): Promise<void> {
 
 		if (qualReview && qualReview.recommendation === "hold") {
 			log.info(
-				{ strategyId, strategy: strat.name, reasoning: qualReview.reasoning, riskFlags: qualReview.riskFlags },
+				{
+					strategyId,
+					strategy: strat.name,
+					reasoning: qualReview.reasoning,
+					riskFlags: qualReview.riskFlags,
+				},
 				"Graduation delayed by qualitative review: hold",
 			);
 			return;

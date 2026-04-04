@@ -1,5 +1,5 @@
-import { createChildLogger } from "../utils/logger.ts";
 import { runDailyTradeReview } from "../learning/trade-review.ts";
+import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "trade-review-job" });
 

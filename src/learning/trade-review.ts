@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { and, eq, gte, isNotNull } from "drizzle-orm";
-import { getDb } from "../db/client.ts";
-import { paperTrades, strategies, tradeInsights, newsEvents } from "../db/schema.ts";
 import { getConfig } from "../config.ts";
+import { getDb } from "../db/client.ts";
+import { newsEvents, paperTrades, strategies, tradeInsights } from "../db/schema.ts";
 import { canAffordCall } from "../utils/budget.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
@@ -32,10 +32,7 @@ export function buildTradeReviewPrompt(trade: TradeForReview): string {
 	return lines.join("\n");
 }
 
-export function parseTradeReviewResponse(
-	text: string,
-	tradeId: number,
-): TradeReviewResult | null {
+export function parseTradeReviewResponse(text: string, tradeId: number): TradeReviewResult | null {
 	try {
 		const jsonStr = text
 			.replace(/```json?\n?/g, "")
@@ -140,10 +137,7 @@ export async function getTodaysClosedTrades(): Promise<TradeForReview[]> {
 				.select({ headline: newsEvents.headline })
 				.from(newsEvents)
 				.where(
-					and(
-						gte(newsEvents.createdAt, windowStart.toISOString()),
-						eq(newsEvents.tradeable, true),
-					),
+					and(gte(newsEvents.createdAt, windowStart.toISOString()), eq(newsEvents.tradeable, true)),
 				)
 				.limit(3);
 			if (recentNews.length > 0) {
@@ -173,9 +167,7 @@ export async function getTodaysClosedTrades(): Promise<TradeForReview[]> {
 	return result;
 }
 
-export async function reviewTrade(
-	trade: TradeForReview,
-): Promise<TradeReviewResult | null> {
+export async function reviewTrade(trade: TradeForReview): Promise<TradeReviewResult | null> {
 	const config = getConfig();
 
 	if (!(await canAffordCall(REVIEW_COST_PER_TRADE_USD))) {
@@ -201,11 +193,7 @@ export async function reviewTrade(
 		);
 
 		const text = response.content[0]?.type === "text" ? response.content[0].text : "";
-		await recordUsage(
-			"trade_review",
-			response.usage.input_tokens,
-			response.usage.output_tokens,
-		);
+		await recordUsage("trade_review", response.usage.input_tokens, response.usage.output_tokens);
 
 		const result = parseTradeReviewResponse(text, trade.tradeId);
 		if (!result) {

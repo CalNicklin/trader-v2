@@ -68,12 +68,7 @@ export async function getActivePrompt(configType: ConfigType): Promise<ActivePro
 	const rows = await db
 		.select()
 		.from(learningLoopConfig)
-		.where(
-			and(
-				eq(learningLoopConfig.configType, configType),
-				eq(learningLoopConfig.active, true),
-			),
-		)
+		.where(and(eq(learningLoopConfig.configType, configType), eq(learningLoopConfig.active, true)))
 		.orderBy(desc(learningLoopConfig.promptVersion))
 		.limit(1);
 
