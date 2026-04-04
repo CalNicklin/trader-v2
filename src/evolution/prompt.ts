@@ -1,5 +1,5 @@
-import type { MutationProposal, PerformanceLandscape } from "./types";
 import { MAX_POPULATION } from "./population";
+import type { MutationProposal, PerformanceLandscape } from "./types";
 
 const PARAMETER_RANGES = `
 - position_size_pct: 2–25
@@ -58,14 +58,17 @@ function formatMetrics(strategy: PerformanceLandscape["strategies"][number]): st
 	if (m.sortinoRatio !== null) lines.push(`  sortino: ${m.sortinoRatio.toFixed(2)}`);
 	if (m.expectancy !== null) lines.push(`  expectancy: ${m.expectancy.toFixed(2)}`);
 	if (m.profitFactor !== null) lines.push(`  profit_factor: ${m.profitFactor.toFixed(2)}`);
-	if (m.maxDrawdownPct !== null) lines.push(`  max_drawdown: ${(m.maxDrawdownPct * 100).toFixed(1)}%`);
+	if (m.maxDrawdownPct !== null) lines.push(`  max_drawdown: ${m.maxDrawdownPct.toFixed(1)}%`);
 	if (m.calmarRatio !== null) lines.push(`  calmar: ${m.calmarRatio.toFixed(2)}`);
 	if (m.consistencyScore !== null) lines.push(`  consistency: ${m.consistencyScore}`);
 
 	return lines.join("\n");
 }
 
-export function buildEvolutionPrompt(landscape: PerformanceLandscape): { system: string; user: string } {
+export function buildEvolutionPrompt(landscape: PerformanceLandscape): {
+	system: string;
+	user: string;
+} {
 	const { strategies, activePaperCount } = landscape;
 	const slotsUsed = `${activePaperCount} / ${MAX_POPULATION} paper slots used`;
 	const slotsAvailable = MAX_POPULATION - activePaperCount;
@@ -145,7 +148,11 @@ export function parseEvolutionResponse(raw: string): MutationProposal[] {
 		if (obj.type !== "parameter_tweak" && obj.type !== "new_variant") continue;
 
 		// parameters must be a non-null object
-		if (typeof obj.parameters !== "object" || obj.parameters === null || Array.isArray(obj.parameters)) {
+		if (
+			typeof obj.parameters !== "object" ||
+			obj.parameters === null ||
+			Array.isArray(obj.parameters)
+		) {
 			continue;
 		}
 
@@ -158,6 +165,8 @@ export function parseEvolutionResponse(raw: string): MutationProposal[] {
 			reasoning: obj.reasoning,
 		};
 
+		// new_variant proposals without signals/universe are accepted here —
+		// Task 3's validator enforces that both fields are required for new_variant.
 		if (obj.signals !== undefined) {
 			proposal.signals = obj.signals as MutationProposal["signals"];
 		}

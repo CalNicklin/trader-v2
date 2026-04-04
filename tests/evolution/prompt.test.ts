@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { buildEvolutionPrompt, parseEvolutionResponse } from "../../src/evolution/prompt";
-import type { MutationProposal, PerformanceLandscape, StrategyPerformance } from "../../src/evolution/types";
+import type {
+	MutationProposal,
+	PerformanceLandscape,
+	StrategyPerformance,
+} from "../../src/evolution/types";
 
 function makeStrategy(overrides: Partial<StrategyPerformance> = {}): StrategyPerformance {
 	return {
@@ -20,7 +24,7 @@ function makeStrategy(overrides: Partial<StrategyPerformance> = {}): StrategyPer
 			profitFactor: 1.8,
 			sharpeRatio: 1.2,
 			sortinoRatio: 1.5,
-			maxDrawdownPct: 0.08,
+			maxDrawdownPct: 8.0,
 			calmarRatio: 0.9,
 			consistencyScore: 3,
 		},
@@ -111,7 +115,7 @@ describe("buildEvolutionPrompt", () => {
 				sortinoRatio: null,
 				expectancy: null,
 				profitFactor: null,
-				maxDrawdownPct: 0.12,
+				maxDrawdownPct: 12.0,
 				calmarRatio: null,
 				consistencyScore: null,
 			},
@@ -173,14 +177,14 @@ describe("parseEvolutionResponse", () => {
 	});
 
 	test("extracts JSON from markdown code blocks (```json ... ```)", () => {
-		const raw = "Here are my proposals:\n```json\n" + JSON.stringify([validProposal]) + "\n```\n";
+		const raw = `Here are my proposals:\n\`\`\`json\n${JSON.stringify([validProposal])}\n\`\`\`\n`;
 		const result = parseEvolutionResponse(raw);
 		expect(result).toHaveLength(1);
 		expect(result[0]!.name).toBe("momentum-v1-tweak");
 	});
 
 	test("extracts JSON from plain code blocks (``` ... ```)", () => {
-		const raw = "```\n" + JSON.stringify([validProposal]) + "\n```";
+		const raw = `\`\`\`\n${JSON.stringify([validProposal])}\n\`\`\``;
 		const result = parseEvolutionResponse(raw);
 		expect(result).toHaveLength(1);
 	});
