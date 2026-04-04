@@ -156,22 +156,38 @@ export function parseEvolutionResponse(raw: string): MutationProposal[] {
 			continue;
 		}
 
+		// All parameter values must be finite numbers
+		const paramEntries = Object.entries(obj.parameters as Record<string, unknown>);
+		if (paramEntries.some(([_k, v]) => typeof v !== "number" || !Number.isFinite(v))) {
+			continue;
+		}
+
 		const proposal: MutationProposal = {
 			parentId: obj.parentId,
 			type: obj.type,
-			name: obj.name,
-			description: obj.description,
+			name: obj.name.slice(0, 100),
+			description: obj.description.slice(0, 500),
 			parameters: obj.parameters as Record<string, number>,
 			reasoning: obj.reasoning,
 		};
 
 		// new_variant proposals without signals/universe are accepted here —
 		// Task 3's validator enforces that both fields are required for new_variant.
-		if (obj.signals !== undefined) {
-			proposal.signals = obj.signals as MutationProposal["signals"];
+		if (obj.signals != null) {
+			if (typeof obj.signals === "object" && !Array.isArray(obj.signals)) {
+				const validKeys = ["entry_long", "entry_short", "exit"];
+				const signals: Record<string, string> = {};
+				for (const [k, v] of Object.entries(obj.signals as Record<string, unknown>)) {
+					if (validKeys.includes(k) && typeof v === "string") {
+						signals[k] = v;
+					}
+				}
+				proposal.signals = signals as MutationProposal["signals"];
+			}
+			// Invalid signals shape — omit; validator will use parent's signals
 		}
-		if (obj.universe !== undefined) {
-			proposal.universe = obj.universe as string[];
+		if (Array.isArray(obj.universe)) {
+			proposal.universe = obj.universe.filter((u: unknown) => typeof u === "string");
 		}
 
 		valid.push(proposal);
