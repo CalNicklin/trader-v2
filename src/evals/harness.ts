@@ -50,6 +50,7 @@ export async function runTrial<TInput, TOutput, TReference>(
 
 export interface SuiteOptions {
 	trials: number;
+	suiteName?: string;
 }
 
 export async function runSuite<TInput, TOutput, TReference>(
@@ -91,7 +92,7 @@ export async function runSuite<TInput, TOutput, TReference>(
 		allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
 
 	return {
-		suiteName: "",
+		suiteName: options.suiteName ?? "",
 		tasks: taskResults,
 		summary: {
 			totalTasks: tasks.length,

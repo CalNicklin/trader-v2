@@ -26,6 +26,17 @@ export async function runPipelineEvals(
 	const results = await runSuite<PipelineInput, PipelineOutput, PipelineReference>(
 		tasks,
 		async (input) => {
+			// Clear previous trial's data to avoid dedup collision
+			const { getDb } = await import("../../db/client.ts");
+			const { newsEvents, quotesCache } = await import("../../db/schema.ts");
+			const { eq, and } = await import("drizzle-orm");
+			const db = getDb();
+
+			await db.delete(newsEvents).where(eq(newsEvents.headline, input.headline));
+			await db
+				.delete(quotesCache)
+				.where(and(eq(quotesCache.symbol, input.symbol), eq(quotesCache.exchange, input.exchange)));
+
 			const article: NewsArticle = {
 				headline: input.headline,
 				symbols: [input.symbol],
@@ -38,10 +49,7 @@ export async function runPipelineEvals(
 			const result = await processArticle(article, input.exchange, classifyHeadline);
 
 			// Read back what was stored
-			const { getDb } = await import("../../db/client.ts");
-			const { newsEvents } = await import("../../db/schema.ts");
-			const { eq, desc } = await import("drizzle-orm");
-			const db = getDb();
+			const { desc } = await import("drizzle-orm");
 
 			const [event] = await db
 				.select()
@@ -57,10 +65,8 @@ export async function runPipelineEvals(
 			};
 		},
 		allPipelineGraders,
-		{ trials },
+		{ trials, suiteName: "pipeline" },
 	);
-
-	results.suiteName = "pipeline";
 
 	console.log(formatSuiteReport(results));
 

@@ -26,10 +26,8 @@ export async function runClassifierEvals(
 			return result;
 		},
 		allClassifierGraders,
-		{ trials },
+		{ trials, suiteName: "classifier" },
 	);
-
-	results.suiteName = "classifier";
 
 	console.log(formatSuiteReport(results));
 

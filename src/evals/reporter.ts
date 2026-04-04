@@ -29,10 +29,3 @@ export function formatSuiteReport<T>(results: SuiteResults<T>): string {
 	lines.push("");
 	return lines.join("\n");
 }
-
-export async function saveResults<T>(results: SuiteResults<T>, dir: string): Promise<string> {
-	const filename = `${results.suiteName.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}.json`;
-	const path = `${dir}/${filename}`;
-	await Bun.write(path, JSON.stringify(results, null, 2));
-	return path;
-}

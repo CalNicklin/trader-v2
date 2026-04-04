@@ -7,7 +7,7 @@ export interface PipelineInput {
 }
 
 export interface PipelineReference {
-	expectedOutcome: "filtered" | "classified" | "failed";
+	expectedOutcome: "filtered" | "classified" | "failed" | "duplicate";
 	expectedTradeable: boolean | null;
 	sentimentMin: number;
 	sentimentMax: number;

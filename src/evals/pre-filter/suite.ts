@@ -20,10 +20,8 @@ export async function runPreFilterEvals(
 		tasks,
 		async (headline) => shouldClassify(headline),
 		allPreFilterGraders,
-		{ trials: 1 }, // Deterministic — 1 trial sufficient
+		{ trials: 1, suiteName: "pre-filter" }, // Deterministic — 1 trial sufficient
 	);
-
-	results.suiteName = "pre-filter";
 
 	console.log(formatSuiteReport(results));
 
