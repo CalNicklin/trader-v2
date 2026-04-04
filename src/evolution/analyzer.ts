@@ -1,14 +1,22 @@
 import { desc, eq, ne } from "drizzle-orm";
 import { getDb } from "../db/client";
-import { paperTrades, strategies, strategyMetrics } from "../db/schema";
+import { paperTrades, strategies, strategyMetrics, tradeInsights } from "../db/schema";
 import { createChildLogger } from "../utils/logger";
-import type { MetricsSummary, PerformanceLandscape, SignalDef, StrategyPerformance, TradeSummary } from "./types";
+import type {
+	MetricsSummary,
+	PerformanceLandscape,
+	SignalDef,
+	StrategyPerformance,
+	TradeSummary,
+} from "./types";
 
 const log = createChildLogger({ module: "evolution:analyzer" });
 
 const RECENT_TRADES_LIMIT = 20;
 
-export async function getStrategyPerformance(strategyId: number): Promise<StrategyPerformance | null> {
+export async function getStrategyPerformance(
+	strategyId: number,
+): Promise<StrategyPerformance | null> {
 	const db = getDb();
 
 	const strategy = await db.select().from(strategies).where(eq(strategies.id, strategyId)).get();
@@ -59,6 +67,17 @@ export async function getStrategyPerformance(strategyId: number): Promise<Strate
 		createdAt: t.createdAt,
 	}));
 
+	const insights = await db
+		.select({ observation: tradeInsights.observation, confidence: tradeInsights.confidence })
+		.from(tradeInsights)
+		.where(eq(tradeInsights.strategyId, strategyId))
+		.orderBy(desc(tradeInsights.createdAt))
+		.limit(10);
+
+	const insightSummary = insights
+		.filter((i) => (i.confidence ?? 0) >= 0.5)
+		.map((i) => i.observation);
+
 	return {
 		id: strategy.id,
 		name: strategy.name,
@@ -72,6 +91,7 @@ export async function getStrategyPerformance(strategyId: number): Promise<Strate
 		metrics: metricsSummary,
 		recentTrades,
 		virtualBalance: strategy.virtualBalance,
+		insightSummary,
 	};
 }
 

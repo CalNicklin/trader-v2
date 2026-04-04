@@ -30,6 +30,7 @@ function makeStrategy(overrides: Partial<StrategyPerformance> = {}): StrategyPer
 		},
 		recentTrades: [],
 		virtualBalance: 10000,
+		insightSummary: [],
 		...overrides,
 	};
 }

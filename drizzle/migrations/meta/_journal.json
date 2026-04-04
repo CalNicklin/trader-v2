@@ -15,6 +15,13 @@
       "when": 1775255230064,
       "tag": "0001_chubby_sentinels",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1775338823535,
+      "tag": "0002_futuristic_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

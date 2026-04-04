@@ -1,6 +1,10 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { graduationEvents, paperTrades, strategies, strategyMetrics } from "../db/schema.ts";
+import {
+	getPatternInsightsForStrategy,
+	reviewForGraduation,
+} from "../learning/graduation-review.ts";
 import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "graduation" });
@@ -132,6 +136,68 @@ export async function runGraduationGate(strategyId: number): Promise<void> {
 	if (!strat || strat.status !== "paper") return;
 
 	if (result.passes) {
+		// Qualitative review gate — additive, not blocking on API failure
+		const recentTradesForReview = await db
+			.select({
+				symbol: paperTrades.symbol,
+				side: paperTrades.side,
+				pnl: paperTrades.pnl,
+				createdAt: paperTrades.createdAt,
+			})
+			.from(paperTrades)
+			.where(eq(paperTrades.strategyId, strategyId))
+			.orderBy(paperTrades.createdAt)
+			.limit(20);
+
+		const [metricsRow] = await db
+			.select()
+			.from(strategyMetrics)
+			.where(eq(strategyMetrics.strategyId, strategyId))
+			.limit(1);
+
+		const patternInsights = await getPatternInsightsForStrategy(strategyId);
+		const qualReview = await reviewForGraduation({
+			strategyId,
+			strategyName: strat.name,
+			metrics: {
+				sampleSize: metricsRow?.sampleSize ?? 0,
+				winRate: metricsRow?.winRate ?? null,
+				expectancy: metricsRow?.expectancy ?? null,
+				profitFactor: metricsRow?.profitFactor ?? null,
+				sharpeRatio: metricsRow?.sharpeRatio ?? null,
+				maxDrawdownPct: metricsRow?.maxDrawdownPct ?? null,
+				consistencyScore: metricsRow?.consistencyScore ?? null,
+			},
+			recentTrades: recentTradesForReview,
+			patternInsights,
+		});
+
+		if (qualReview && qualReview.recommendation === "concerns") {
+			log.info(
+				{
+					strategyId,
+					strategy: strat.name,
+					reasoning: qualReview.reasoning,
+					riskFlags: qualReview.riskFlags,
+				},
+				"Graduation blocked by qualitative review: concerns",
+			);
+			return;
+		}
+
+		if (qualReview && qualReview.recommendation === "hold") {
+			log.info(
+				{
+					strategyId,
+					strategy: strat.name,
+					reasoning: qualReview.reasoning,
+					riskFlags: qualReview.riskFlags,
+				},
+				"Graduation delayed by qualitative review: hold",
+			);
+			return;
+		}
+
 		await db.update(strategies).set({ status: "probation" }).where(eq(strategies.id, strategyId));
 
 		await db.insert(graduationEvents).values({
