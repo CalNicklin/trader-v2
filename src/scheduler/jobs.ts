@@ -90,9 +90,14 @@ async function executeJob(name: JobName): Promise<void> {
 			break;
 		}
 
+		case "strategy_evolution": {
+			const { runEvolutionJob } = await import("./evolution-job.ts");
+			await runEvolutionJob();
+			break;
+		}
+
 		// Stubs for future phases — log and return
 		case "weekly_digest":
-		case "strategy_evolution":
 		case "trade_review":
 		case "pattern_analysis":
 			log.info({ job: name }, "Job not yet implemented (future phase)");

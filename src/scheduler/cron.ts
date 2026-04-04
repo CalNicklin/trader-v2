@@ -35,9 +35,15 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// Strategy evolution — weekly Sunday 18:00
+	tasks.push(
+		cron.schedule("0 18 * * 0", () => runJob("strategy_evolution"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	// Stubs for future phases — will be activated as phases are built
 	// Weekly digest: 17:30 Friday
-	// Strategy evolution: 20:00 Sunday
 	// Trade review: 17:15 weekdays
 	// Pattern analysis: 19:00 Wednesday + Friday
 
