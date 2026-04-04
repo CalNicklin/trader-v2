@@ -14,6 +14,14 @@ Analyze the headline and return a JSON object with these fields:
 - confidence: number — from 0.0 to 1.0, how confident you are in the classification
 - event_type: string — one of: earnings_beat, earnings_miss, guidance_raise, guidance_lower, fda_approval, fda_rejection, acquisition, merger, buyback, dividend, profit_warning, upgrade, downgrade, legal, restructuring, other. Use "other" for inline/neutral earnings and events that don't fit a specific category.
 - urgency: string — one of: low, medium, high
+- signals: object — event-specific signal scores (include ONLY when tradeable is true):
+  - earnings_surprise: number 0-1 — strength of earnings surprise (0 if not earnings-related)
+  - guidance_change: number 0-1 — magnitude of forward guidance change (0 if none)
+  - management_tone: number 0-1 — confidence/optimism in management commentary (0.5 = neutral)
+  - regulatory_risk: number 0-1 — regulatory threat level (0 = none)
+  - acquisition_likelihood: number 0-1 — probability this leads to M&A activity (0 = none)
+  - catalyst_type: string — one of: fundamental, technical, macro, sector, sentiment, other
+  - expected_move_duration: string — one of: intraday, 1-3d, 1-2w, 1m+
 
 ## Urgency calibration (be precise — default to medium when uncertain)
 - high: ONLY these — earnings beat/miss, guidance changes, FDA decisions, acquisitions/mergers, profit warnings, major legal actions, trading halts, crypto crashes
@@ -29,12 +37,63 @@ Analyze the headline and return a JSON object with these fields:
 
 Return ONLY the JSON object, no other text.`;
 
+export interface ClassificationSignals {
+	earningsSurprise: number;
+	guidanceChange: number;
+	managementTone: number;
+	regulatoryRisk: number;
+	acquisitionLikelihood: number;
+	catalystType: string;
+	expectedMoveDuration: string;
+}
+
 export interface ClassificationResult {
 	tradeable: boolean;
 	sentiment: number;
 	confidence: number;
 	eventType: string;
 	urgency: "low" | "medium" | "high";
+	signals: ClassificationSignals | null;
+}
+
+const VALID_CATALYST_TYPES = new Set([
+	"fundamental",
+	"technical",
+	"macro",
+	"sector",
+	"sentiment",
+	"other",
+]);
+
+const VALID_MOVE_DURATIONS = new Set(["intraday", "1-3d", "1-2w", "1m+"]);
+
+function clamp01(value: number): number {
+	return Math.max(0, Math.min(1, value));
+}
+
+function parseSignals(raw: unknown): ClassificationSignals | null {
+	if (raw == null || typeof raw !== "object") return null;
+	const s = raw as Record<string, unknown>;
+
+	if (typeof s.earnings_surprise !== "number") return null;
+	if (typeof s.guidance_change !== "number") return null;
+	if (typeof s.management_tone !== "number") return null;
+	if (typeof s.regulatory_risk !== "number") return null;
+	if (typeof s.acquisition_likelihood !== "number") return null;
+	if (typeof s.catalyst_type !== "string") return null;
+	if (typeof s.expected_move_duration !== "string") return null;
+
+	return {
+		earningsSurprise: clamp01(s.earnings_surprise),
+		guidanceChange: clamp01(s.guidance_change),
+		managementTone: clamp01(s.management_tone),
+		regulatoryRisk: clamp01(s.regulatory_risk),
+		acquisitionLikelihood: clamp01(s.acquisition_likelihood),
+		catalystType: VALID_CATALYST_TYPES.has(s.catalyst_type) ? s.catalyst_type : "other",
+		expectedMoveDuration: VALID_MOVE_DURATIONS.has(s.expected_move_duration)
+			? s.expected_move_duration
+			: "1-3d",
+	};
 }
 
 export function buildClassificationPrompt(headline: string, symbol: string): string {
@@ -85,6 +144,7 @@ export function parseClassificationResponse(text: string): ClassificationResult 
 			confidence: Math.max(0, Math.min(1, parsed.confidence)),
 			eventType,
 			urgency: parsed.urgency as "low" | "medium" | "high",
+			signals: parseSignals(parsed.signals),
 		};
 	} catch {
 		return null;
@@ -97,7 +157,7 @@ export async function classifyHeadline(
 ): Promise<ClassificationResult | null> {
 	const config = getConfig();
 
-	const estimatedCost = 0.0002; // ~200 input + 50 output tokens at Haiku rates
+	const estimatedCost = 0.0003; // ~200 input + 50 output tokens at Haiku rates
 	if (!(await canAffordCall(estimatedCost))) {
 		log.warn("Skipping classification — daily budget exceeded");
 		return null;
@@ -111,7 +171,7 @@ export async function classifyHeadline(
 			async () =>
 				client.messages.create({
 					model: config.CLAUDE_MODEL_FAST,
-					max_tokens: 150,
+					max_tokens: 300,
 					system: SYSTEM_PROMPT,
 					messages: [{ role: "user", content: userMessage }],
 				}),
