@@ -39,4 +39,9 @@ if (suite === "all" || suite === "evolution") {
 	await runEvolutionEvalSuite({ trials, suiteName: "evolution" });
 }
 
+if (suite === "all" || suite === "learning") {
+	const { runLearningEvalSuite } = await import("./learning/suite.ts");
+	await runLearningEvalSuite({ trials, suiteName: "learning" });
+}
+
 console.log(`\nTotal duration: ${Date.now() - start}ms`);
