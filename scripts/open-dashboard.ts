@@ -14,14 +14,14 @@ const envContent = readFileSync(envPath, "utf-8");
 function getVar(name: string, fallback?: string): string {
 	const match = envContent.match(new RegExp(`^${name}=(.+)$`, "m"));
 	const value = match?.[1]?.trim() ?? fallback;
-	if (!value) throw new Error(`Missing ${name} in .env`);
+	if (value === undefined || value === null) throw new Error(`Missing ${name} in .env`);
 	return value;
 }
 
 const vpsHost = getVar("VPS_HOST");
 const vpsUser = getVar("VPS_USER");
 const adminPassword = getVar("ADMIN_PASSWORD", "");
-const localPort = 3847;
+const localPort = 13847;
 
 // Extract SSH key to temp file
 const keyMatch = envContent.match(
