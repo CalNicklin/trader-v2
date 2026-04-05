@@ -112,9 +112,10 @@ async function executeJob(name: JobName): Promise<void> {
 			break;
 		}
 
-		// Stubs for future phases — log and return
-		case "weekly_digest":
-			log.info({ job: name }, "Job not yet implemented (future phase)");
+		case "weekly_digest": {
+			const { runWeeklyDigest } = await import("./weekly-digest-job.ts");
+			await runWeeklyDigest();
 			break;
+		}
 	}
 }

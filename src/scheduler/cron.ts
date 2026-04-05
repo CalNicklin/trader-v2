@@ -56,8 +56,12 @@ export function startScheduler(): void {
 		}),
 	);
 
-	// Stubs for future phases
-	// Weekly digest: 17:30 Friday
+	// Weekly digest: 17:30 Sunday
+	tasks.push(
+		cron.schedule("30 17 * * 0", () => runJob("weekly_digest"), {
+			timezone: "Europe/London",
+		}),
+	);
 
 	// News poll every 10 minutes during market hours, offset to :02 to avoid collision
 	tasks.push(
