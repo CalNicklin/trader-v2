@@ -5,9 +5,7 @@ describe("heartbeat", () => {
 	test("buildHeartbeatUrl appends status and msg params", () => {
 		const base = "https://uptime.example.com/api/push/abc123";
 		const url = buildHeartbeatUrl(base, "up", "quote_refresh OK");
-		expect(url).toBe(
-			"https://uptime.example.com/api/push/abc123?status=up&msg=quote_refresh+OK",
-		);
+		expect(url).toBe("https://uptime.example.com/api/push/abc123?status=up&msg=quote_refresh+OK");
 	});
 
 	test("buildHeartbeatUrl handles base URL with existing params", () => {

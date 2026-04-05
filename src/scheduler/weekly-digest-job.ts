@@ -1,10 +1,10 @@
 import { gte, sql } from "drizzle-orm";
 import { getDb } from "../db/client";
 import {
+	improvementProposals,
 	strategies,
 	strategyMetrics,
 	strategyMutations,
-	improvementProposals,
 	tokenUsage,
 } from "../db/schema";
 import { sendEmail } from "../reporting/email";
@@ -63,10 +63,7 @@ export async function getWeeklyDigestData(): Promise<WeeklyDigestData> {
 		})
 		.from(strategyMutations)
 		.innerJoin(strategies, sql`${strategies.id} = ${strategyMutations.parentId}`)
-		.innerJoin(
-			sql`strategies AS child_s`,
-			sql`child_s.id = ${strategyMutations.childId}`,
-		)
+		.innerJoin(sql`strategies AS child_s`, sql`child_s.id = ${strategyMutations.childId}`)
 		.where(gte(strategyMutations.createdAt, weekAgo.toISOString()))
 		.all();
 

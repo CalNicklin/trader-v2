@@ -1,8 +1,8 @@
 import type { Server } from "bun";
-import { getHealthData, setPaused } from "./health";
-import { buildStatusPageHtml } from "./status-page";
 import { getConfig } from "../config";
 import { createChildLogger } from "../utils/logger";
+import { getHealthData, setPaused } from "./health";
+import { buildStatusPageHtml } from "./status-page";
 
 const log = createChildLogger({ module: "http-server" });
 

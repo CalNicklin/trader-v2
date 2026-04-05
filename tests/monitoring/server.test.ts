@@ -1,4 +1,4 @@
-import { describe, expect, test, afterEach, beforeEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { startServer, stopServer } from "../../src/monitoring/server";
 
 describe("HTTP server", () => {

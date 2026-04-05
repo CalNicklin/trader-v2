@@ -1,5 +1,5 @@
-import { describe, expect, test, beforeEach } from "bun:test";
-import { strategies, dailySnapshots, tokenUsage, quotesCache } from "../../src/db/schema";
+import { beforeEach, describe, expect, test } from "bun:test";
+import { dailySnapshots, quotesCache, strategies, tokenUsage } from "../../src/db/schema";
 
 describe("health data collector", () => {
 	beforeEach(async () => {

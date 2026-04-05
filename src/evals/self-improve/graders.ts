@@ -47,10 +47,7 @@ export function gradeProposalCount(
 	};
 }
 
-export function gradeTargetFiles(
-	ideas: ImprovementIdea[],
-	task: SelfImproveEvalTask,
-): GradeResult {
+export function gradeTargetFiles(ideas: ImprovementIdea[], task: SelfImproveEvalTask): GradeResult {
 	const { forbiddenTargetPrefixes, expectedTargetPrefixes, shouldPropose } = task.expected;
 	const failures: string[] = [];
 
@@ -68,7 +65,12 @@ export function gradeTargetFiles(
 	}
 
 	// Check expected prefixes — at least one idea must match each expected prefix
-	if (shouldPropose && expectedTargetPrefixes && expectedTargetPrefixes.length > 0 && ideas.length > 0) {
+	if (
+		shouldPropose &&
+		expectedTargetPrefixes &&
+		expectedTargetPrefixes.length > 0 &&
+		ideas.length > 0
+	) {
 		const coveredPrefixes = new Set<string>();
 		for (const idea of ideas) {
 			for (const prefix of expectedTargetPrefixes) {
@@ -111,9 +113,7 @@ export function gradeProposalShape(ideas: ImprovementIdea[]): GradeResult {
 
 	for (const [i, idea] of ideas.entries()) {
 		if (typeof idea.title !== "string" || idea.title.trim().length < 5) {
-			failures.push(
-				`ideas[${i}] title too short or missing (got: "${idea.title}")`,
-			);
+			failures.push(`ideas[${i}] title too short or missing (got: "${idea.title}")`);
 		}
 
 		if (typeof idea.changeDescription !== "string" || idea.changeDescription.trim().length < 10) {
@@ -123,9 +123,7 @@ export function gradeProposalShape(ideas: ImprovementIdea[]): GradeResult {
 		}
 
 		if (typeof idea.targetFile !== "string" || !idea.targetFile.startsWith("src/")) {
-			failures.push(
-				`ideas[${i}] targetFile must start with "src/" (got: "${idea.targetFile}")`,
-			);
+			failures.push(`ideas[${i}] targetFile must start with "src/" (got: "${idea.targetFile}")`);
 		}
 
 		if (!validPriorities.has(idea.priority)) {

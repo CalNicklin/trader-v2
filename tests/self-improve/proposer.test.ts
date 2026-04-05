@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
-	isWhitelistedPath,
-	isHumanOnlyPath,
 	classifyProposal,
 	generateBranchName,
+	isHumanOnlyPath,
+	isWhitelistedPath,
 	parseProposerResponse,
 } from "../../src/self-improve/proposer";
 
@@ -44,7 +44,8 @@ describe("proposer", () => {
 
 describe("parseProposerResponse", () => {
 	test("parses valid JSON array from code block", () => {
-		const response = '```json\n[{"title":"Test","description":"desc","targetFile":"src/x.ts","changeDescription":"change","reasoning":"reason","priority":"high"}]\n```';
+		const response =
+			'```json\n[{"title":"Test","description":"desc","targetFile":"src/x.ts","changeDescription":"change","reasoning":"reason","priority":"high"}]\n```';
 		const ideas = parseProposerResponse(response);
 		expect(ideas.length).toBe(1);
 		expect(ideas[0].title).toBe("Test");
@@ -61,7 +62,8 @@ describe("parseProposerResponse", () => {
 	});
 
 	test("filters out malformed entries", () => {
-		const response = '[{"title":"Good","targetFile":"src/x.ts","changeDescription":"change"},{"bad":true}]';
+		const response =
+			'[{"title":"Good","targetFile":"src/x.ts","changeDescription":"change"},{"bad":true}]';
 		const ideas = parseProposerResponse(response);
 		expect(ideas.length).toBe(1);
 	});

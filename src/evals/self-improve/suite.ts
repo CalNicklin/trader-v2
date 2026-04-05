@@ -1,9 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getConfig } from "../../config.ts";
 import { parseProposerResponse } from "../../self-improve/proposer.ts";
-import { WHITELISTED_PATHS, HUMAN_ONLY_PATHS, type ImprovementIdea } from "../../self-improve/types.ts";
+import {
+	HUMAN_ONLY_PATHS,
+	type ImprovementIdea,
+	WHITELISTED_PATHS,
+} from "../../self-improve/types.ts";
 import { formatSuiteReport } from "../reporter.ts";
-import { gradeProposalCount, gradeTargetFiles, gradeProposalShape } from "./graders.ts";
+import { gradeProposalCount, gradeProposalShape, gradeTargetFiles } from "./graders.ts";
 import { SELF_IMPROVE_EVAL_TASKS, type SelfImproveEvalTask } from "./tasks.ts";
 
 export interface SelfImproveEvalOptions {
@@ -152,7 +156,7 @@ export async function runSelfImproveEvalSuite(options?: SelfImproveEvalOptions):
 	const client = new Anthropic();
 	const config = getConfig();
 
-	let tasks = SELF_IMPROVE_EVAL_TASKS;
+	const tasks = SELF_IMPROVE_EVAL_TASKS;
 	if (tags && tags.length > 0) {
 		// tasks don't have tags in their interface, so we skip filtering
 	}

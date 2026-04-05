@@ -3,13 +3,13 @@ import { extractCodeFromResponse } from "../../src/self-improve/code-generator";
 
 describe("code-generator", () => {
 	test("extractCodeFromResponse extracts from typescript code block", () => {
-		const response = '```typescript\nconst x = 1;\nconsole.log(x);\n```';
+		const response = "```typescript\nconst x = 1;\nconsole.log(x);\n```";
 		const result = extractCodeFromResponse(response);
 		expect(result).toBe("const x = 1;\nconsole.log(x);");
 	});
 
 	test("extractCodeFromResponse extracts from ts code block", () => {
-		const response = '```ts\nconst x = 1;\n```';
+		const response = "```ts\nconst x = 1;\n```";
 		const result = extractCodeFromResponse(response);
 		expect(result).toBe("const x = 1;");
 	});

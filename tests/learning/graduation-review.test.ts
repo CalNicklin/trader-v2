@@ -2,9 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 describe("graduation review", () => {
 	test("buildGraduationPrompt includes metrics and trades", async () => {
-		const { buildGraduationPrompt } = await import(
-			"../../src/learning/graduation-review.ts"
-		);
+		const { buildGraduationPrompt } = await import("../../src/learning/graduation-review.ts");
 
 		const prompt = buildGraduationPrompt({
 			strategyId: 1,
@@ -32,9 +30,7 @@ describe("graduation review", () => {
 	});
 
 	test("parseGraduationResponse extracts valid result", async () => {
-		const { parseGraduationResponse } = await import(
-			"../../src/learning/graduation-review.ts"
-		);
+		const { parseGraduationResponse } = await import("../../src/learning/graduation-review.ts");
 
 		const json = JSON.stringify({
 			recommendation: "graduate",
@@ -52,9 +48,7 @@ describe("graduation review", () => {
 	});
 
 	test("parseGraduationResponse returns null for invalid recommendation", async () => {
-		const { parseGraduationResponse } = await import(
-			"../../src/learning/graduation-review.ts"
-		);
+		const { parseGraduationResponse } = await import("../../src/learning/graduation-review.ts");
 
 		const json = JSON.stringify({
 			recommendation: "maybe",

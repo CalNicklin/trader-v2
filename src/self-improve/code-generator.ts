@@ -67,11 +67,7 @@ Return the complete modified file content:`;
 			messages: [{ role: "user", content: prompt }],
 		});
 
-		await recordUsage(
-			"code_generation",
-			response.usage.input_tokens,
-			response.usage.output_tokens,
-		);
+		await recordUsage("code_generation", response.usage.input_tokens, response.usage.output_tokens);
 
 		const text = response.content
 			.filter((b): b is Anthropic.TextBlock => b.type === "text")

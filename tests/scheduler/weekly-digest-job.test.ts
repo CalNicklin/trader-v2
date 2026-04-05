@@ -1,15 +1,12 @@
-import { describe, expect, test, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import {
+	improvementProposals,
 	strategies,
 	strategyMetrics,
 	strategyMutations,
-	improvementProposals,
 	tokenUsage,
 } from "../../src/db/schema";
-import {
-	buildWeeklyDigestHtml,
-	getWeeklyDigestData,
-} from "../../src/scheduler/weekly-digest-job";
+import { buildWeeklyDigestHtml, getWeeklyDigestData } from "../../src/scheduler/weekly-digest-job";
 
 describe("weekly digest", () => {
 	beforeEach(async () => {

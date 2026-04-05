@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { PRRequest, IssueRequest } from "../../src/self-improve/github";
+import type { IssueRequest, PRRequest } from "../../src/self-improve/github";
 
 describe("self-improve github types", () => {
 	test("PRRequest type shape is valid", () => {
@@ -7,9 +7,7 @@ describe("self-improve github types", () => {
 			title: "Improve RSI weighting",
 			description: "Adjusted thresholds based on backtest",
 			branch: "self-improve/rsi-weight-20260404",
-			changes: [
-				{ path: "src/strategy/signals.ts", content: "// updated" },
-			],
+			changes: [{ path: "src/strategy/signals.ts", content: "// updated" }],
 		};
 		expect(pr.changes.length).toBe(1);
 		expect(pr.branch).toStartWith("self-improve/");

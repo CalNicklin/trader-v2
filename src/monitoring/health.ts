@@ -1,6 +1,6 @@
 import { desc, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "../db/client";
-import { strategies, dailySnapshots, quotesCache } from "../db/schema";
+import { dailySnapshots, quotesCache, strategies } from "../db/schema";
 import { getDailySpend } from "../utils/budget";
 
 export interface HealthData {
@@ -38,11 +38,7 @@ export async function getHealthData(): Promise<HealthData> {
 
 	// Today's P&L from daily snapshot
 	const today = new Date().toISOString().split("T")[0];
-	const snapshot = db
-		.select()
-		.from(dailySnapshots)
-		.where(eq(dailySnapshots.date, today!))
-		.get();
+	const snapshot = db.select().from(dailySnapshots).where(eq(dailySnapshots.date, today!)).get();
 	const dailyPnl = snapshot?.dailyPnl ?? 0;
 
 	// API spend today

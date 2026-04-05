@@ -3,11 +3,7 @@ import { createChildLogger } from "../utils/logger";
 
 const log = createChildLogger({ module: "heartbeat" });
 
-export function buildHeartbeatUrl(
-	baseUrl: string,
-	status: "up" | "down",
-	msg: string,
-): string {
+export function buildHeartbeatUrl(baseUrl: string, status: "up" | "down", msg: string): string {
 	const url = new URL(baseUrl);
 	url.searchParams.set("status", status);
 	url.searchParams.set("msg", msg);
@@ -28,10 +24,7 @@ export async function sendHeartbeat(jobName: string): Promise<boolean> {
 		const res = await fetch(url, { method: "GET" });
 
 		if (!res.ok) {
-			log.warn(
-				{ status: res.status, jobName },
-				"Heartbeat push returned non-OK status",
-			);
+			log.warn({ status: res.status, jobName }, "Heartbeat push returned non-OK status");
 			return false;
 		}
 

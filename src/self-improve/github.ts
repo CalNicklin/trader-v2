@@ -111,9 +111,7 @@ export async function createPR(request: PRRequest): Promise<string | null> {
 	}
 }
 
-export async function createIssue(
-	request: IssueRequest,
-): Promise<string | null> {
+export async function createIssue(request: IssueRequest): Promise<string | null> {
 	const octokit = getOctokit();
 	if (!octokit) return null;
 
@@ -130,10 +128,7 @@ export async function createIssue(
 			labels: request.labels ?? ["agent-suggestion"],
 		});
 
-		log.info(
-			{ issueNumber: issue.number, issueUrl: issue.html_url },
-			"Issue created",
-		);
+		log.info({ issueNumber: issue.number, issueUrl: issue.html_url }, "Issue created");
 		return issue.html_url;
 	} catch (error) {
 		log.error({ error }, "Failed to create issue");

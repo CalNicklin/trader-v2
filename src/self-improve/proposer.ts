@@ -11,11 +11,11 @@ import { generateCodeChange } from "./code-generator";
 import { createIssue, createPR } from "./github";
 import {
 	HUMAN_ONLY_PATHS,
+	type ImprovementIdea,
 	MAX_ISSUES_PER_WEEK,
 	MAX_PRS_PER_WEEK,
-	WHITELISTED_PATHS,
-	type ImprovementIdea,
 	type ProposalResult,
+	WHITELISTED_PATHS,
 } from "./types";
 
 const log = createChildLogger({ module: "self-improve-proposer" });
@@ -188,13 +188,15 @@ export async function runSelfImprovementCycle(): Promise<ProposalResult> {
 					changes: [{ path: idea.targetFile, content: newContent }],
 				});
 				if (prUrl) {
-					db.insert(improvementProposals).values({
-						title: idea.title,
-						description: idea.description,
-						filesChanged: idea.targetFile,
-						prUrl,
-						status: "PR_CREATED" as const,
-					}).run();
+					db.insert(improvementProposals)
+						.values({
+							title: idea.title,
+							description: idea.description,
+							filesChanged: idea.targetFile,
+							prUrl,
+							status: "PR_CREATED" as const,
+						})
+						.run();
 					result.prsCreated++;
 					log.info({ title: idea.title, prUrl }, "Self-improvement PR created");
 				} else {
@@ -203,19 +205,24 @@ export async function runSelfImprovementCycle(): Promise<ProposalResult> {
 			} else {
 				result.errors.push(`Failed to generate code for: ${idea.title}`);
 			}
-		} else if (classification === "issue" && counts.issues + result.issuesCreated < MAX_ISSUES_PER_WEEK) {
+		} else if (
+			classification === "issue" &&
+			counts.issues + result.issuesCreated < MAX_ISSUES_PER_WEEK
+		) {
 			const issueUrl = await createIssue({
 				title: idea.title,
 				body: `${idea.description}\n\n**Target file:** \`${idea.targetFile}\`\n**Change:** ${idea.changeDescription}\n**Reasoning:** ${idea.reasoning}\n**Priority:** ${idea.priority}`,
 				labels: ["agent-suggestion", idea.priority],
 			});
 			if (issueUrl) {
-				db.insert(improvementProposals).values({
-					title: idea.title,
-					description: idea.description,
-					filesChanged: idea.targetFile,
-					status: "ISSUE_CREATED" as const,
-				}).run();
+				db.insert(improvementProposals)
+					.values({
+						title: idea.title,
+						description: idea.description,
+						filesChanged: idea.targetFile,
+						status: "ISSUE_CREATED" as const,
+					})
+					.run();
 				result.issuesCreated++;
 				log.info({ title: idea.title, issueUrl }, "Self-improvement issue created");
 			} else {
@@ -223,7 +230,10 @@ export async function runSelfImprovementCycle(): Promise<ProposalResult> {
 			}
 		} else {
 			result.skipped++;
-			log.debug({ title: idea.title, classification }, "Proposal skipped (rate limit or unclassified)");
+			log.debug(
+				{ title: idea.title, classification },
+				"Proposal skipped (rate limit or unclassified)",
+			);
 		}
 	}
 

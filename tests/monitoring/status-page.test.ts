@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { buildStatusPageHtml } from "../../src/monitoring/status-page";
 import type { HealthData } from "../../src/monitoring/health";
+import { buildStatusPageHtml } from "../../src/monitoring/status-page";
 
 const baseData: HealthData = {
 	status: "ok",
