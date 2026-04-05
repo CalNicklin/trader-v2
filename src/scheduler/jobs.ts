@@ -40,6 +40,10 @@ export async function runJob(name: JobName): Promise<void> {
 	try {
 		await Promise.race([jobPromise, timeoutPromise]);
 		log.info({ job: name, durationMs: Date.now() - start }, "Job completed");
+		const { sendHeartbeat } = await import("../monitoring/heartbeat.ts");
+		await sendHeartbeat(name).catch((err) =>
+			log.warn({ err, job: name }, "Heartbeat failed (non-fatal)"),
+		);
 	} catch (error) {
 		log.error({ job: name, error, durationMs: Date.now() - start }, "Job failed");
 	} finally {

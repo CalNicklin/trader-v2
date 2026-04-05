@@ -33,6 +33,9 @@ const envSchema = z.object({
 
 	// HTTP server
 	HTTP_PORT: z.coerce.number().default(3847),
+
+	// Uptime Kuma
+	UPTIME_KUMA_PUSH_URL: z.string().url().optional(),
 });
 
 export type Config = z.infer<typeof envSchema>;
