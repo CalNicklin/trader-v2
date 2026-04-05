@@ -1,88 +1,318 @@
-import type { HealthData } from "./health";
+import type { DashboardData } from "./dashboard-data.ts";
 
 function formatUptime(seconds: number): string {
 	const h = Math.floor(seconds / 3600);
 	const m = Math.floor((seconds % 3600) / 60);
-	if (h > 0) {
-		return `${h}h ${m}m`;
-	}
+	if (h > 0) return `${h}h ${m}m`;
 	return `${m}m`;
 }
 
-export function buildStatusPageHtml(data: HealthData): string {
-	const statusColour =
-		data.status === "ok" ? "#22c55e" : data.status === "degraded" ? "#f59e0b" : "#ef4444";
+function escHtml(s: string): string {
+	return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
-	const pauseButton = data.paused
-		? `<form method="POST" action="/resume" style="display:inline">
-        <button type="submit" class="btn btn-resume">Resume Trading</button>
-      </form>`
-		: `<form method="POST" action="/pause" style="display:inline">
-        <button type="submit" class="btn btn-pause">Pause Trading</button>
-      </form>`;
+function kpiColor(value: number, limit: number, invert = false): string {
+	if (value === 0) return "#666";
+	if (invert) {
+		const pct = Math.abs(value) / limit;
+		if (pct >= 0.8) return "#ef4444";
+		if (pct >= 0.5) return "#f59e0b";
+		return "#22c55e";
+	}
+	return value >= 0 ? "#22c55e" : "#ef4444";
+}
 
-	const lastQuote = data.lastQuoteTime
-		? `${new Date(data.lastQuoteTime).toLocaleTimeString("en-GB", { timeZone: "UTC" })} UTC`
+function riskBarPct(value: number, max: number): number {
+	if (max === 0) return 0;
+	return Math.min(100, Math.max(0, (Math.abs(value) / max) * 100));
+}
+
+function riskBarColor(pct: number): string {
+	if (pct >= 80) return "#ef4444";
+	if (pct >= 50) return "#f59e0b";
+	return "#22c55e";
+}
+
+function statusDot(connected: boolean): string {
+	const color = connected ? "#22c55e" : "#ef4444";
+	return `<span style="width:7px;height:7px;border-radius:50%;display:inline-block;background:${color};box-shadow:0 0 6px ${color}88;"></span>`;
+}
+
+export function buildConsolePage(data: DashboardData): string {
+	const utcTime = new Date(data.timestamp).toLocaleString("en-GB", {
+		day: "2-digit",
+		month: "short",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+		timeZone: "UTC",
+	});
+
+	// Strategy tier counts
+	const tierCounts: Record<string, number> = {
+		paper: 0,
+		probation: 0,
+		active: 0,
+		core: 0,
+		retired: 0,
+	};
+	for (const s of data.strategies) {
+		tierCounts[s.status] = (tierCounts[s.status] ?? 0) + 1;
+	}
+	const liveCount = tierCounts.probation + tierCounts.active + tierCounts.core;
+
+	// KPIs
+	const lastQuoteDisplay = data.lastQuoteTime
+		? `${new Date(data.lastQuoteTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC`
 		: "—";
+	const lastQuoteSub = (() => {
+		if (!data.lastQuoteTime) return "no data";
+		const age = Date.now() - new Date(data.lastQuoteTime).getTime();
+		if (age > 3_600_000) return "stale";
+		return "live";
+	})();
 
-	const pnlSign = data.dailyPnl >= 0 ? "+" : "";
-	const pnlColour = data.dailyPnl >= 0 ? "#22c55e" : "#ef4444";
+	// Pause button
+	const pauseBtn = data.paused
+		? `<form method="POST" action="/resume" style="display:inline"><button type="submit" class="pause-btn" style="border-color:#22c55e;color:#22c55e;">▶ RESUME</button></form>`
+		: `<form method="POST" action="/pause" style="display:inline"><button type="submit" class="pause-btn">⏸ PAUSE</button></form>`;
+
+	// Positions HTML
+	const positionsHtml =
+		data.positions.length === 0
+			? `<div style="color:#333;padding:8px 0;">No positions</div>`
+			: data.positions
+					.map((p) => {
+						const isShort = p.quantity < 0;
+						const sideClass = isShort ? "short" : "long";
+						const sideLabel = isShort ? "SHORT" : "LONG";
+						const pnlStr =
+							p.unrealizedPnl != null
+								? `${p.unrealizedPnl >= 0 ? "+" : ""}${p.unrealizedPnl.toFixed(2)}`
+								: "—";
+						const orphanTag = p.strategyId == null ? `<span class="orphan-tag">orphan</span>` : "";
+						return `<div class="position-row">
+						<span class="symbol">${escHtml(p.symbol)}:${escHtml(p.exchange)}</span>
+						<span class="${sideClass}">${sideLabel}</span>
+						<span>${Math.abs(p.quantity).toLocaleString()}</span>
+						<span>${p.avgCost.toFixed(2)}p</span>
+						<span style="color:${p.unrealizedPnl != null && p.unrealizedPnl >= 0 ? "#22c55e" : "#ef4444"}">${pnlStr}</span>
+						<span>${orphanTag}</span>
+					</div>`;
+					})
+					.join("\n");
+
+	// Strategy rows
+	const strategyRows = data.strategies
+		.map((s) => {
+			const statusClass = `status-${s.status}`;
+			const winRate = s.winRate != null ? `${(s.winRate * 100).toFixed(0)}%` : "—";
+			const sharpe = s.sharpeRatio != null ? s.sharpeRatio.toFixed(2) : "—";
+			const universe = s.universe.slice(0, 3).join(", ") + (s.universe.length > 3 ? "…" : "");
+			return `<div class="strategy-row">
+				<span class="name">${escHtml(s.name)}</span>
+				<span class="${statusClass}">${s.status}</span>
+				<span>${winRate}</span>
+				<span>${sharpe}</span>
+				<span>${s.tradeCount}</span>
+				<span>${escHtml(universe)}</span>
+			</div>`;
+		})
+		.join("\n");
+
+	// Cron rows
+	const cronRows = data.cronJobs
+		.map((j, i) => {
+			const isUpcoming = i < 3;
+			const rowClass = isUpcoming ? "cron-row upcoming" : "cron-row";
+			const nextTime = new Date(j.nextRun).toLocaleTimeString("en-GB", {
+				hour: "2-digit",
+				minute: "2-digit",
+				timeZone: "Europe/London",
+			});
+			const lastHtml =
+				j.lastStatus === "ok"
+					? `<span class="last-ok">✓ ok</span>`
+					: j.lastStatus === "error"
+						? `<span class="last-err">✗ err</span>`
+						: `<span style="color:#333;">—</span>`;
+			return `<div class="${rowClass}">
+				<span class="time">${nextTime}</span>
+				<span class="job">${escHtml(j.name)}</span>
+				<span>${lastHtml}</span>
+				<span class="countdown">${j.nextRunIn}</span>
+			</div>`;
+		})
+		.join("\n");
+
+	// Log entries
+	const logEntries =
+		data.recentLogs.length === 0
+			? `<div style="color:#333;padding:8px 0;">No activity logged</div>`
+			: data.recentLogs
+					.map((l) => {
+						const levelClass = `level-${l.level.toLowerCase()}`;
+						const levelLabel =
+							l.level === "ACTION" ? "ACTN" : l.level === "DECISION" ? "DCSN" : l.level;
+						return `<div class="log-entry">
+						<span class="ts">${l.time}</span>
+						<span class="${levelClass}">${levelLabel}</span>
+						<span class="phase">${escHtml(l.phase ?? "")}</span>
+						<span class="msg">${escHtml(l.message.substring(0, 120))}</span>
+					</div>`;
+					})
+					.join("\n");
+
+	// Risk bars
+	const dailyPct = riskBarPct(data.dailyPnl, data.dailyPnlLimit);
+	const weeklyPct = riskBarPct(data.weeklyPnl, data.weeklyPnlLimit);
+	const posPct = riskBarPct(data.openPositionCount, 3);
 
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="refresh" content="60" />
-  <title>Trader v2 — Status</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 2rem; }
-    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 1.5rem; }
-    .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.875rem; background: ${statusColour}22; color: ${statusColour}; border: 1px solid ${statusColour}44; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
-    .card { background: #1e293b; border-radius: 0.75rem; padding: 1.25rem; }
-    .card-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 0.5rem; }
-    .card-value { font-size: 1.5rem; font-weight: 700; }
-    .pnl { color: ${pnlColour}; }
-    .controls { margin-top: 1.5rem; }
-    .btn { padding: 0.625rem 1.25rem; border-radius: 0.5rem; font-size: 0.9rem; font-weight: 600; cursor: pointer; border: none; }
-    .btn-pause { background: #f59e0b; color: #0f172a; }
-    .btn-resume { background: #22c55e; color: #0f172a; }
-    .footer { margin-top: 2rem; font-size: 0.75rem; color: #475569; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="refresh" content="30" />
+<title>Trader v2 — Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'JetBrains Mono','Courier New',monospace;background:#050505;color:#b0b0b0;min-height:100vh;font-size:12px;line-height:1.5}
+.status-bar{display:flex;justify-content:space-between;align-items:center;padding:8px 16px;background:#0a0a0a;border-bottom:1px solid #1a1a1a}
+.status-bar .left{display:flex;align-items:center;gap:16px}
+.status-bar .title{color:#f59e0b;font-weight:700;font-size:13px;letter-spacing:2px}
+.status-tag{display:inline-flex;align-items:center;gap:5px;color:#888;font-size:11px}
+.meta{color:#555;font-size:11px}
+.console{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#1a1a1a;min-height:calc(100vh - 37px)}
+.panel{background:#0a0a0a;padding:12px 14px}
+.panel-header{color:#555;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.panel-header .count{color:#444}
+.kpi-strip{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:#1a1a1a}
+.kpi{background:#0a0a0a;padding:10px 14px}
+.kpi-label{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.kpi-value{font-size:16px;font-weight:600}
+.kpi-sub{color:#333;font-size:9px;margin-top:2px}
+.pipeline{grid-column:1/-1;background:#0a0a0a;padding:12px 14px}
+.pipeline-row{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tier{display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid #1a1a1a;border-radius:3px;min-width:110px}
+.tier .tc{font-size:14px;font-weight:700}
+.tier .tl{font-size:10px;color:#555;text-transform:uppercase}
+.tier.paper{border-color:#334155}.tier.paper .tc{color:#94a3b8}
+.tier.probation{border-color:#92400e}.tier.probation .tc{color:#f59e0b}
+.tier.active{border-color:#166534}.tier.active .tc{color:#22c55e}
+.tier.core{border-color:#14532d}.tier.core .tc{color:#15803d}
+.tier.retired{border-color:#1a1a1a}.tier.retired .tc{color:#333}
+.arrow{color:#333;font-size:16px}
+.strategy-list{margin-top:10px;border-top:1px solid #151515;padding-top:8px}
+.strategy-row{display:grid;grid-template-columns:200px 80px 70px 70px 60px 1fr;gap:12px;padding:4px 0;color:#666;font-size:11px}
+.strategy-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
+.strategy-row .name{color:#94a3b8}
+.status-paper{color:#64748b}.status-probation{color:#f59e0b}.status-active{color:#22c55e}.status-core{color:#15803d}
+.position-row{display:grid;grid-template-columns:100px 55px 65px 65px 65px 1fr;gap:8px;padding:4px 0;font-size:11px;color:#666}
+.position-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
+.position-row .symbol{color:#e2e8f0;font-weight:500}
+.short{color:#ef4444}.long{color:#22c55e}
+.orphan-tag{color:#f59e0b;font-size:9px;background:#f59e0b11;padding:1px 5px;border-radius:2px}
+.risk-meter{margin:6px 0}
+.risk-bar{height:4px;background:#1a1a1a;border-radius:2px;overflow:hidden;margin-top:4px}
+.risk-fill{height:100%;border-radius:2px}
+.risk-label{display:flex;justify-content:space-between;font-size:10px;color:#555}
+.cron-row{display:grid;grid-template-columns:50px 170px 55px 1fr;gap:8px;padding:4px 0;font-size:11px;color:#555}
+.cron-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
+.cron-row .time{color:#94a3b8}.cron-row .job{color:#888}
+.cron-row .countdown{color:#333;font-size:10px}
+.cron-row.upcoming{color:#888}.cron-row.upcoming .time{color:#f59e0b}
+.last-ok{color:#22c55e44}.last-err{color:#ef4444}
+.log-entry{padding:3px 0;font-size:11px;color:#555;display:flex;gap:8px}
+.log-entry .ts{color:#333;min-width:45px}
+.log-entry .phase{color:#444;min-width:50px}
+.log-entry .msg{color:#777}
+.level-info{color:#3b82f6}.level-warn{color:#f59e0b}.level-error{color:#ef4444}.level-action{color:#22c55e}.level-decision{color:#a855f7}
+.scroll-panel{max-height:300px;overflow-y:auto}
+.scroll-panel::-webkit-scrollbar{width:3px}.scroll-panel::-webkit-scrollbar-track{background:transparent}.scroll-panel::-webkit-scrollbar-thumb{background:#222;border-radius:2px}
+.pause-btn{margin-top:12px;padding:6px 14px;background:transparent;border:1px solid #333;color:#888;font-family:inherit;font-size:11px;cursor:pointer;border-radius:3px}
+.pause-btn:hover{border-color:#f59e0b;color:#f59e0b}
+.footer-bar{grid-column:1/-1;background:#0a0a0a;padding:6px 14px;color:#333;font-size:10px;display:flex;justify-content:space-between;border-top:1px solid #1a1a1a}
+</style>
 </head>
 <body>
-  <h1>Trader v2 <span class="badge">${data.status.toUpperCase()}</span></h1>
+<div class="status-bar">
+<div class="left">
+<span class="title">TRADER V2</span>
+<span class="status-tag">${statusDot(data.ibkrConnected)} ${data.ibkrConnected ? `IBKR ${escHtml(data.ibkrAccount ?? "")}` : "IBKR OFF"}</span>
+<span class="status-tag">${statusDot(data.status === "ok")} ${data.status.toUpperCase()}</span>
+<span class="status-tag">${statusDot(liveCount > 0)} ${liveCount} LIVE</span>
+${data.paused ? `<span class="status-tag" style="color:#f59e0b;">⏸ PAUSED</span>` : ""}
+</div>
+<div class="meta">UP ${formatUptime(data.uptime)} &middot; ${utcTime} UTC</div>
+</div>
 
-  <div class="grid">
-    <div class="card">
-      <div class="card-label">Uptime</div>
-      <div class="card-value">${formatUptime(data.uptime)}</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Active Strategies</div>
-      <div class="card-value">${data.activeStrategies}</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Daily P&amp;L</div>
-      <div class="card-value pnl">${pnlSign}${data.dailyPnl.toFixed(2)}p</div>
-    </div>
-    <div class="card">
-      <div class="card-label">API Spend Today</div>
-      <div class="card-value">$${data.apiSpendToday.toFixed(4)}</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Last Quote</div>
-      <div class="card-value" style="font-size:1rem">${lastQuote}</div>
-    </div>
-  </div>
+<div class="console">
+<div class="kpi-strip">
+<div class="kpi"><div class="kpi-label">Daily P&amp;L</div><div class="kpi-value" style="color:${kpiColor(data.dailyPnl, data.dailyPnlLimit)}">${data.dailyPnl >= 0 ? "+" : ""}${data.dailyPnl.toFixed(2)}p</div><div class="kpi-sub">limit: ${data.dailyPnlLimit.toFixed(0)}%</div></div>
+<div class="kpi"><div class="kpi-label">Weekly P&amp;L</div><div class="kpi-value" style="color:${kpiColor(data.weeklyPnl, data.weeklyPnlLimit)}">${data.weeklyPnl >= 0 ? "+" : ""}${data.weeklyPnl.toFixed(2)}p</div><div class="kpi-sub">limit: ${data.weeklyPnlLimit.toFixed(0)}%</div></div>
+<div class="kpi"><div class="kpi-label">Open Positions</div><div class="kpi-value" style="color:${data.openPositionCount > 0 ? "#f59e0b" : "#666"}">${data.openPositionCount}</div><div class="kpi-sub">${data.positions[0] ? escHtml(data.positions[0].symbol) : "—"}</div></div>
+<div class="kpi"><div class="kpi-label">Trades Today</div><div class="kpi-value" style="color:${data.tradesToday > 0 ? "#e2e8f0" : "#666"}">${data.tradesToday}</div><div class="kpi-sub">—</div></div>
+<div class="kpi"><div class="kpi-label">API Spend</div><div class="kpi-value" style="color:${data.apiSpendToday > data.apiBudget * 0.8 ? "#ef4444" : "#666"}">$${data.apiSpendToday.toFixed(2)}</div><div class="kpi-sub">budget: $${data.apiBudget.toFixed(2)}</div></div>
+<div class="kpi"><div class="kpi-label">Last Quote</div><div class="kpi-value" style="color:#666;font-size:12px">${lastQuoteDisplay}</div><div class="kpi-sub">${lastQuoteSub}</div></div>
+</div>
 
-  <div class="controls">
-    ${pauseButton}
-  </div>
+<div class="pipeline">
+<div class="panel-header">Strategy Pipeline<span class="count">${data.strategies.length} total</span></div>
+<div class="pipeline-row">
+<div class="tier paper"><span class="tc">${tierCounts.paper}</span><span class="tl">Paper</span></div>
+<span class="arrow">→</span>
+<div class="tier probation"><span class="tc">${tierCounts.probation}</span><span class="tl">Probation</span></div>
+<span class="arrow">→</span>
+<div class="tier active"><span class="tc">${tierCounts.active}</span><span class="tl">Active</span></div>
+<span class="arrow">→</span>
+<div class="tier core"><span class="tc">${tierCounts.core}</span><span class="tl">Core</span></div>
+<span style="flex:1"></span>
+<div class="tier retired"><span class="tc">${tierCounts.retired}</span><span class="tl">Retired</span></div>
+</div>
+<div class="strategy-list">
+<div class="strategy-row header"><span>Name</span><span>Status</span><span>Win Rate</span><span>Sharpe</span><span>Trades</span><span>Universe</span></div>
+${strategyRows}
+</div>
+</div>
 
-  <div class="footer">Auto-refreshes every 60 seconds &middot; ${new Date(data.timestamp).toUTCString()}</div>
+<div class="panel">
+<div class="panel-header">Live Positions<span class="count">${data.openPositionCount}</span></div>
+<div class="scroll-panel">
+<div class="position-row header"><span>Symbol</span><span>Side</span><span>Qty</span><span>Avg</span><span>P&amp;L</span><span></span></div>
+${positionsHtml}
+</div>
+<div style="border-top:1px solid #151515;margin-top:12px;padding-top:10px;">
+<div class="panel-header" style="margin-bottom:8px;">Risk Limits</div>
+<div class="risk-meter"><div class="risk-label"><span>Daily P&amp;L</span><span>${data.dailyPnl.toFixed(1)} / ${data.dailyPnlLimit.toFixed(0)}%</span></div><div class="risk-bar"><div class="risk-fill" style="width:${dailyPct}%;background:${riskBarColor(dailyPct)}"></div></div></div>
+<div class="risk-meter"><div class="risk-label"><span>Weekly P&amp;L</span><span>${data.weeklyPnl.toFixed(1)} / ${data.weeklyPnlLimit.toFixed(0)}%</span></div><div class="risk-bar"><div class="risk-fill" style="width:${weeklyPct}%;background:${riskBarColor(weeklyPct)}"></div></div></div>
+<div class="risk-meter"><div class="risk-label"><span>Max Positions</span><span>${data.openPositionCount} / 3</span></div><div class="risk-bar"><div class="risk-fill" style="width:${posPct}%;background:${riskBarColor(posPct)}"></div></div></div>
+</div>
+${pauseBtn}
+</div>
+
+<div class="panel">
+<div class="panel-header">Cron Schedule<span class="count">${data.cronJobs.length} jobs</span></div>
+<div class="scroll-panel">
+<div class="cron-row header"><span>Time</span><span>Job</span><span>Last</span><span>Next In</span></div>
+${cronRows}
+</div>
+</div>
+
+<div class="panel">
+<div class="panel-header">Activity Log<span class="count">recent</span></div>
+<div class="scroll-panel">
+${logEntries}
+</div>
+</div>
+
+<div class="footer-bar">
+<span>Auto-refreshes every 30s &middot; All times Europe/London</span>
+<span>trader-v2 @ ${escHtml(data.gitHash)}</span>
+</div>
+</div>
 </body>
 </html>`;
 }
