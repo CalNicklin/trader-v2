@@ -13,7 +13,7 @@ const MAX_BUFFER = 1000;
 
 function writeKeyFile(key: string): string {
 	const path = join(tmpdir(), `monitor-ssh-${process.pid}.key`);
-	writeFileSync(path, key, { mode: 0o600 });
+	writeFileSync(path, key.endsWith("\n") ? key : `${key}\n`, { mode: 0o600 });
 	return path;
 }
 
