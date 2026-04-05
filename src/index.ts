@@ -24,11 +24,18 @@ async function boot() {
 	// Start the scheduler
 	startScheduler();
 	log.info("Scheduler started — trader v2 is running");
+
+	// Start HTTP server
+	const { startServer } = await import("./monitoring/server.ts");
+	startServer(config.HTTP_PORT);
+	log.info({ port: config.HTTP_PORT }, "Health endpoint available");
 }
 
 async function shutdown(signal: string) {
 	log.info({ signal }, "Shutting down...");
 	stopScheduler();
+	const { stopServer } = await import("./monitoring/server.ts");
+	stopServer();
 	closeDb();
 	log.info("Shutdown complete");
 	process.exit(0);

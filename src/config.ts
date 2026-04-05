@@ -30,6 +30,9 @@ const envSchema = z.object({
 
 	// Finnhub
 	FINNHUB_API_KEY: z.string().optional(),
+
+	// HTTP server
+	HTTP_PORT: z.coerce.number().default(3847),
 });
 
 export type Config = z.infer<typeof envSchema>;
