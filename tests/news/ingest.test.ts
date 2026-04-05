@@ -11,6 +11,8 @@ describe("news ingest orchestrator", () => {
 		db = getDb();
 		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
 		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+		const { _clearInjections } = await import("../../src/strategy/universe.ts");
+		_clearInjections();
 	});
 
 	test("processArticle stores event and writes sentiment for classified headline", async () => {
