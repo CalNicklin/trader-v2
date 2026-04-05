@@ -54,6 +54,15 @@ export async function runJob(name: JobName): Promise<void> {
 }
 
 async function executeJob(name: JobName): Promise<void> {
+	const TRADE_JOBS: JobName[] = ["strategy_evaluation", "trade_review"];
+	if (TRADE_JOBS.includes(name)) {
+		const { isPaused } = await import("../monitoring/health.ts");
+		if (isPaused()) {
+			log.info({ job: name }, "Skipping — trading is paused");
+			return;
+		}
+	}
+
 	switch (name) {
 		case "quote_refresh": {
 			// Phase 1: refresh quotes for all symbols in quotes_cache
