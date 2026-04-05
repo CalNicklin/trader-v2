@@ -22,7 +22,7 @@ export function buildStatusPageHtml(data: HealthData): string {
       </form>`;
 
 	const lastQuote = data.lastQuoteTime
-		? new Date(data.lastQuoteTime).toLocaleTimeString("en-GB", { timeZone: "UTC" }) + " UTC"
+		? `${new Date(data.lastQuoteTime).toLocaleTimeString("en-GB", { timeZone: "UTC" })} UTC`
 		: "—";
 
 	const pnlSign = data.dailyPnl >= 0 ? "+" : "";

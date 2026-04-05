@@ -69,8 +69,20 @@ describe("settlement", () => {
 		const { computeUnsettledCash } = await import("../../src/broker/settlement.ts");
 		const now = new Date("2026-04-02T12:00:00Z");
 		const trades = [
-			{ fillPrice: 100, quantity: 10, side: "BUY" as const, exchange: "NASDAQ", filledAt: "2026-04-02T10:00:00Z" },
-			{ fillPrice: 50, quantity: 10, side: "SELL" as const, exchange: "NASDAQ", filledAt: "2026-04-02T10:00:00Z" },
+			{
+				fillPrice: 100,
+				quantity: 10,
+				side: "BUY" as const,
+				exchange: "NASDAQ",
+				filledAt: "2026-04-02T10:00:00Z",
+			},
+			{
+				fillPrice: 50,
+				quantity: 10,
+				side: "SELL" as const,
+				exchange: "NASDAQ",
+				filledAt: "2026-04-02T10:00:00Z",
+			},
 		];
 		const unsettled = computeUnsettledCash(trades, now);
 		expect(unsettled).toBe(500); // 1000 - 500
@@ -80,7 +92,13 @@ describe("settlement", () => {
 		const { getAvailableCash } = await import("../../src/broker/settlement.ts");
 		const now = new Date("2026-04-02T12:00:00Z");
 		const trades = [
-			{ fillPrice: 100, quantity: 10, side: "BUY" as const, exchange: "NASDAQ", filledAt: "2026-04-02T10:00:00Z" },
+			{
+				fillPrice: 100,
+				quantity: 10,
+				side: "BUY" as const,
+				exchange: "NASDAQ",
+				filledAt: "2026-04-02T10:00:00Z",
+			},
 		];
 		const available = getAvailableCash(5000, trades, now);
 		expect(available).toBe(4000); // 5000 - 1000
@@ -90,7 +108,13 @@ describe("settlement", () => {
 		const { getAvailableCash } = await import("../../src/broker/settlement.ts");
 		const now = new Date("2026-04-02T12:00:00Z");
 		const trades = [
-			{ fillPrice: 100, quantity: 100, side: "BUY" as const, exchange: "NASDAQ", filledAt: "2026-04-02T10:00:00Z" },
+			{
+				fillPrice: 100,
+				quantity: 100,
+				side: "BUY" as const,
+				exchange: "NASDAQ",
+				filledAt: "2026-04-02T10:00:00Z",
+			},
 		];
 		const available = getAvailableCash(500, trades, now);
 		expect(available).toBe(0); // 500 - 10000 clamped to 0

@@ -61,20 +61,50 @@ describe("trailing-stops", () => {
 
 	test("computeTrailingStopUpdate returns null when data missing", async () => {
 		const { computeTrailingStopUpdate } = await import("../../src/broker/trailing-stops.ts");
-		expect(computeTrailingStopUpdate(
-			{ id: 1, symbol: "AAPL", quantity: 10, highWaterMark: null, trailingStopPrice: null, atr14: 5, currentPrice: 100 },
-			2,
-		)).toBeNull();
+		expect(
+			computeTrailingStopUpdate(
+				{
+					id: 1,
+					symbol: "AAPL",
+					quantity: 10,
+					highWaterMark: null,
+					trailingStopPrice: null,
+					atr14: 5,
+					currentPrice: 100,
+				},
+				2,
+			),
+		).toBeNull();
 
-		expect(computeTrailingStopUpdate(
-			{ id: 1, symbol: "AAPL", quantity: 10, highWaterMark: 100, trailingStopPrice: null, atr14: null, currentPrice: 100 },
-			2,
-		)).toBeNull();
+		expect(
+			computeTrailingStopUpdate(
+				{
+					id: 1,
+					symbol: "AAPL",
+					quantity: 10,
+					highWaterMark: 100,
+					trailingStopPrice: null,
+					atr14: null,
+					currentPrice: 100,
+				},
+				2,
+			),
+		).toBeNull();
 
-		expect(computeTrailingStopUpdate(
-			{ id: 1, symbol: "AAPL", quantity: 10, highWaterMark: 100, trailingStopPrice: null, atr14: 5, currentPrice: null },
-			2,
-		)).toBeNull();
+		expect(
+			computeTrailingStopUpdate(
+				{
+					id: 1,
+					symbol: "AAPL",
+					quantity: 10,
+					highWaterMark: 100,
+					trailingStopPrice: null,
+					atr14: 5,
+					currentPrice: null,
+				},
+				2,
+			),
+		).toBeNull();
 	});
 
 	test("computeTrailingStopUpdate does not trigger at zero price", async () => {

@@ -3,10 +3,7 @@ import { describe, expect, test } from "bun:test";
 describe("capital-allocator", () => {
 	test("single probation strategy gets 10% of capital", async () => {
 		const { computeAllocations } = await import("../../src/live/capital-allocator.ts");
-		const result = computeAllocations(
-			[{ strategyId: 1, tier: "probation" }],
-			1000,
-		);
+		const result = computeAllocations([{ strategyId: 1, tier: "probation" }], 1000);
 		expect(result).toHaveLength(1);
 		expect(result[0]!.allocatedCapital).toBe(100); // 10% of 1000
 		expect(result[0]!.maxPositionSize).toBe(25); // 25% of 100
@@ -14,20 +11,14 @@ describe("capital-allocator", () => {
 
 	test("single active strategy gets 25% of capital", async () => {
 		const { computeAllocations } = await import("../../src/live/capital-allocator.ts");
-		const result = computeAllocations(
-			[{ strategyId: 1, tier: "active" }],
-			1000,
-		);
+		const result = computeAllocations([{ strategyId: 1, tier: "active" }], 1000);
 		expect(result).toHaveLength(1);
 		expect(result[0]!.allocatedCapital).toBe(250);
 	});
 
 	test("single core strategy gets 50% of capital", async () => {
 		const { computeAllocations } = await import("../../src/live/capital-allocator.ts");
-		const result = computeAllocations(
-			[{ strategyId: 1, tier: "core" }],
-			1000,
-		);
+		const result = computeAllocations([{ strategyId: 1, tier: "core" }], 1000);
 		expect(result).toHaveLength(1);
 		expect(result[0]!.allocatedCapital).toBe(500);
 	});
@@ -90,8 +81,8 @@ describe("capital-allocator", () => {
 
 	test("getTierAllocationPct returns correct percentages", async () => {
 		const { getTierAllocationPct } = await import("../../src/live/capital-allocator.ts");
-		expect(getTierAllocationPct("probation")).toBe(0.10);
+		expect(getTierAllocationPct("probation")).toBe(0.1);
 		expect(getTierAllocationPct("active")).toBe(0.25);
-		expect(getTierAllocationPct("core")).toBe(0.50);
+		expect(getTierAllocationPct("core")).toBe(0.5);
 	});
 });

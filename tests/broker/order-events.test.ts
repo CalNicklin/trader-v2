@@ -5,7 +5,11 @@ describe("order-events", () => {
 		const { processOrderUpdate } = await import("../../src/broker/order-events.ts");
 		const tracked = new Map([[100, 1]]);
 		const orders = [
-			{ orderId: 100, orderState: { status: "Filled", commission: 2.0 }, orderStatus: { avgFillPrice: 150 } },
+			{
+				orderId: 100,
+				orderState: { status: "Filled", commission: 2.0 },
+				orderStatus: { avgFillPrice: 150 },
+			},
 		];
 		const events = processOrderUpdate(tracked, orders);
 		expect(events).toHaveLength(1);
@@ -27,9 +31,7 @@ describe("order-events", () => {
 	test("processOrderUpdate removes terminal orders from tracking", async () => {
 		const { processOrderUpdate } = await import("../../src/broker/order-events.ts");
 		const tracked = new Map([[100, 1]]);
-		const orders = [
-			{ orderId: 100, orderState: { status: "Cancelled" } },
-		];
+		const orders = [{ orderId: 100, orderState: { status: "Cancelled" } }];
 		processOrderUpdate(tracked, orders);
 		expect(tracked.has(100)).toBe(false);
 	});

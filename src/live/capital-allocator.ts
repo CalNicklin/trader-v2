@@ -2,9 +2,9 @@ export type StrategyTier = "probation" | "active" | "core";
 
 /** Capital allocation percentages per tier (from spec Section 4) */
 const TIER_ALLOCATION: Record<StrategyTier, number> = {
-	probation: 0.10, // 10% of live capital
+	probation: 0.1, // 10% of live capital
 	active: 0.25, // 25% of live capital
-	core: 0.50, // 50% of live capital
+	core: 0.5, // 50% of live capital
 };
 
 export interface StrategyAllocation {

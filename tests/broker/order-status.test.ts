@@ -21,10 +21,10 @@ describe("order-status", () => {
 		const order = {
 			orderId: 1,
 			orderState: { status: "Filled", commission: 1.25 },
-			orderStatus: { avgFillPrice: 150.50, filled: 10, remaining: 0 },
+			orderStatus: { avgFillPrice: 150.5, filled: 10, remaining: 0 },
 		};
 		const fill = extractFillData(order);
-		expect(fill.fillPrice).toBe(150.50);
+		expect(fill.fillPrice).toBe(150.5);
 		expect(fill.commission).toBe(1.25);
 	});
 

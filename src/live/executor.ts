@@ -1,19 +1,14 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import type { Exchange } from "../broker/contracts.ts";
+import { placeTrade } from "../broker/orders.ts";
+import type { UnsettledTrade } from "../broker/settlement.ts";
+import { getAvailableCash } from "../broker/settlement.ts";
 import { getConfig } from "../config.ts";
 import { getQuoteFromCache } from "../data/quotes.ts";
 import { getDb } from "../db/client.ts";
-import {
-	agentLogs,
-	livePositions,
-	liveTrades,
-	strategies,
-} from "../db/schema.ts";
-import { type SymbolIndicators, getIndicators } from "../strategy/historical.ts";
+import { agentLogs, livePositions, liveTrades, strategies } from "../db/schema.ts";
+import { getIndicators, type SymbolIndicators } from "../strategy/historical.ts";
 import { createChildLogger } from "../utils/logger.ts";
-import type { Exchange } from "../broker/contracts.ts";
-import { placeTrade } from "../broker/orders.ts";
-import { getAvailableCash } from "../broker/settlement.ts";
-import type { UnsettledTrade } from "../broker/settlement.ts";
 import { computeAllocations, type StrategyTier } from "./capital-allocator.ts";
 
 const log = createChildLogger({ module: "live-executor" });
@@ -142,12 +137,7 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 				const [existingPos] = await db
 					.select()
 					.from(livePositions)
-					.where(
-						and(
-							eq(livePositions.symbol, symbol),
-							eq(livePositions.strategyId, strategy.id),
-						),
-					)
+					.where(and(eq(livePositions.symbol, symbol), eq(livePositions.strategyId, strategy.id)))
 					.limit(1);
 
 				// Guard against UNIQUE(symbol, exchange) constraint — check if
@@ -156,12 +146,7 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 					const [conflictingPos] = await db
 						.select({ id: livePositions.id })
 						.from(livePositions)
-						.where(
-							and(
-								eq(livePositions.symbol, symbol),
-								eq(livePositions.exchange, exchange),
-							),
-						)
+						.where(and(eq(livePositions.symbol, symbol), eq(livePositions.exchange, exchange)))
 						.limit(1);
 					if (conflictingPos) {
 						log.debug(
@@ -174,12 +159,7 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 
 				// Evaluate entry signal (only if no existing position)
 				if (!existingPos && signals.entry_long) {
-					const shouldEnter = evaluateSignal(
-						signals.entry_long,
-						parameters,
-						cached,
-						indicators,
-					);
+					const shouldEnter = evaluateSignal(signals.entry_long, parameters, cached, indicators);
 
 					if (shouldEnter) {
 						const positionValue = Math.min(
@@ -223,12 +203,7 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 
 				// Evaluate entry_short signal (only if no existing position)
 				if (!existingPos && signals.entry_short) {
-					const shouldShort = evaluateSignal(
-						signals.entry_short,
-						parameters,
-						cached,
-						indicators,
-					);
+					const shouldShort = evaluateSignal(signals.entry_short, parameters, cached, indicators);
 
 					if (shouldShort) {
 						const positionValue = Math.min(
@@ -272,12 +247,7 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 
 				// Evaluate exit signal (only if we have a position)
 				if (existingPos && signals.exit) {
-					const shouldExit = evaluateSignal(
-						signals.exit,
-						parameters,
-						cached,
-						indicators,
-					);
+					const shouldExit = evaluateSignal(signals.exit, parameters, cached, indicators);
 
 					if (shouldExit) {
 						try {
