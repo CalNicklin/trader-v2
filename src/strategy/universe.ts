@@ -32,7 +32,7 @@ export function validateUniverse(symbols: string[]): string[] {
 
 export async function filterByLiquidity(
 	symbols: string[],
-	defaultExchange: string,
+	_defaultExchange: string,
 ): Promise<string[]> {
 	const db = getDb();
 	const symbolNames = symbols.map((s) => (s.includes(":") ? s.split(":")[0]! : s));

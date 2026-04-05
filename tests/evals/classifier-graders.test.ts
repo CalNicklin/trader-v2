@@ -11,6 +11,7 @@ describe("classifier graders", () => {
 				confidence: 0.8,
 				eventType: "earnings_beat",
 				urgency: "high",
+				signals: null,
 			},
 			{
 				tradeable: true,
@@ -34,6 +35,7 @@ describe("classifier graders", () => {
 				confidence: 0.8,
 				eventType: "earnings_beat",
 				urgency: "high",
+				signals: null,
 			},
 			{
 				tradeable: true,
@@ -57,6 +59,7 @@ describe("classifier graders", () => {
 				confidence: 0.8,
 				eventType: "earnings_beat",
 				urgency: "high",
+				signals: null,
 			},
 			{
 				tradeable: true,
@@ -80,6 +83,7 @@ describe("classifier graders", () => {
 				confidence: 0.8,
 				eventType: "earnings_beat",
 				urgency: "high",
+				signals: null,
 			},
 			{
 				tradeable: true,
@@ -103,6 +107,7 @@ describe("classifier graders", () => {
 				confidence: 0.8,
 				eventType: "earnings_beat",
 				urgency: "high",
+				signals: null,
 			},
 			{
 				tradeable: true,
@@ -126,6 +131,7 @@ describe("classifier graders", () => {
 				confidence: 0.8,
 				eventType: "fda_approval",
 				urgency: "high",
+				signals: null,
 			},
 			{
 				tradeable: true,
@@ -149,6 +155,7 @@ describe("classifier graders", () => {
 				confidence: 0.8,
 				eventType: "earnings_beat",
 				urgency: "high",
+				signals: null,
 			},
 			{
 				tradeable: true,
@@ -172,6 +179,7 @@ describe("classifier graders", () => {
 				confidence: 0.8,
 				eventType: "earnings_beat",
 				urgency: "high",
+				signals: null,
 			},
 			{
 				tradeable: true,

@@ -113,17 +113,23 @@ describe("jsonShapeGrader", () => {
 
 	test("fails when name is missing", async () => {
 		const { jsonShapeGrader } = await import("../../src/evals/evolution/graders.ts");
-		const bad = makeProposal() as Record<string, unknown>;
+		const bad = makeProposal() as unknown as Record<string, unknown>;
 		delete bad.name;
-		const result = await jsonShapeGrader.grade([bad as MutationProposal], makeReference());
+		const result = await jsonShapeGrader.grade(
+			[bad as unknown as MutationProposal],
+			makeReference(),
+		);
 		expect(result.pass).toBe(false);
 	});
 
 	test("fails when reasoning is missing", async () => {
 		const { jsonShapeGrader } = await import("../../src/evals/evolution/graders.ts");
-		const bad = makeProposal() as Record<string, unknown>;
+		const bad = makeProposal() as unknown as Record<string, unknown>;
 		delete bad.reasoning;
-		const result = await jsonShapeGrader.grade([bad as MutationProposal], makeReference());
+		const result = await jsonShapeGrader.grade(
+			[bad as unknown as MutationProposal],
+			makeReference(),
+		);
 		expect(result.pass).toBe(false);
 	});
 

@@ -6,7 +6,7 @@ import { buildStatusPageHtml } from "./status-page";
 
 const log = createChildLogger({ module: "http-server" });
 
-let _server: Server | null = null;
+let _server: Server<unknown> | null = null;
 
 export function startServer(port: number): void {
 	if (_server) return;

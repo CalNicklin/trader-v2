@@ -41,10 +41,10 @@ describe("clampParameters", () => {
 			rsi_oversold: 10, // min 15
 			rsi_overbought: 99, // max 85
 		});
-		expect(result.stop_loss_pct).toBe(PARAMETER_RANGES.stop_loss_pct.max);
-		expect(result.hold_days).toBe(PARAMETER_RANGES.hold_days.min);
-		expect(result.rsi_oversold).toBe(PARAMETER_RANGES.rsi_oversold.min);
-		expect(result.rsi_overbought).toBe(PARAMETER_RANGES.rsi_overbought.max);
+		expect(result.stop_loss_pct).toBe(PARAMETER_RANGES.stop_loss_pct!.max);
+		expect(result.hold_days).toBe(PARAMETER_RANGES.hold_days!.min);
+		expect(result.rsi_oversold).toBe(PARAMETER_RANGES.rsi_oversold!.min);
+		expect(result.rsi_overbought).toBe(PARAMETER_RANGES.rsi_overbought!.max);
 	});
 
 	it("passes through unknown parameters unchanged", () => {
@@ -132,7 +132,7 @@ describe("validateMutation", () => {
 		const result = validateMutation(proposal, parent, []);
 		expect(result.valid).toBe(true);
 		if (!result.valid) return;
-		expect(result.mutation.parameters.stop_loss_pct).toBe(PARAMETER_RANGES.stop_loss_pct.max);
+		expect(result.mutation.parameters.stop_loss_pct).toBe(PARAMETER_RANGES.stop_loss_pct!.max);
 		expect(result.mutation.parameterDiff.stop_loss_pct).toEqual({ from: 3, to: 10 });
 	});
 

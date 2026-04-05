@@ -50,8 +50,8 @@ export async function getWeeklyDigestData(): Promise<WeeklyDigestData> {
 	const db = getDb();
 	const now = new Date();
 	const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-	const periodStart = weekAgo.toISOString().split("T")[0];
-	const periodEnd = now.toISOString().split("T")[0];
+	const periodStart = weekAgo.toISOString().split("T")[0]!;
+	const periodEnd = now.toISOString().split("T")[0]!;
 
 	// Evolution events from the past week — join parent and child strategy names
 	const mutations = db

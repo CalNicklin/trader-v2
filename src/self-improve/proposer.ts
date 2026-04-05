@@ -42,7 +42,7 @@ export function generateBranchName(title: string): string {
 		.replace(/[^a-z0-9]+/g, "-")
 		.replace(/^-|-$/g, "")
 		.slice(0, 40);
-	const date = new Date().toISOString().split("T")[0].replace(/-/g, "");
+	const date = new Date().toISOString().split("T")[0]!.replace(/-/g, "");
 	return `self-improve/${slug}-${date}`;
 }
 

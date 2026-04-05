@@ -43,8 +43,8 @@ function parameterDistance(a: Record<string, number>, b: Record<string, number>)
 
 	let maxDelta = 0;
 	for (const key of sharedKeys) {
-		const denom = Math.max(Math.abs(a[key]), Math.abs(b[key]), 1);
-		maxDelta = Math.max(maxDelta, Math.abs(a[key] - b[key]) / denom);
+		const denom = Math.max(Math.abs(a[key] ?? 0), Math.abs(b[key] ?? 0), 1);
+		maxDelta = Math.max(maxDelta, Math.abs((a[key] ?? 0) - (b[key] ?? 0)) / denom);
 	}
 	return maxDelta;
 }
@@ -96,7 +96,7 @@ export function validateMutation(
 	// Track removed params (keys present in parent but absent from child).
 	for (const key of Object.keys(parentParams)) {
 		if (!(key in clamped)) {
-			parameterDiff[key] = { from: parentParams[key], to: 0 };
+			parameterDiff[key] = { from: parentParams[key] ?? 0, to: 0 };
 		}
 	}
 

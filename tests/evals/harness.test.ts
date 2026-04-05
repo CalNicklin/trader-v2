@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { EvalTask, Grader } from "../../src/evals/types.ts";
 
 describe("eval harness", () => {
 	test("EvalTask and EvalResult types are importable", async () => {
@@ -9,9 +10,8 @@ describe("eval harness", () => {
 
 	test("runTrial executes task and collects grades", async () => {
 		const { runTrial } = await import("../../src/evals/harness.ts");
-		const type = await import("../../src/evals/types.ts");
 
-		const task: type.EvalTask<string, string> = {
+		const task: EvalTask<string, string> = {
 			id: "test-001",
 			name: "simple test",
 			input: "hello",
@@ -19,10 +19,10 @@ describe("eval harness", () => {
 			tags: ["smoke"],
 		};
 
-		const grader: type.Grader<string, string> = {
+		const grader: Grader<string, string> = {
 			name: "exact-match",
 			type: "code",
-			grade: async (output, reference) => ({
+			grade: async (output: string, reference: string) => ({
 				score: output === reference ? 1 : 0,
 				pass: output === reference,
 				reason: output === reference ? "Match" : `Got "${output}", expected "${reference}"`,
@@ -41,9 +41,8 @@ describe("eval harness", () => {
 
 	test("runTrial handles task function errors gracefully", async () => {
 		const { runTrial } = await import("../../src/evals/harness.ts");
-		const type = await import("../../src/evals/types.ts");
 
-		const task: type.EvalTask<string, string> = {
+		const task: EvalTask<string, string> = {
 			id: "test-err",
 			name: "error test",
 			input: "hello",
@@ -61,24 +60,23 @@ describe("eval harness", () => {
 
 	test("runSuite runs multiple trials and aggregates", async () => {
 		const { runSuite } = await import("../../src/evals/harness.ts");
-		const type = await import("../../src/evals/types.ts");
 
-		const tasks: type.EvalTask<number, number>[] = [
+		const tasks: EvalTask<number, number>[] = [
 			{ id: "add-1", name: "add one", input: 1, reference: 2, tags: [] },
 			{ id: "add-2", name: "add two", input: 2, reference: 3, tags: [] },
 		];
 
-		const grader: type.Grader<number, number> = {
+		const grader: Grader<number, number> = {
 			name: "correct",
 			type: "code",
-			grade: async (output, reference) => ({
+			grade: async (output: number, reference: number) => ({
 				score: output === reference ? 1 : 0,
 				pass: output === reference,
 				reason: output === reference ? "Correct" : `Got ${output}, expected ${reference}`,
 			}),
 		};
 
-		const results = await runSuite(tasks, async (n) => n + 1, [grader], { trials: 1 });
+		const results = await runSuite(tasks, async (n: number) => n + 1, [grader], { trials: 1 });
 
 		expect(results.tasks).toHaveLength(2);
 		expect(results.summary.totalTasks).toBe(2);
