@@ -8,7 +8,12 @@ function formatUptime(seconds: number): string {
 }
 
 function escHtml(s: string): string {
-	return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+	return s
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
 }
 
 function kpiColor(value: number, limit: number, invert = false): string {
@@ -166,7 +171,7 @@ export function buildConsolePage(data: DashboardData): string {
 	// Risk bars
 	const dailyPct = riskBarPct(data.dailyPnl, data.dailyPnlLimit);
 	const weeklyPct = riskBarPct(data.weeklyPnl, data.weeklyPnlLimit);
-	const posPct = riskBarPct(data.openPositionCount, 3);
+	const posPct = riskBarPct(data.openPositionCount, data.maxPositions);
 
 	return `<!DOCTYPE html>
 <html lang="en">
@@ -224,7 +229,7 @@ body{font-family:'JetBrains Mono','Courier New',monospace;background:#050505;col
 .cron-row .time{color:#94a3b8}.cron-row .job{color:#888}
 .cron-row .countdown{color:#333;font-size:10px}
 .cron-row.upcoming{color:#888}.cron-row.upcoming .time{color:#f59e0b}
-.last-ok{color:#22c55e44}.last-err{color:#ef4444}
+.last-ok{color:#22c55e88}.last-err{color:#ef4444}
 .log-entry{padding:3px 0;font-size:11px;color:#555;display:flex;gap:8px}
 .log-entry .ts{color:#333;min-width:45px}
 .log-entry .phase{color:#444;min-width:50px}
@@ -288,7 +293,7 @@ ${positionsHtml}
 <div class="panel-header" style="margin-bottom:8px;">Risk Limits</div>
 <div class="risk-meter"><div class="risk-label"><span>Daily P&amp;L</span><span>${data.dailyPnl.toFixed(1)} / ${data.dailyPnlLimit.toFixed(0)}%</span></div><div class="risk-bar"><div class="risk-fill" style="width:${dailyPct}%;background:${riskBarColor(dailyPct)}"></div></div></div>
 <div class="risk-meter"><div class="risk-label"><span>Weekly P&amp;L</span><span>${data.weeklyPnl.toFixed(1)} / ${data.weeklyPnlLimit.toFixed(0)}%</span></div><div class="risk-bar"><div class="risk-fill" style="width:${weeklyPct}%;background:${riskBarColor(weeklyPct)}"></div></div></div>
-<div class="risk-meter"><div class="risk-label"><span>Max Positions</span><span>${data.openPositionCount} / 3</span></div><div class="risk-bar"><div class="risk-fill" style="width:${posPct}%;background:${riskBarColor(posPct)}"></div></div></div>
+<div class="risk-meter"><div class="risk-label"><span>Max Positions</span><span>${data.openPositionCount} / ${data.maxPositions}</span></div><div class="risk-bar"><div class="risk-fill" style="width:${posPct}%;background:${riskBarColor(posPct)}"></div></div></div>
 </div>
 ${pauseBtn}
 </div>

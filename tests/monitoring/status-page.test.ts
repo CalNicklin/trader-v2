@@ -14,6 +14,7 @@ const baseData: DashboardData = {
 	dailyPnlLimit: 3,
 	weeklyPnlLimit: 5,
 	openPositionCount: 0,
+	maxPositions: 3,
 	tradesToday: 0,
 	apiSpendToday: 0,
 	apiBudget: 1,

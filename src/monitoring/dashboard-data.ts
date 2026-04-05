@@ -10,7 +10,11 @@ import {
 	strategies,
 	strategyMetrics,
 } from "../db/schema.ts";
-import { DAILY_LOSS_HALT_PCT, WEEKLY_DRAWDOWN_LIMIT_PCT } from "../risk/constants.ts";
+import {
+	DAILY_LOSS_HALT_PCT,
+	MAX_CONCURRENT_POSITIONS,
+	WEEKLY_DRAWDOWN_LIMIT_PCT,
+} from "../risk/constants.ts";
 import { getDailySpend } from "../utils/budget.ts";
 import { getNextCronOccurrences } from "./cron-schedule.ts";
 import { isPaused } from "./health.ts";
@@ -28,6 +32,7 @@ export interface DashboardData {
 	dailyPnlLimit: number;
 	weeklyPnlLimit: number;
 	openPositionCount: number;
+	maxPositions: number;
 	tradesToday: number;
 	apiSpendToday: number;
 	apiBudget: number;
@@ -269,6 +274,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 		dailyPnlLimit: DAILY_LOSS_HALT_PCT * 100,
 		weeklyPnlLimit: WEEKLY_DRAWDOWN_LIMIT_PCT * 100,
 		openPositionCount: positions.length,
+		maxPositions: MAX_CONCURRENT_POSITIONS,
 		tradesToday,
 		apiSpendToday,
 		apiBudget,
