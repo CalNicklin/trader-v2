@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { loadConfig } from "./server/config.ts";
 import { fetchHealth } from "./server/health.ts";
 import { fetchDeploys } from "./server/deploys.ts";
+import { handleWsOpen, handleWsClose, cleanupOnExit } from "./server/logs.ts";
 
 const config = loadConfig();
 
@@ -17,8 +18,17 @@ if (isDev) {
 
 const server = Bun.serve({
 	port: config.port,
-	async fetch(req) {
+	async fetch(req, server) {
 		const url = new URL(req.url);
+
+		// WebSocket upgrade for log streaming
+		if (url.pathname === "/ws/logs") {
+			const upgraded = server.upgrade(req);
+			if (!upgraded) {
+				return new Response("WebSocket upgrade failed", { status: 400 });
+			}
+			return undefined;
+		}
 
 		// API: health proxy
 		if (url.pathname === "/api/health") {
@@ -49,6 +59,27 @@ const server = Bun.serve({
 
 		return new Response("Not found", { status: 404 });
 	},
+	websocket: {
+		open(ws) {
+			handleWsOpen(ws, config);
+		},
+		close(ws) {
+			handleWsClose(ws);
+		},
+		message() {
+			// Client doesn't send messages; ignore
+		},
+	},
+});
+
+// Cleanup SSH on exit
+process.on("SIGINT", () => {
+	cleanupOnExit();
+	process.exit(0);
+});
+process.on("SIGTERM", () => {
+	cleanupOnExit();
+	process.exit(0);
 });
 
 console.log(`Monitor server running at http://localhost:${server.port}`);
