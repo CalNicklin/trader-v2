@@ -11,6 +11,25 @@ interface TradeReviewReference {
 	shouldSuggestAdjustment: boolean;
 }
 
+/**
+ * Tags that describe similar concepts from different angles.
+ * If an expected tag matches any tag in the same alias group, it counts.
+ */
+const TAG_ALIASES: string[][] = [
+	["stop_too_tight", "early_exit", "filter_failure"],
+	["stop_too_loose", "early_exit", "earnings_drift_truncated"],
+];
+
+function tagsMatch(expected: string, actual: string): boolean {
+	// Direct substring match
+	if (actual.includes(expected) || expected.includes(actual)) return true;
+	// Check alias groups: if both tags appear in the same group, accept the match
+	for (const group of TAG_ALIASES) {
+		if (group.includes(expected) && group.includes(actual)) return true;
+	}
+	return false;
+}
+
 export const validJsonGrader: Grader<TradeReviewOutput, TradeReviewReference> = {
 	name: "valid_json",
 	type: "code",
@@ -36,7 +55,7 @@ export const hasPatternTagsGrader: Grader<TradeReviewOutput, TradeReviewReferenc
 		}
 
 		const matchedTags = reference.expectedTags.filter((tag) =>
-			result.patternTags.some((rt) => rt.includes(tag) || tag.includes(rt)),
+			result.patternTags.some((rt) => tagsMatch(tag, rt)),
 		);
 
 		const score = matchedTags.length / reference.expectedTags.length;

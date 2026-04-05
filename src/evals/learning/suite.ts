@@ -4,6 +4,7 @@ import { resetConfigForTesting } from "../../config.ts";
 import { closeDb, getDb } from "../../db/client.ts";
 import { getActivePrompt } from "../../learning/prompts.ts";
 import { runSuite } from "../harness.ts";
+import { formatSuiteReport } from "../reporter.ts";
 import { adjustmentPresenceGrader, hasPatternTagsGrader, validJsonGrader } from "./graders.ts";
 import { tradeReviewTasks } from "./tasks.ts";
 
@@ -21,7 +22,7 @@ export async function runLearningEvalSuite(options: {
 	trials?: number;
 	suiteName?: string;
 }): Promise<void> {
-	const trials = options.trials ?? 2;
+	const trials = options.trials ?? 3;
 
 	// Use a fresh in-memory DB with all migrations applied
 	const origDbPath = process.env.DB_PATH;
@@ -38,7 +39,7 @@ export async function runLearningEvalSuite(options: {
 		async (input) => {
 			const response = await client.messages.create({
 				model: "claude-haiku-4-5-20251001",
-				max_tokens: 300,
+				max_tokens: 500,
 				system: promptText,
 				messages: [{ role: "user", content: input.tradePrompt }],
 			});
@@ -49,18 +50,7 @@ export async function runLearningEvalSuite(options: {
 		{ trials, suiteName: options.suiteName ?? "learning" },
 	);
 
-	console.log(`\n=== Learning Eval Suite ===`);
-	console.log(`Tasks: ${results.summary.totalTasks}`);
-	console.log(`Pass rate: ${(results.summary.passRate * 100).toFixed(0)}%`);
-	console.log(`Avg score: ${(results.summary.avgScore * 100).toFixed(0)}%`);
-	console.log(`Duration: ${results.summary.totalDurationMs}ms\n`);
-
-	for (const task of results.tasks) {
-		const status = task.passRate >= 0.5 ? "PASS" : "FAIL";
-		console.log(
-			`  [${status}] ${task.taskId} — ${task.trials[0]?.taskName ?? "?"} (${(task.passRate * 100).toFixed(0)}%)`,
-		);
-	}
+	console.log(formatSuiteReport(results));
 
 	// Restore original DB
 	closeDb();

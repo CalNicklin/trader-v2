@@ -202,7 +202,7 @@ export async function reviewTrade(trade: TradeForReview): Promise<TradeReviewRes
 			() =>
 				client.messages.create({
 					model: config.CLAUDE_MODEL_FAST,
-					max_tokens: 300,
+					max_tokens: 500,
 					system: promptText,
 					messages: [{ role: "user", content: userMessage }],
 				}),
