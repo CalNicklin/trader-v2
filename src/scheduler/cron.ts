@@ -77,6 +77,13 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// Self-improvement — weekly Sunday 19:00 (after evolution at 18:00)
+	tasks.push(
+		cron.schedule("0 19 * * 0", () => runJob("self_improvement"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	log.info({ jobCount: tasks.length }, "Scheduler started");
 }
 

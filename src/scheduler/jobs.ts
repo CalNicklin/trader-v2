@@ -12,7 +12,8 @@ export type JobName =
 	| "pattern_analysis"
 	| "earnings_calendar_sync"
 	| "news_poll"
-	| "heartbeat";
+	| "heartbeat"
+	| "self_improvement";
 
 let jobRunning = false;
 const JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -115,6 +116,12 @@ async function executeJob(name: JobName): Promise<void> {
 		case "weekly_digest": {
 			const { runWeeklyDigest } = await import("./weekly-digest-job.ts");
 			await runWeeklyDigest();
+			break;
+		}
+
+		case "self_improvement": {
+			const { runSelfImproveJob } = await import("./self-improve-job.ts");
+			await runSelfImproveJob();
 			break;
 		}
 	}
