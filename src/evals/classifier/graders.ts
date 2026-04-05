@@ -2,6 +2,17 @@ import type { ClassificationResult } from "../../news/classifier.ts";
 import type { Grader } from "../types.ts";
 import type { ClassifierReference } from "./tasks.ts";
 
+const VALID_CATALYST_TYPES = new Set([
+	"fundamental",
+	"technical",
+	"macro",
+	"sector",
+	"sentiment",
+	"other",
+]);
+
+const VALID_MOVE_DURATIONS = new Set(["intraday", "1-3d", "1-2w", "1m+"]);
+
 type CG = Grader<ClassificationResult, ClassifierReference>;
 
 export const jsonShapeGrader: CG = {
@@ -106,10 +117,108 @@ export const urgencyGrader: CG = {
 	},
 };
 
+export const signalShapeGrader: CG = {
+	name: "signal-shape",
+	type: "code",
+	grade: async (output) => {
+		// Only check shape for tradeable events — non-tradeable may have null signals
+		if (!output.tradeable) {
+			return { score: 1, pass: true, reason: "Non-tradeable: signal shape not required" };
+		}
+
+		if (!output.signals) {
+			return { score: 0, pass: false, reason: "Tradeable event missing signals object" };
+		}
+
+		const s = output.signals;
+		const checks = [
+			typeof s.earningsSurprise === "number" && s.earningsSurprise >= 0 && s.earningsSurprise <= 1,
+			typeof s.guidanceChange === "number" && s.guidanceChange >= 0 && s.guidanceChange <= 1,
+			typeof s.managementTone === "number" && s.managementTone >= 0 && s.managementTone <= 1,
+			typeof s.regulatoryRisk === "number" && s.regulatoryRisk >= 0 && s.regulatoryRisk <= 1,
+			typeof s.acquisitionLikelihood === "number" &&
+				s.acquisitionLikelihood >= 0 &&
+				s.acquisitionLikelihood <= 1,
+			typeof s.catalystType === "string" && VALID_CATALYST_TYPES.has(s.catalystType),
+			typeof s.expectedMoveDuration === "string" &&
+				VALID_MOVE_DURATIONS.has(s.expectedMoveDuration),
+		];
+
+		const validCount = checks.filter(Boolean).length;
+		const score = validCount / checks.length;
+		const pass = validCount === checks.length;
+
+		return {
+			score,
+			pass,
+			reason: pass ? "All 7 signal fields valid" : `${validCount}/7 signal fields valid`,
+		};
+	},
+};
+
+export const signalValueGrader: CG = {
+	name: "signal-value",
+	type: "code",
+	grade: async (output, reference) => {
+		// Skip if no expected signals defined in reference
+		if (!reference.expectedSignals) {
+			return { score: 1, pass: true, reason: "No expected signals to check" };
+		}
+
+		if (!output.signals) {
+			return { score: 0, pass: false, reason: "Missing signals object, cannot check values" };
+		}
+
+		const exp = reference.expectedSignals;
+		const s = output.signals;
+		const checks: Array<{ name: string; pass: boolean }> = [];
+
+		if (exp.earningsSurpriseMin !== undefined) {
+			checks.push({
+				name: "earningsSurprise",
+				pass: s.earningsSurprise >= exp.earningsSurpriseMin,
+			});
+		}
+
+		if (exp.managementToneMin !== undefined) {
+			checks.push({
+				name: "managementTone",
+				pass: s.managementTone >= exp.managementToneMin,
+			});
+		}
+
+		if (exp.catalystType !== undefined) {
+			checks.push({
+				name: "catalystType",
+				pass: s.catalystType === exp.catalystType,
+			});
+		}
+
+		if (checks.length === 0) {
+			return { score: 1, pass: true, reason: "No threshold checks configured" };
+		}
+
+		const passedCount = checks.filter((c) => c.pass).length;
+		const score = passedCount / checks.length;
+		const pass = passedCount === checks.length;
+		const failedNames = checks.filter((c) => !c.pass).map((c) => c.name);
+
+		return {
+			score,
+			pass,
+			reason: pass
+				? "All signal value thresholds met"
+				: `Failed thresholds: ${failedNames.join(", ")}`,
+		};
+	},
+};
+
 export const allClassifierGraders: CG[] = [
 	jsonShapeGrader,
 	tradeableGrader,
 	sentimentRangeGrader,
 	eventTypeGrader,
 	urgencyGrader,
+	signalShapeGrader,
+	signalValueGrader,
 ];

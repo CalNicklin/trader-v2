@@ -12,6 +12,11 @@ export interface ClassifierReference {
 	sentimentMax: number;
 	expectedEventTypes: string[];
 	expectedUrgency: "low" | "medium" | "high";
+	expectedSignals?: {
+		earningsSurpriseMin?: number;
+		managementToneMin?: number;
+		catalystType?: string;
+	};
 }
 
 export const classifierTasks: EvalTask<ClassifierInput, ClassifierReference>[] = [
@@ -30,6 +35,11 @@ export const classifierTasks: EvalTask<ClassifierInput, ClassifierReference>[] =
 			sentimentMax: 1.0,
 			expectedEventTypes: ["earnings_beat"],
 			expectedUrgency: "high",
+			expectedSignals: {
+				earningsSurpriseMin: 0.5,
+				managementToneMin: 0.3,
+				catalystType: "fundamental",
+			},
 		},
 		tags: ["positive", "earnings"],
 	},

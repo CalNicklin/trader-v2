@@ -11,6 +11,7 @@ import { createChildLogger } from "../utils/logger.ts";
 import { buildSignalContext, type QuoteFields } from "./context.ts";
 import { evalExpr } from "./expr-eval.ts";
 import type { SymbolIndicators } from "./historical.ts";
+import { buildEffectiveUniverse, filterByLiquidity } from "./universe.ts";
 
 const log = createChildLogger({ module: "evaluator" });
 
@@ -139,7 +140,12 @@ export async function evaluateAllStrategies(
 
 	for (const strategy of activeStrategies) {
 		if (!strategy.universe) continue;
-		const universe: string[] = JSON.parse(strategy.universe);
+		const rawUniverse: string[] = JSON.parse(strategy.universe);
+
+		// Apply universe management: merge injections, cap at 50, filter liquidity
+		const withInjections = await buildEffectiveUniverse(rawUniverse);
+		const defaultExchange = "NASDAQ";
+		const universe = await filterByLiquidity(withInjections, defaultExchange);
 
 		for (const symbolSpec of universe) {
 			const [symbol, exchange] = symbolSpec.includes(":")

@@ -139,6 +139,13 @@ export const quotesCache = sqliteTable(
 		avgVolume: integer("avg_volume"),
 		changePercent: real("change_percent"),
 		newsSentiment: real("news_sentiment"), // written by news event bus
+		newsEarningsSurprise: real("news_earnings_surprise"),
+		newsGuidanceChange: real("news_guidance_change"),
+		newsManagementTone: real("news_management_tone"),
+		newsRegulatoryRisk: real("news_regulatory_risk"),
+		newsAcquisitionLikelihood: real("news_acquisition_likelihood"),
+		newsCatalystType: text("news_catalyst_type"),
+		newsExpectedMoveDuration: text("news_expected_move_duration"),
 		updatedAt: text("updated_at")
 			.notNull()
 			.$defaultFn(() => new Date().toISOString()),
@@ -269,6 +276,13 @@ export const newsEvents = sqliteTable(
 		tradeable: integer("tradeable", { mode: "boolean" }),
 		eventType: text("event_type"),
 		urgency: text("urgency", { enum: ["low", "medium", "high"] }),
+		earningsSurprise: real("earnings_surprise"),
+		guidanceChange: real("guidance_change"),
+		managementTone: real("management_tone"),
+		regulatoryRisk: real("regulatory_risk"),
+		acquisitionLikelihood: real("acquisition_likelihood"),
+		catalystType: text("catalyst_type"),
+		expectedMoveDuration: text("expected_move_duration"),
 		classifiedAt: text("classified_at"),
 		createdAt: text("created_at")
 			.notNull()

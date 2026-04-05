@@ -94,14 +94,15 @@ const SEED_STRATEGIES = [
 		description:
 			"Post-earnings drift: long on positive surprise with confident tone, short on negative. Edge: LLM assesses management tone, not just the EPS numbers.",
 		parameters: JSON.stringify({
-			surprise_threshold: 0.5,
-			tone_score_min: 0.6,
+			earnings_surprise_min: 0.7,
+			tone_long_min: 0.5,
+			tone_short_max: 0.3,
 			hold_days: 5,
 			position_size_pct: 8,
 		}),
 		signals: JSON.stringify({
-			entry_long: "news_sentiment > 0.5 AND volume_ratio > 2.0",
-			entry_short: "news_sentiment < -0.5 AND volume_ratio > 2.0",
+			entry_long: "earnings_surprise > 0.7 AND management_tone > 0.5 AND volume_ratio > 2.0",
+			entry_short: "earnings_surprise > 0.7 AND management_tone < 0.3 AND volume_ratio > 2.0",
 			exit: "hold_days >= 5 OR pnl_pct < -3 OR pnl_pct > 8",
 		}),
 		universe: JSON.stringify([

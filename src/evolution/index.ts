@@ -2,14 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getConfig } from "../config";
 import { canAffordCall } from "../utils/budget";
 import { createChildLogger } from "../utils/logger";
-import { recordUsage } from "../utils/token-tracker";
 import { withRetry } from "../utils/retry";
+import { recordUsage } from "../utils/token-tracker";
 import { getPerformanceLandscape } from "./analyzer";
-import { buildEvolutionPrompt, parseEvolutionResponse } from "./prompt";
-import { validateMutation } from "./validator";
-import { spawnChild } from "./spawner";
 import { checkDrawdowns, enforcePopulationCap, MAX_POPULATION } from "./population";
+import { buildEvolutionPrompt, parseEvolutionResponse } from "./prompt";
+import { spawnChild } from "./spawner";
 import { runTournaments } from "./tournament";
+import { validateMutation } from "./validator";
 
 const log = createChildLogger({ module: "evolution" });
 
@@ -52,7 +52,10 @@ export async function runEvolutionCycle(): Promise<{
 
 	// Step 6: Skip if population is at cap
 	if (landscape.activePaperCount >= MAX_POPULATION) {
-		log.info({ activePaperCount: landscape.activePaperCount, cap: MAX_POPULATION }, "Skipping evolution: population at cap");
+		log.info(
+			{ activePaperCount: landscape.activePaperCount, cap: MAX_POPULATION },
+			"Skipping evolution: population at cap",
+		);
 		return {
 			drawdownKills,
 			tournaments: tournamentResults.length,
@@ -118,7 +121,10 @@ export async function runEvolutionCycle(): Promise<{
 
 		const parent = landscape.strategies.find((s) => s.id === proposal.parentId);
 		if (!parent) {
-			log.warn({ proposalParentId: proposal.parentId }, "Skipping proposal: parent strategy not found");
+			log.warn(
+				{ proposalParentId: proposal.parentId },
+				"Skipping proposal: parent strategy not found",
+			);
 			continue;
 		}
 
@@ -132,9 +138,15 @@ export async function runEvolutionCycle(): Promise<{
 			const childId = await spawnChild(validation.mutation);
 			spawned.push(childId);
 			slotsUsed++;
-			log.info({ childId, parentId: proposal.parentId, name: proposal.name }, "Spawned child strategy");
+			log.info(
+				{ childId, parentId: proposal.parentId, name: proposal.name },
+				"Spawned child strategy",
+			);
 		} catch (err) {
-			log.warn({ err, proposalName: proposal.name, parentId: proposal.parentId }, "Failed to spawn child strategy, skipping");
+			log.warn(
+				{ err, proposalName: proposal.name, parentId: proposal.parentId },
+				"Failed to spawn child strategy, skipping",
+			);
 		}
 	}
 
