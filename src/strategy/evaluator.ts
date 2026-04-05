@@ -4,9 +4,11 @@ import { strategies } from "../db/schema.ts";
 import {
 	closePaperPosition,
 	getOpenPositionForSymbol,
+	getOpenPositions,
 	openPaperPosition,
 } from "../paper/manager.ts";
 import { checkTradeRiskGate } from "../risk/gate.ts";
+import { isTradingHalted, isWeeklyDrawdownActive } from "../risk/guardian.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { buildSignalContext, type QuoteFields } from "./context.ts";
 import { evalExpr } from "./expr-eval.ts";
@@ -41,6 +43,11 @@ export async function evaluateStrategyForSymbol(
 	symbol: string,
 	exchange: string,
 	input: EvalInput,
+	riskState?: {
+		openPositionCount: number;
+		openPositionSectors: (string | null)[];
+		weeklyDrawdownActive: boolean;
+	},
 ): Promise<void> {
 	if (!strategy.signals) return;
 
@@ -93,8 +100,9 @@ export async function evaluateStrategyForSymbol(
 				exchange,
 				sector: null,
 				borrowFeeAnnualPct: null,
-				openPositionCount: 0,
-				openPositionSectors: [],
+				openPositionCount: riskState?.openPositionCount ?? 0,
+				openPositionSectors: riskState?.openPositionSectors ?? [],
+				weeklyDrawdownActive: riskState?.weeklyDrawdownActive,
 			});
 
 			if (!gateResult.allowed) {
@@ -131,8 +139,9 @@ export async function evaluateStrategyForSymbol(
 				exchange,
 				sector: null,
 				borrowFeeAnnualPct: null,
-				openPositionCount: 0,
-				openPositionSectors: [],
+				openPositionCount: riskState?.openPositionCount ?? 0,
+				openPositionSectors: riskState?.openPositionSectors ?? [],
+				weeklyDrawdownActive: riskState?.weeklyDrawdownActive,
 			});
 
 			if (!gateResult.allowed) {
@@ -177,11 +186,21 @@ export async function evaluateAllStrategies(
 		exchange: string,
 	) => Promise<{ quote: QuoteFields; indicators: SymbolIndicators } | null>,
 ): Promise<void> {
+	// Check if trading is halted before evaluating any strategies
+	const haltStatus = await isTradingHalted();
+	if (haltStatus.halted) {
+		log.warn({ reason: haltStatus.reason }, "Trading halted — skipping strategy evaluation");
+		return;
+	}
+
 	const db = getDb();
 
 	const activeStrategies = await db.select().from(strategies).where(eq(strategies.status, "paper"));
 
 	log.info({ count: activeStrategies.length }, "Evaluating paper strategies");
+
+	// Check weekly drawdown state once for all strategies
+	const weeklyDrawdownActive = await isWeeklyDrawdownActive();
 
 	for (const strategy of activeStrategies) {
 		if (!strategy.universe) continue;
@@ -192,6 +211,14 @@ export async function evaluateAllStrategies(
 		const defaultExchange = "NASDAQ";
 		const universe = await filterByLiquidity(withInjections, defaultExchange);
 
+		// Gather open position state for this strategy
+		const openPositions = await getOpenPositions(strategy.id);
+		const riskState = {
+			openPositionCount: openPositions.length,
+			openPositionSectors: openPositions.map(() => null as string | null), // sector lookup not yet available
+			weeklyDrawdownActive,
+		};
+
 		for (const symbolSpec of universe) {
 			const [symbol, exchange] = symbolSpec.includes(":")
 				? symbolSpec.split(":")
@@ -201,7 +228,7 @@ export async function evaluateAllStrategies(
 			if (!data) continue;
 
 			try {
-				await evaluateStrategyForSymbol(strategy, symbol!, exchange!, data);
+				await evaluateStrategyForSymbol(strategy, symbol!, exchange!, data, riskState);
 			} catch (error) {
 				log.error({ strategy: strategy.name, symbol, error }, "Error evaluating strategy");
 			}

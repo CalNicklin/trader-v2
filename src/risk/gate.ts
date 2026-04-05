@@ -3,7 +3,7 @@
 import { type PortfolioState, runAllTradeChecks, type TradeProposal } from "./limits.ts";
 import { calcAtrPositionSize, type PositionSizeResult } from "./position-sizer.ts";
 
-interface RiskGateInput {
+export interface RiskGateInput {
 	accountBalance: number;
 	price: number;
 	atr14: number;
@@ -13,6 +13,7 @@ interface RiskGateInput {
 	borrowFeeAnnualPct: number | null;
 	openPositionCount: number;
 	openPositionSectors: (string | null)[];
+	weeklyDrawdownActive?: boolean;
 }
 
 export interface RiskGateResult {
@@ -34,6 +35,7 @@ export function checkTradeRiskGate(input: RiskGateInput): RiskGateResult {
 		atr14: input.atr14,
 		side: input.side,
 		exchange: input.exchange,
+		weeklyDrawdownActive: input.weeklyDrawdownActive,
 	});
 
 	if (sizing.skipped) {

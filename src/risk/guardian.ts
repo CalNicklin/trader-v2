@@ -74,6 +74,21 @@ export async function runGuardian(
 	if (!verdict.canTrade && verdict.requiresManualRestart) {
 		await setRiskStateValue("circuit_breaker_tripped", "true");
 		log.error({ verdict }, "CIRCUIT BREAKER TRIPPED — manual restart required");
+
+		// Send alert email
+		try {
+			const { sendEmail } = await import("../reporting/email.ts");
+			await sendEmail({
+				subject: "CIRCUIT BREAKER TRIPPED — Trader v2",
+				html: `<h2 style="color:red">Circuit Breaker Tripped</h2>
+<p>Max drawdown exceeded 10% — all trading halted.</p>
+<p><strong>Manual restart required.</strong></p>
+<pre>${JSON.stringify(verdict, null, 2)}</pre>
+<p>Time: ${new Date().toISOString()}</p>`,
+			});
+		} catch (emailErr) {
+			log.error({ emailErr }, "Failed to send circuit breaker alert email");
+		}
 	}
 
 	if (!verdict.canTrade) {
@@ -116,6 +131,14 @@ export async function isTradingHalted(): Promise<{
 	}
 
 	return { halted: false, requiresManualRestart: false };
+}
+
+/**
+ * Check if weekly drawdown size reduction is active.
+ */
+export async function isWeeklyDrawdownActive(): Promise<boolean> {
+	const value = await getRiskStateValue("weekly_drawdown_active");
+	return value === "true";
 }
 
 /**

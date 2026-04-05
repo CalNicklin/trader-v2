@@ -15,7 +15,10 @@ export type JobName =
 	| "heartbeat"
 	| "self_improvement"
 	| "guardian_start"
-	| "live_evaluation";
+	| "live_evaluation"
+	| "risk_guardian"
+	| "risk_daily_reset"
+	| "risk_weekly_reset";
 
 let jobRunning = false;
 const JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -145,6 +148,24 @@ async function executeJob(name: JobName): Promise<void> {
 		case "live_evaluation": {
 			const { runLiveEvalJob } = await import("./live-eval-job.ts");
 			await runLiveEvalJob();
+			break;
+		}
+
+		case "risk_guardian": {
+			const { runRiskGuardianJob } = await import("./risk-guardian-job.ts");
+			await runRiskGuardianJob();
+			break;
+		}
+
+		case "risk_daily_reset": {
+			const { resetDailyState } = await import("../risk/guardian.ts");
+			await resetDailyState();
+			break;
+		}
+
+		case "risk_weekly_reset": {
+			const { resetWeeklyState } = await import("../risk/guardian.ts");
+			await resetWeeklyState();
 			break;
 		}
 	}

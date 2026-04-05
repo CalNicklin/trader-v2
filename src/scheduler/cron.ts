@@ -98,6 +98,27 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// Risk guardian every 10 minutes during market hours, offset to :04
+	tasks.push(
+		cron.schedule("4,14,24,34,44,54 8-20 * * 1-5", () => runJob("risk_guardian"), {
+			timezone: "Europe/London",
+		}),
+	);
+
+	// Daily risk state reset at 07:55 weekdays (before market open)
+	tasks.push(
+		cron.schedule("55 7 * * 1-5", () => runJob("risk_daily_reset"), {
+			timezone: "Europe/London",
+		}),
+	);
+
+	// Weekly risk state reset Monday at 07:50 (before daily reset)
+	tasks.push(
+		cron.schedule("50 7 * * 1", () => runJob("risk_weekly_reset"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	log.info({ jobCount: tasks.length }, "Scheduler started");
 }
 
