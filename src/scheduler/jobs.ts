@@ -12,7 +12,8 @@ export type JobName =
 	| "pattern_analysis"
 	| "earnings_calendar_sync"
 	| "news_poll"
-	| "heartbeat";
+	| "heartbeat"
+	| "self_improvement";
 
 let jobRunning = false;
 const JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -40,6 +41,10 @@ export async function runJob(name: JobName): Promise<void> {
 	try {
 		await Promise.race([jobPromise, timeoutPromise]);
 		log.info({ job: name, durationMs: Date.now() - start }, "Job completed");
+		const { sendHeartbeat } = await import("../monitoring/heartbeat.ts");
+		await sendHeartbeat(name).catch((err) =>
+			log.warn({ err, job: name }, "Heartbeat failed (non-fatal)"),
+		);
 	} catch (error) {
 		log.error({ job: name, error, durationMs: Date.now() - start }, "Job failed");
 	} finally {
@@ -49,6 +54,15 @@ export async function runJob(name: JobName): Promise<void> {
 }
 
 async function executeJob(name: JobName): Promise<void> {
+	const TRADE_JOBS: JobName[] = ["strategy_evaluation", "trade_review"];
+	if (TRADE_JOBS.includes(name)) {
+		const { isPaused } = await import("../monitoring/health.ts");
+		if (isPaused()) {
+			log.info({ job: name }, "Skipping — trading is paused");
+			return;
+		}
+	}
+
 	switch (name) {
 		case "quote_refresh": {
 			// Phase 1: refresh quotes for all symbols in quotes_cache
@@ -108,9 +122,16 @@ async function executeJob(name: JobName): Promise<void> {
 			break;
 		}
 
-		// Stubs for future phases — log and return
-		case "weekly_digest":
-			log.info({ job: name }, "Job not yet implemented (future phase)");
+		case "weekly_digest": {
+			const { runWeeklyDigest } = await import("./weekly-digest-job.ts");
+			await runWeeklyDigest();
 			break;
+		}
+
+		case "self_improvement": {
+			const { runSelfImproveJob } = await import("./self-improve-job.ts");
+			await runSelfImproveJob();
+			break;
+		}
 	}
 }

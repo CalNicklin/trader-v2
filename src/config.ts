@@ -30,6 +30,15 @@ const envSchema = z.object({
 
 	// Finnhub
 	FINNHUB_API_KEY: z.string().optional(),
+
+	// HTTP server
+	HTTP_PORT: z.coerce.number().default(3847),
+
+	// Uptime Kuma
+	UPTIME_KUMA_PUSH_URL: z.string().url().optional(),
+
+	// Admin auth
+	ADMIN_PASSWORD: z.string().optional(),
 });
 
 export type Config = z.infer<typeof envSchema>;
