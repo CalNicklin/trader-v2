@@ -36,6 +36,9 @@ const envSchema = z.object({
 
 	// Uptime Kuma
 	UPTIME_KUMA_PUSH_URL: z.string().url().optional(),
+
+	// Admin auth
+	ADMIN_PASSWORD: z.string().optional(),
 });
 
 export type Config = z.infer<typeof envSchema>;
