@@ -5,7 +5,7 @@ import { createChildLogger } from "../utils/logger.ts";
 import type { ClassificationResult } from "./classifier.ts";
 import type { NewsArticle } from "./finnhub.ts";
 import { shouldClassify } from "./pre-filter.ts";
-import { storeNewsEvent, writeSentiment } from "./sentiment-writer.ts";
+import { storeNewsEvent, writeSignals, writeSentiment } from "./sentiment-writer.ts";
 
 const log = createChildLogger({ module: "news-ingest" });
 
@@ -51,6 +51,7 @@ export async function processArticle(
 			tradeable: null,
 			eventType: null,
 			urgency: null,
+			signals: null,
 		});
 		return "filtered";
 	}
@@ -72,6 +73,7 @@ export async function processArticle(
 			tradeable: null,
 			eventType: null,
 			urgency: null,
+			signals: null,
 		});
 		return "failed";
 	}
@@ -87,11 +89,25 @@ export async function processArticle(
 		tradeable: result.tradeable,
 		eventType: result.eventType,
 		urgency: result.urgency,
+		signals: result.signals,
 	});
 
-	// Write sentiment to quote cache for each symbol
+	// Write signals or sentiment to quote cache for each symbol
 	for (const symbol of article.symbols) {
-		await writeSentiment(symbol, exchange, result.sentiment);
+		if (result.signals) {
+			await writeSignals(symbol, exchange, {
+				sentiment: result.sentiment,
+				earningsSurprise: result.signals.earningsSurprise,
+				guidanceChange: result.signals.guidanceChange,
+				managementTone: result.signals.managementTone,
+				regulatoryRisk: result.signals.regulatoryRisk,
+				acquisitionLikelihood: result.signals.acquisitionLikelihood,
+				catalystType: result.signals.catalystType,
+				expectedMoveDuration: result.signals.expectedMoveDuration,
+			});
+		} else {
+			await writeSentiment(symbol, exchange, result.sentiment);
+		}
 	}
 
 	log.info(
