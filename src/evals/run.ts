@@ -1,5 +1,9 @@
 import { mkdir } from "node:fs/promises";
 
+// Ensure optional env vars exist so config validation passes in eval context
+if (!process.env.RESEND_API_KEY) process.env.RESEND_API_KEY = "eval-placeholder";
+if (!process.env.ALERT_EMAIL_TO) process.env.ALERT_EMAIL_TO = "eval@placeholder.local";
+
 const args = process.argv.slice(2);
 const suite = args[0] || "all";
 const trials = Number.parseInt(

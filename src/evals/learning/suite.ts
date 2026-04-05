@@ -1,4 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { resetConfigForTesting } from "../../config.ts";
+import { closeDb, getDb } from "../../db/client.ts";
 import { getActivePrompt } from "../../learning/prompts.ts";
 import { runSuite } from "../harness.ts";
 import { adjustmentPresenceGrader, hasPatternTagsGrader, validJsonGrader } from "./graders.ts";
@@ -19,6 +22,14 @@ export async function runLearningEvalSuite(options: {
 	suiteName?: string;
 }): Promise<void> {
 	const trials = options.trials ?? 2;
+
+	// Use a fresh in-memory DB with all migrations applied
+	const origDbPath = process.env.DB_PATH;
+	process.env.DB_PATH = ":memory:";
+	resetConfigForTesting();
+	closeDb();
+	migrate(getDb(), { migrationsFolder: "./drizzle/migrations" });
+
 	const { promptText } = await getActivePrompt("trade_review");
 	const client = new Anthropic();
 
@@ -50,4 +61,10 @@ export async function runLearningEvalSuite(options: {
 			`  [${status}] ${task.taskId} — ${task.trials[0]?.taskName ?? "?"} (${(task.passRate * 100).toFixed(0)}%)`,
 		);
 	}
+
+	// Restore original DB
+	closeDb();
+	if (origDbPath) process.env.DB_PATH = origDbPath;
+	else delete process.env.DB_PATH;
+	resetConfigForTesting();
 }
