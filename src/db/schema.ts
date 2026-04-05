@@ -337,6 +337,17 @@ export const dailySnapshots = sqliteTable("daily_snapshots", {
 		.$defaultFn(() => new Date().toISOString()),
 });
 
+// ── Risk State ─────────────────────────────────────────────────────────────
+
+export const riskState = sqliteTable("risk_state", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	key: text("key").notNull().unique(),
+	value: text("value").notNull(),
+	updatedAt: text("updated_at")
+		.notNull()
+		.$defaultFn(() => new Date().toISOString()),
+});
+
 export const improvementProposals = sqliteTable("improvement_proposals", {
 	id: integer("id").primaryKey({ autoIncrement: true }),
 	title: text("title").notNull(),

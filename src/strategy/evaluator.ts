@@ -6,7 +6,7 @@ import {
 	getOpenPositionForSymbol,
 	openPaperPosition,
 } from "../paper/manager.ts";
-import { calcPositionSize } from "../paper/pnl.ts";
+import { checkTradeRiskGate } from "../risk/gate.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { buildSignalContext, type QuoteFields } from "./context.ts";
 import { evalExpr } from "./expr-eval.ts";
@@ -45,8 +45,6 @@ export async function evaluateStrategyForSymbol(
 	if (!strategy.signals) return;
 
 	const signals: SignalDef = JSON.parse(strategy.signals);
-	const params = JSON.parse(strategy.parameters);
-	const positionSizePct = params.position_size_pct ?? 10;
 
 	const openPosition = await getOpenPositionForSymbol(strategy.id, symbol, exchange);
 
@@ -87,11 +85,31 @@ export async function evaluateStrategyForSymbol(
 		const price = input.quote.last;
 
 		if (signals.entry_long && evalExpr(signals.entry_long, ctx)) {
-			const { quantity } = calcPositionSize(strategy.virtualBalance, positionSizePct, price);
+			const gateResult = checkTradeRiskGate({
+				accountBalance: strategy.virtualBalance,
+				price,
+				atr14: input.indicators.atr14 ?? 0,
+				side: "BUY",
+				exchange,
+				sector: null,
+				borrowFeeAnnualPct: null,
+				openPositionCount: 0,
+				openPositionSectors: [],
+			});
+
+			if (!gateResult.allowed) {
+				log.debug(
+					{ strategy: strategy.name, symbol, reason: gateResult.reason },
+					"Trade rejected by risk gate",
+				);
+				return;
+			}
+
+			const { quantity, stopLossPrice } = gateResult.sizing!;
 			if (quantity > 0) {
 				log.info(
-					{ strategy: strategy.name, symbol, signal: "entry_long", quantity, price },
-					"Entry long signal fired",
+					{ strategy: strategy.name, symbol, signal: "entry_long", quantity, price, stopLossPrice },
+					"Entry long signal fired (risk-gated)",
 				);
 				await openPaperPosition({
 					strategyId: strategy.id,
@@ -105,11 +123,38 @@ export async function evaluateStrategyForSymbol(
 				});
 			}
 		} else if (signals.entry_short && evalExpr(signals.entry_short, ctx)) {
-			const { quantity } = calcPositionSize(strategy.virtualBalance, positionSizePct, price);
+			const gateResult = checkTradeRiskGate({
+				accountBalance: strategy.virtualBalance,
+				price,
+				atr14: input.indicators.atr14 ?? 0,
+				side: "SELL",
+				exchange,
+				sector: null,
+				borrowFeeAnnualPct: null,
+				openPositionCount: 0,
+				openPositionSectors: [],
+			});
+
+			if (!gateResult.allowed) {
+				log.debug(
+					{ strategy: strategy.name, symbol, reason: gateResult.reason },
+					"Trade rejected by risk gate",
+				);
+				return;
+			}
+
+			const { quantity, stopLossPrice } = gateResult.sizing!;
 			if (quantity > 0) {
 				log.info(
-					{ strategy: strategy.name, symbol, signal: "entry_short", quantity, price },
-					"Entry short signal fired",
+					{
+						strategy: strategy.name,
+						symbol,
+						signal: "entry_short",
+						quantity,
+						price,
+						stopLossPrice,
+					},
+					"Entry short signal fired (risk-gated)",
 				);
 				await openPaperPosition({
 					strategyId: strategy.id,
