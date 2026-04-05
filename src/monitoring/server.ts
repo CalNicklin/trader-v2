@@ -29,8 +29,13 @@ async function handleRequest(req: Request): Promise<Response> {
 	const url = new URL(req.url);
 
 	if (req.method === "GET" && url.pathname === "/health") {
-		const data = await getHealthData();
-		return Response.json(data);
+		try {
+			const data = await getHealthData();
+			return Response.json(data);
+		} catch (err) {
+			log.error({ err }, "Health check failed");
+			return Response.json({ status: "error" }, { status: 500 });
+		}
 	}
 
 	return new Response("Not Found", { status: 404 });
