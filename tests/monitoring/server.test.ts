@@ -64,7 +64,7 @@ describe("HTTP server", () => {
 
 		// Confirm paused via health endpoint
 		const health = await fetch(`http://localhost:${port}/health`);
-		const data = await health.json() as any;
+		const data = (await health.json()) as any;
 		expect(data.paused).toBe(true);
 	});
 
@@ -84,7 +84,7 @@ describe("HTTP server", () => {
 		expect(res.headers.get("location")).toBe("/");
 
 		const health = await fetch(`http://localhost:${port}/health`);
-		const data = await health.json() as any;
+		const data = (await health.json()) as any;
 		expect(data.paused).toBe(false);
 	});
 
