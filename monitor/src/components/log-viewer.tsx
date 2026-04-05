@@ -5,10 +5,12 @@ interface LogViewerProps {
 	lines: string[];
 }
 
+const ERROR_PATTERN = /\b(error|fatal|err(?:or)?)\b/i;
+const WARN_PATTERN = /\b(warn|warning)\b/i;
+
 function classifyLine(line: string): "error" | "warn" | "info" {
-	const lower = line.toLowerCase();
-	if (lower.includes("error") || lower.includes("fatal") || lower.includes("err")) return "error";
-	if (lower.includes("warn") || lower.includes("warning")) return "warn";
+	if (ERROR_PATTERN.test(line)) return "error";
+	if (WARN_PATTERN.test(line)) return "warn";
 	return "info";
 }
 

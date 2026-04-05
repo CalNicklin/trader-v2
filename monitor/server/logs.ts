@@ -9,7 +9,7 @@ let sshProcess: Subprocess | null = null;
 let keyFilePath: string | null = null;
 const clients = new Set<ServerWebSocket<unknown>>();
 const buffer: string[] = [];
-const MAX_BUFFER = 200;
+const MAX_BUFFER = 1000;
 
 function writeKeyFile(key: string): string {
 	const path = join(tmpdir(), `monitor-ssh-${process.pid}.key`);
