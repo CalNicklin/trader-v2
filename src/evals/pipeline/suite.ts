@@ -1,3 +1,6 @@
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { resetConfigForTesting } from "../../config.ts";
+import { closeDb, getDb } from "../../db/client.ts";
 import { classifyHeadline } from "../../news/classifier.ts";
 import type { NewsArticle } from "../../news/finnhub.ts";
 import { processArticle } from "../../news/ingest.ts";
@@ -15,6 +18,13 @@ export async function runPipelineEvals(
 	options: { trials?: number; tags?: string[]; saveDir?: string } = {},
 ): Promise<void> {
 	const { trials = 3, tags, saveDir = "src/evals/results" } = options;
+
+	// Use a fresh in-memory DB with all migrations applied
+	const origDbPath = process.env.DB_PATH;
+	process.env.DB_PATH = ":memory:";
+	resetConfigForTesting();
+	closeDb();
+	migrate(getDb(), { migrationsFolder: "./drizzle/migrations" });
 
 	let tasks = pipelineTasks;
 	if (tags && tags.length > 0) {
@@ -72,4 +82,10 @@ export async function runPipelineEvals(
 
 	await Bun.write(`${saveDir}/pipeline-latest.json`, JSON.stringify(results, null, 2));
 	console.log(`Results saved to ${saveDir}/pipeline-latest.json`);
+
+	// Restore original DB
+	closeDb();
+	if (origDbPath) process.env.DB_PATH = origDbPath;
+	else delete process.env.DB_PATH;
+	resetConfigForTesting();
 }
