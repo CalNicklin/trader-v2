@@ -15,7 +15,15 @@ const OrderStatusSchema = z.object({
 	status: z.string().optional(),
 });
 
+interface TrackedOrderInfo {
+	tradeId: number;
+	strategyId?: number;
+	symbol?: string;
+	expectedPrice?: number;
+}
+
 const trackedOrders = new Map<number, number>();
+const trackedOrderInfo = new Map<number, TrackedOrderInfo>();
 let orderSub: Subscription | null = null;
 let resubscribeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -74,6 +82,26 @@ function subscribe(api: SubscribableApi, db: UpdatableDb): void {
 					}
 				}
 
+				// Check for behavioral divergence on fills
+				if (event.status === "FILLED" && event.fillData?.fillPrice) {
+					const info = trackedOrderInfo.get(event.tradeId);
+					if (info?.expectedPrice && info.strategyId !== undefined && info.symbol) {
+						import("../live/executor.ts")
+							.then(({ checkBehavioralDivergence }) =>
+								checkBehavioralDivergence(
+									info.strategyId!,
+									info.symbol!,
+									info.expectedPrice!,
+									event.fillData!.fillPrice!,
+								),
+							)
+							.catch((err: unknown) => {
+								log.warn({ error: err }, "Behavioral divergence check failed (non-fatal)");
+							});
+					}
+					trackedOrderInfo.delete(event.tradeId);
+				}
+
 				db.update(liveTrades)
 					.set(updateData)
 					.where(eq(liveTrades.id, event.tradeId))
@@ -115,8 +143,15 @@ export function startOrderMonitoring(api: SubscribableApi, db: UpdatableDb): voi
 	subscribe(api, db);
 }
 
-export function trackOrder(ibOrderId: number, tradeId: number): void {
+export function trackOrder(
+	ibOrderId: number,
+	tradeId: number,
+	info?: { strategyId?: number; symbol?: string; expectedPrice?: number },
+): void {
 	trackedOrders.set(ibOrderId, tradeId);
+	if (info) {
+		trackedOrderInfo.set(tradeId, { tradeId, ...info });
+	}
 	log.info({ ibOrderId, tradeId }, "Tracking order");
 }
 
@@ -130,5 +165,6 @@ export function stopOrderMonitoring(): void {
 		orderSub = null;
 	}
 	trackedOrders.clear();
+	trackedOrderInfo.clear();
 	log.info("Order monitoring stopped");
 }

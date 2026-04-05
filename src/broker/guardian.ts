@@ -46,14 +46,14 @@ async function guardianTick(): Promise<void> {
 			}
 		}
 
-		// 1. Stop-loss enforcement
-		await enforceStopLosses(positionRows, quotes);
+		// 1. Stop-loss enforcement (returns IDs of positions that were closed)
+		const closedByStopLoss = await enforceStopLosses(positionRows, quotes);
 
 		// 2. Update position prices
 		await updatePositionPrices(positionRows, quotes);
 
-		// 3. Trailing stop updates
-		await updateTrailingStops(positionRows, quotes);
+		// 3. Trailing stop updates (skip positions already closed by stop-loss)
+		await updateTrailingStops(positionRows, quotes, closedByStopLoss);
 	} catch (error) {
 		log.error({ error }, "Guardian tick failed");
 	}
@@ -69,14 +69,18 @@ async function enforceStopLosses(
 		strategyId: number | null;
 	}>,
 	quotes: Map<string, { last: number | null; bid: number | null }>,
-): Promise<void> {
+): Promise<Set<number>> {
 	const breaches = findStopLossBreaches(positionRows, quotes);
+	const closedIds = new Set<number>();
 
 	for (const breach of breaches) {
 		const pos = positionRows.find((p) => p.symbol === breach.symbol);
+		const isShort = breach.quantity < 0;
+		const side = isShort ? "BUY" : "SELL";
+		const absQuantity = Math.abs(breach.quantity);
 		log.warn(
-			{ symbol: breach.symbol, price: breach.price, stopLoss: breach.stopLossPrice },
-			"Stop-loss triggered — placing MARKET SELL",
+			{ symbol: breach.symbol, price: breach.price, stopLoss: breach.stopLossPrice, side },
+			`Stop-loss triggered — placing MARKET ${side}`,
 		);
 
 		try {
@@ -84,23 +88,28 @@ async function enforceStopLosses(
 				strategyId: pos?.strategyId ?? undefined,
 				symbol: breach.symbol,
 				exchange: (pos?.exchange ?? "LSE") as Exchange,
-				side: "SELL",
-				quantity: breach.quantity,
+				side,
+				quantity: absQuantity,
 				orderType: "MARKET",
 				reasoning: `Stop-loss triggered: price ${breach.price} <= stop ${breach.stopLossPrice}`,
 				confidence: 1.0,
 			});
 
+			if (pos) closedIds.add(pos.id);
+
 			const db = getDb();
+			const action = isShort ? "covered" : "sold";
 			await db.insert(agentLogs).values({
 				level: "ACTION" as const,
 				phase: "guardian",
-				message: `Stop-loss executed for ${breach.symbol}: price ${breach.price} <= stop ${breach.stopLossPrice}, sold ${breach.quantity} shares`,
+				message: `Stop-loss executed for ${breach.symbol}: price ${breach.price} <= stop ${breach.stopLossPrice}, ${action} ${absQuantity} shares`,
 			});
 		} catch (error) {
 			log.error({ symbol: breach.symbol, error }, "Stop-loss SELL failed");
 		}
 	}
+
+	return closedIds;
 }
 
 async function updatePositionPrices(
@@ -140,10 +149,13 @@ async function updateTrailingStops(
 		strategyId: number | null;
 	}>,
 	quotes: Map<string, { last: number | null; bid: number | null }>,
+	closedByStopLoss: Set<number> = new Set(),
 ): Promise<void> {
 	const db = getDb();
 
 	for (const pos of positionRows) {
+		// Skip positions already closed by stop-loss enforcement
+		if (closedByStopLoss.has(pos.id)) continue;
 		const quote = quotes.get(pos.symbol);
 		const currentPrice = quote?.last ?? quote?.bid ?? null;
 		if (!currentPrice) continue;
@@ -183,13 +195,17 @@ async function updateTrailingStops(
 			.where(eq(livePositions.id, pos.id));
 
 		if (update.triggered) {
+			const isShort = pos.quantity < 0;
+			const side = isShort ? "BUY" : "SELL";
+			const absQuantity = Math.abs(pos.quantity);
 			log.warn(
 				{
 					symbol: pos.symbol,
 					price: currentPrice,
 					trailingStop: update.trailingStopPrice,
+					side,
 				},
-				"Trailing stop triggered — placing MARKET SELL",
+				`Trailing stop triggered — placing MARKET ${side}`,
 			);
 
 			try {
@@ -197,17 +213,18 @@ async function updateTrailingStops(
 					strategyId: pos.strategyId ?? undefined,
 					symbol: pos.symbol,
 					exchange: pos.exchange as Exchange,
-					side: "SELL",
-					quantity: pos.quantity,
+					side,
+					quantity: absQuantity,
 					orderType: "MARKET",
 					reasoning: `Trailing stop triggered: price ${currentPrice} <= stop ${update.trailingStopPrice.toFixed(2)}`,
 					confidence: 1.0,
 				});
 
+				const action = isShort ? "covered" : "sold";
 				await db.insert(agentLogs).values({
 					level: "ACTION" as const,
 					phase: "guardian",
-					message: `Trailing stop executed for ${pos.symbol}: price ${currentPrice} <= trailing stop ${update.trailingStopPrice.toFixed(2)}, sold ${pos.quantity} shares`,
+					message: `Trailing stop executed for ${pos.symbol}: price ${currentPrice} <= trailing stop ${update.trailingStopPrice.toFixed(2)}, ${action} ${absQuantity} shares`,
 				});
 			} catch (error) {
 				log.error({ symbol: pos.symbol, error }, "Trailing stop SELL failed");

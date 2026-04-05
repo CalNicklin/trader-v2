@@ -90,7 +90,11 @@ export async function placeTrade(req: TradeRequest): Promise<TradeResult> {
 			"Order placed",
 		);
 
-		trackOrder(ibOrderId, tradeRecord.id);
+		trackOrder(ibOrderId, tradeRecord.id, {
+			strategyId: req.strategyId,
+			symbol: req.symbol,
+			expectedPrice: req.limitPrice ?? undefined,
+		});
 
 		return { tradeId: tradeRecord.id, ibOrderId, status: "SUBMITTED" };
 	} catch (error) {

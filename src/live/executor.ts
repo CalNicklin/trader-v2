@@ -138,7 +138,7 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 				const indicators = await getIndicators(symbol, exchange);
 				if (!indicators) continue;
 
-				// Check for existing position
+				// Check for existing position (by this strategy)
 				const [existingPos] = await db
 					.select()
 					.from(livePositions)
@@ -149,6 +149,28 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 						),
 					)
 					.limit(1);
+
+				// Guard against UNIQUE(symbol, exchange) constraint — check if
+				// any other strategy already holds this symbol on this exchange
+				if (!existingPos) {
+					const [conflictingPos] = await db
+						.select({ id: livePositions.id })
+						.from(livePositions)
+						.where(
+							and(
+								eq(livePositions.symbol, symbol),
+								eq(livePositions.exchange, exchange),
+							),
+						)
+						.limit(1);
+					if (conflictingPos) {
+						log.debug(
+							{ symbol, exchange, strategyId: strategy.id },
+							"Skipping — another strategy already holds this symbol",
+						);
+						continue;
+					}
+				}
 
 				// Evaluate entry signal (only if no existing position)
 				if (!existingPos && signals.entry_long) {
@@ -192,6 +214,55 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 								);
 							} catch (err) {
 								const msg = `Failed to place entry for ${symbol}: ${err}`;
+								result.errors.push(msg);
+								log.error({ error: err, symbol, strategyId: strategy.id }, msg);
+							}
+						}
+					}
+				}
+
+				// Evaluate entry_short signal (only if no existing position)
+				if (!existingPos && signals.entry_short) {
+					const shouldShort = evaluateSignal(
+						signals.entry_short,
+						parameters,
+						cached,
+						indicators,
+					);
+
+					if (shouldShort) {
+						const positionValue = Math.min(
+							allocation.maxPositionSize,
+							allocation.allocatedCapital * 0.25,
+						);
+						const quantity = Math.floor(positionValue / cached.last);
+
+						if (quantity > 0) {
+							try {
+								await placeTrade({
+									strategyId: strategy.id,
+									symbol,
+									exchange,
+									side: "SELL",
+									quantity,
+									orderType: "LIMIT",
+									limitPrice: cached.bid ?? cached.last,
+									reasoning: `Strategy ${strategy.name}: entry_short signal triggered`,
+									confidence: 0.7,
+								});
+								result.tradesPlaced++;
+
+								log.info(
+									{
+										strategyId: strategy.id,
+										symbol,
+										quantity,
+										price: cached.bid ?? cached.last,
+									},
+									"Live short entry trade placed",
+								);
+							} catch (err) {
+								const msg = `Failed to place short entry for ${symbol}: ${err}`;
 								result.errors.push(msg);
 								log.error({ error: err, symbol, strategyId: strategy.id }, msg);
 							}
