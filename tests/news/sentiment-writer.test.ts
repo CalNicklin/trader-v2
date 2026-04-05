@@ -67,6 +67,7 @@ describe("sentiment writer", () => {
 			tradeable: true,
 			eventType: "earnings_beat",
 			urgency: "high" as const,
+			signals: null,
 		});
 
 		const rows = await db.select().from(newsEvents);
@@ -75,5 +76,125 @@ describe("sentiment writer", () => {
 		expect(rows[0]!.tradeable).toBe(true);
 		expect(rows[0]!.sentiment).toBeCloseTo(0.8);
 		expect(rows[0]!.classifiedAt).not.toBeNull();
+	});
+
+	test("writeSignals writes all signal fields to quote cache", async () => {
+		const { writeSignals } = await import("../../src/news/sentiment-writer.ts");
+		const { quotesCache } = await import("../../src/db/schema.ts");
+
+		await db.insert(quotesCache).values({
+			symbol: "AAPL",
+			exchange: "NASDAQ",
+			last: 150,
+		});
+
+		await writeSignals("AAPL", "NASDAQ", {
+			sentiment: 0.8,
+			earningsSurprise: 0.9,
+			guidanceChange: 0.3,
+			managementTone: 0.7,
+			regulatoryRisk: 0.0,
+			acquisitionLikelihood: 0.0,
+			catalystType: "fundamental",
+			expectedMoveDuration: "1-3d",
+		});
+
+		const [row] = await db
+			.select()
+			.from(quotesCache)
+			.where(and(eq(quotesCache.symbol, "AAPL"), eq(quotesCache.exchange, "NASDAQ")));
+
+		expect(row).not.toBeUndefined();
+		expect(row!.newsSentiment).toBeCloseTo(0.8);
+		expect(row!.newsEarningsSurprise).toBeCloseTo(0.9);
+		expect(row!.newsGuidanceChange).toBeCloseTo(0.3);
+		expect(row!.newsManagementTone).toBeCloseTo(0.7);
+		expect(row!.newsRegulatoryRisk).toBeCloseTo(0.0);
+		expect(row!.newsAcquisitionLikelihood).toBeCloseTo(0.0);
+		expect(row!.newsCatalystType).toBe("fundamental");
+		expect(row!.newsExpectedMoveDuration).toBe("1-3d");
+		expect(row!.last).toBe(150); // price unchanged
+	});
+
+	test("writeSignals creates cache row if missing", async () => {
+		const { writeSignals } = await import("../../src/news/sentiment-writer.ts");
+		const { quotesCache } = await import("../../src/db/schema.ts");
+
+		await writeSignals("NEW", "NASDAQ", {
+			sentiment: -0.5,
+			earningsSurprise: 0.0,
+			guidanceChange: 0.0,
+			managementTone: 0.3,
+			regulatoryRisk: 0.8,
+			acquisitionLikelihood: 0.0,
+			catalystType: "other",
+			expectedMoveDuration: "1-2w",
+		});
+
+		const [row] = await db
+			.select()
+			.from(quotesCache)
+			.where(and(eq(quotesCache.symbol, "NEW"), eq(quotesCache.exchange, "NASDAQ")));
+
+		expect(row).not.toBeUndefined();
+		expect(row!.newsSentiment).toBeCloseTo(-0.5);
+		expect(row!.newsRegulatoryRisk).toBeCloseTo(0.8);
+		expect(row!.last).toBeNull();
+	});
+
+	test("storeNewsEvent stores signal fields in news_events table", async () => {
+		const { storeNewsEvent } = await import("../../src/news/sentiment-writer.ts");
+		const { newsEvents } = await import("../../src/db/schema.ts");
+
+		await storeNewsEvent({
+			source: "finnhub",
+			headline: "Apple beats earnings with strong guidance",
+			url: "https://example.com",
+			symbols: ["AAPL"],
+			sentiment: 0.8,
+			confidence: 0.9,
+			tradeable: true,
+			eventType: "earnings_beat",
+			urgency: "high" as const,
+			signals: {
+				earningsSurprise: 0.9,
+				guidanceChange: 0.6,
+				managementTone: 0.7,
+				regulatoryRisk: 0.0,
+				acquisitionLikelihood: 0.0,
+				catalystType: "fundamental",
+				expectedMoveDuration: "1-3d",
+			},
+		});
+
+		const rows = await db.select().from(newsEvents);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]!.earningsSurprise).toBeCloseTo(0.9);
+		expect(rows[0]!.guidanceChange).toBeCloseTo(0.6);
+		expect(rows[0]!.managementTone).toBeCloseTo(0.7);
+		expect(rows[0]!.catalystType).toBe("fundamental");
+	});
+
+	test("storeNewsEvent handles null signals", async () => {
+		const { storeNewsEvent } = await import("../../src/news/sentiment-writer.ts");
+		const { newsEvents } = await import("../../src/db/schema.ts");
+
+		await storeNewsEvent({
+			source: "finnhub",
+			headline: "Routine board appointment at XYZ Corp",
+			url: null,
+			symbols: ["XYZ"],
+			sentiment: null,
+			confidence: null,
+			tradeable: null,
+			eventType: null,
+			urgency: null,
+			signals: null,
+		});
+
+		const rows = await db.select().from(newsEvents);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]!.earningsSurprise).toBeNull();
+		expect(rows[0]!.catalystType).toBeNull();
 	});
 });
