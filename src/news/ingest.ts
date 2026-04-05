@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { newsEvents } from "../db/schema.ts";
+import { injectSymbol } from "../strategy/universe.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import type { ClassificationResult } from "./classifier.ts";
 import type { NewsArticle } from "./finnhub.ts";
@@ -108,6 +109,17 @@ export async function processArticle(
 		} else {
 			await writeSentiment(symbol, exchange, result.sentiment);
 		}
+	}
+
+	// Inject high-urgency symbols into all strategy universes temporarily
+	if (result.tradeable && result.urgency === "high") {
+		for (const symbol of article.symbols) {
+			injectSymbol(symbol, exchange);
+		}
+		log.info(
+			{ symbols: article.symbols, urgency: result.urgency },
+			"High-urgency symbols injected into universes",
+		);
 	}
 
 	log.info(
