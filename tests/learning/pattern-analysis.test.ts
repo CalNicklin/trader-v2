@@ -2,9 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 describe("pattern analysis", () => {
 	test("buildPatternAnalysisPrompt includes strategy trade data", async () => {
-		const { buildPatternAnalysisPrompt } = await import(
-			"../../src/learning/pattern-analysis.ts"
-		);
+		const { buildPatternAnalysisPrompt } = await import("../../src/learning/pattern-analysis.ts");
 
 		const prompt = buildPatternAnalysisPrompt([
 			{
@@ -37,9 +35,7 @@ describe("pattern analysis", () => {
 	});
 
 	test("parsePatternAnalysisResponse extracts valid observations", async () => {
-		const { parsePatternAnalysisResponse } = await import(
-			"../../src/learning/pattern-analysis.ts"
-		);
+		const { parsePatternAnalysisResponse } = await import("../../src/learning/pattern-analysis.ts");
 
 		const json = JSON.stringify([
 			{
@@ -66,9 +62,7 @@ describe("pattern analysis", () => {
 	});
 
 	test("parsePatternAnalysisResponse returns empty array for invalid JSON", async () => {
-		const { parsePatternAnalysisResponse } = await import(
-			"../../src/learning/pattern-analysis.ts"
-		);
+		const { parsePatternAnalysisResponse } = await import("../../src/learning/pattern-analysis.ts");
 
 		expect(parsePatternAnalysisResponse("not json")).toEqual([]);
 		expect(parsePatternAnalysisResponse("{}")).toEqual([]);

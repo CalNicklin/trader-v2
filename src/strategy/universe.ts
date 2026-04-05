@@ -63,9 +63,7 @@ export function injectSymbol(
 	exchange: string,
 	ttlMs: number = DEFAULT_INJECTION_TTL_MS,
 ): void {
-	const existing = injectedSymbols.find(
-		(s) => s.symbol === symbol && s.exchange === exchange,
-	);
+	const existing = injectedSymbols.find((s) => s.symbol === symbol && s.exchange === exchange);
 	if (existing) {
 		existing.expiresAt = Date.now() + ttlMs;
 		return;

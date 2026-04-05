@@ -78,7 +78,9 @@ describe("universe management", () => {
 	});
 
 	test("injectSymbol expires after TTL", async () => {
-		const { injectSymbol, getInjectedSymbols, _expireInjections, _clearInjections } = await import("../../src/strategy/universe.ts");
+		const { injectSymbol, getInjectedSymbols, _expireInjections, _clearInjections } = await import(
+			"../../src/strategy/universe.ts"
+		);
 		_clearInjections();
 		injectSymbol("OLD", "NASDAQ", 0);
 		_expireInjections();
@@ -87,7 +89,9 @@ describe("universe management", () => {
 	});
 
 	test("buildEffectiveUniverse merges with injected symbols", async () => {
-		const { buildEffectiveUniverse, injectSymbol, _clearInjections } = await import("../../src/strategy/universe.ts");
+		const { buildEffectiveUniverse, injectSymbol, _clearInjections } = await import(
+			"../../src/strategy/universe.ts"
+		);
 		_clearInjections();
 		injectSymbol("BREAKING", "NYSE", 60_000);
 		const base = ["AAPL", "MSFT", "GOOGL"];

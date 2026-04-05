@@ -13,7 +13,6 @@ const VALID_CATALYST_TYPES = new Set([
 
 const VALID_MOVE_DURATIONS = new Set(["intraday", "1-3d", "1-2w", "1m+"]);
 
-
 type CG = Grader<ClassificationResult, ClassifierReference>;
 
 export const jsonShapeGrader: CG = {
@@ -141,7 +140,8 @@ export const signalShapeGrader: CG = {
 				s.acquisitionLikelihood >= 0 &&
 				s.acquisitionLikelihood <= 1,
 			typeof s.catalystType === "string" && VALID_CATALYST_TYPES.has(s.catalystType),
-			typeof s.expectedMoveDuration === "string" && VALID_MOVE_DURATIONS.has(s.expectedMoveDuration),
+			typeof s.expectedMoveDuration === "string" &&
+				VALID_MOVE_DURATIONS.has(s.expectedMoveDuration),
 		];
 
 		const validCount = checks.filter(Boolean).length;
@@ -151,9 +151,7 @@ export const signalShapeGrader: CG = {
 		return {
 			score,
 			pass,
-			reason: pass
-				? "All 7 signal fields valid"
-				: `${validCount}/7 signal fields valid`,
+			reason: pass ? "All 7 signal fields valid" : `${validCount}/7 signal fields valid`,
 		};
 	},
 };

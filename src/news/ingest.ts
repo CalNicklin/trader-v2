@@ -6,7 +6,7 @@ import { createChildLogger } from "../utils/logger.ts";
 import type { ClassificationResult } from "./classifier.ts";
 import type { NewsArticle } from "./finnhub.ts";
 import { shouldClassify } from "./pre-filter.ts";
-import { storeNewsEvent, writeSignals, writeSentiment } from "./sentiment-writer.ts";
+import { storeNewsEvent, writeSentiment, writeSignals } from "./sentiment-writer.ts";
 
 const log = createChildLogger({ module: "news-ingest" });
 

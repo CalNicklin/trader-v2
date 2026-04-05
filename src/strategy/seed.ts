@@ -101,10 +101,8 @@ const SEED_STRATEGIES = [
 			position_size_pct: 8,
 		}),
 		signals: JSON.stringify({
-			entry_long:
-				"earnings_surprise > 0.7 AND management_tone > 0.5 AND volume_ratio > 2.0",
-			entry_short:
-				"earnings_surprise > 0.7 AND management_tone < 0.3 AND volume_ratio > 2.0",
+			entry_long: "earnings_surprise > 0.7 AND management_tone > 0.5 AND volume_ratio > 2.0",
+			entry_short: "earnings_surprise > 0.7 AND management_tone < 0.3 AND volume_ratio > 2.0",
 			exit: "hold_days >= 5 OR pnl_pct < -3 OR pnl_pct > 8",
 		}),
 		universe: JSON.stringify([
