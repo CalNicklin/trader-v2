@@ -9,6 +9,13 @@ export interface QuoteFields {
 	avgVolume: number | null;
 	changePercent: number | null;
 	newsSentiment: number | null;
+	newsEarningsSurprise: number | null;
+	newsGuidanceChange: number | null;
+	newsManagementTone: number | null;
+	newsRegulatoryRisk: number | null;
+	newsAcquisitionLikelihood: number | null;
+	newsCatalystType: string | null;
+	newsExpectedMoveDuration: string | null;
 }
 
 export interface PositionFields {
@@ -47,6 +54,11 @@ export function buildSignalContext(input: ContextInput): ExprContext {
 		avg_volume: quote.avgVolume,
 		change_percent: quote.changePercent,
 		news_sentiment: quote.newsSentiment,
+		earnings_surprise: quote.newsEarningsSurprise,
+		guidance_change: quote.newsGuidanceChange,
+		management_tone: quote.newsManagementTone,
+		regulatory_risk: quote.newsRegulatoryRisk,
+		acquisition_likelihood: quote.newsAcquisitionLikelihood,
 		rsi14: indicators.rsi14,
 		atr14: indicators.atr14,
 		volume_ratio: indicators.volume_ratio,

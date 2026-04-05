@@ -26,6 +26,13 @@ export async function runStrategyEvaluation(): Promise<void> {
 			avgVolume: cached.avgVolume,
 			changePercent: cached.changePercent,
 			newsSentiment: cached.newsSentiment,
+			newsEarningsSurprise: cached.newsEarningsSurprise,
+			newsGuidanceChange: cached.newsGuidanceChange,
+			newsManagementTone: cached.newsManagementTone,
+			newsRegulatoryRisk: cached.newsRegulatoryRisk,
+			newsAcquisitionLikelihood: cached.newsAcquisitionLikelihood,
+			newsCatalystType: cached.newsCatalystType,
+			newsExpectedMoveDuration: cached.newsExpectedMoveDuration,
 		};
 
 		return { quote, indicators };
