@@ -15,6 +15,7 @@ export type JobName =
 	| "heartbeat"
 	| "self_improvement"
 	| "guardian_start"
+	| "guardian_stop"
 	| "live_evaluation"
 	| "risk_guardian"
 	| "risk_daily_reset"
@@ -142,6 +143,12 @@ async function executeJob(name: JobName): Promise<void> {
 		case "guardian_start": {
 			const { startGuardianJob } = await import("./guardian-job.ts");
 			await startGuardianJob();
+			break;
+		}
+
+		case "guardian_stop": {
+			const { stopGuardianJob } = await import("./guardian-job.ts");
+			await stopGuardianJob();
 			break;
 		}
 

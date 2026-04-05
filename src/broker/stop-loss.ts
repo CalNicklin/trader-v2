@@ -24,11 +24,22 @@ export function findStopLossBreaches(
 ): StopLossBreach[] {
 	const breaches: StopLossBreach[] = [];
 	for (const pos of positions) {
-		if (!pos.stopLossPrice || pos.quantity <= 0) continue;
+		if (!pos.stopLossPrice || pos.quantity === 0) continue;
 		const quote = quotes.get(pos.symbol);
 		const price = quote?.last ?? quote?.bid ?? null;
 		if (price === null) continue;
-		if (price <= pos.stopLossPrice) {
+
+		const isLong = pos.quantity > 0;
+		const isShort = pos.quantity < 0;
+
+		if (isLong && price <= pos.stopLossPrice) {
+			breaches.push({
+				symbol: pos.symbol,
+				quantity: pos.quantity,
+				price,
+				stopLossPrice: pos.stopLossPrice,
+			});
+		} else if (isShort && price >= pos.stopLossPrice) {
 			breaches.push({
 				symbol: pos.symbol,
 				quantity: pos.quantity,

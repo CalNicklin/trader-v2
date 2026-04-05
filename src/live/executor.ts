@@ -7,6 +7,10 @@ import { getConfig } from "../config.ts";
 import { getQuoteFromCache } from "../data/quotes.ts";
 import { getDb } from "../db/client.ts";
 import { agentLogs, livePositions, liveTrades, strategies } from "../db/schema.ts";
+import { checkTradeRiskGate } from "../risk/gate.ts";
+import { isTradingHalted, isWeeklyDrawdownActive } from "../risk/guardian.ts";
+import { buildSignalContext, type PositionFields, type QuoteFields } from "../strategy/context.ts";
+import { evalExpr } from "../strategy/expr-eval.ts";
 import { getIndicators, type SymbolIndicators } from "../strategy/historical.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { computeAllocations, type StrategyTier } from "./capital-allocator.ts";
@@ -50,6 +54,19 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 		result.errors.push("IBKR not connected");
 		return result;
 	}
+
+	// Risk guardian halt check
+	const haltStatus = await isTradingHalted();
+	if (haltStatus.halted) {
+		log.warn(
+			{ reason: haltStatus.reason },
+			"Trading halted by risk guardian — skipping live execution",
+		);
+		result.errors.push(`Trading halted: ${haltStatus.reason}`);
+		return result;
+	}
+
+	const weeklyDrawdownActive = await isWeeklyDrawdownActive();
 
 	const db = getDb();
 
@@ -95,9 +112,15 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 			filledAt: t.filledAt,
 		}));
 
-	// TODO: Get actual account cash from IBKR API in a future iteration.
-	// For now, use a conservative estimate based on known positions.
-	const totalCash = await estimateAvailableCash();
+	let totalCash: number;
+	try {
+		const { getAccountSummary } = await import("../broker/account.ts");
+		const summary = await getAccountSummary();
+		totalCash = summary.totalCashValue;
+	} catch (err) {
+		log.warn({ error: err }, "Failed to get IBKR account summary — using position estimate");
+		totalCash = await estimateAvailableCash();
+	}
 	const availableCash = getAvailableCash(totalCash, unsettledTrades);
 
 	if (availableCash <= 0) {
@@ -162,11 +185,36 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 					const shouldEnter = evaluateSignal(signals.entry_long, parameters, cached, indicators);
 
 					if (shouldEnter) {
-						const positionValue = Math.min(
-							allocation.maxPositionSize,
-							allocation.allocatedCapital * 0.25,
+						// Count existing live positions for risk gate
+						const allPositions = await db.select({ id: livePositions.id }).from(livePositions);
+
+						const gateResult = checkTradeRiskGate({
+							accountBalance: availableCash,
+							price: cached.last,
+							atr14: indicators.atr14 ?? 0,
+							side: "BUY",
+							exchange,
+							sector: null,
+							borrowFeeAnnualPct: null,
+							openPositionCount: allPositions.length,
+							openPositionSectors: allPositions.map(() => null),
+							weeklyDrawdownActive,
+						});
+
+						if (!gateResult.allowed) {
+							log.debug(
+								{ symbol, reason: gateResult.reason, strategyId: strategy.id },
+								"Trade rejected by risk gate",
+							);
+							continue;
+						}
+
+						const { quantity: gateQty, stopLossPrice } = gateResult.sizing!;
+						// Cap at capital allocator limit
+						const quantity = Math.min(
+							gateQty,
+							Math.floor(allocation.maxPositionSize / cached.last),
 						);
-						const quantity = Math.floor(positionValue / cached.last);
 
 						if (quantity > 0) {
 							try {
@@ -180,6 +228,7 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 									limitPrice: cached.ask ?? cached.last,
 									reasoning: `Strategy ${strategy.name}: entry_long signal triggered`,
 									confidence: 0.7,
+									stopLossPrice,
 								});
 								result.tradesPlaced++;
 
@@ -206,11 +255,36 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 					const shouldShort = evaluateSignal(signals.entry_short, parameters, cached, indicators);
 
 					if (shouldShort) {
-						const positionValue = Math.min(
-							allocation.maxPositionSize,
-							allocation.allocatedCapital * 0.25,
+						// Count existing live positions for risk gate
+						const allPositions = await db.select({ id: livePositions.id }).from(livePositions);
+
+						const gateResult = checkTradeRiskGate({
+							accountBalance: availableCash,
+							price: cached.last,
+							atr14: indicators.atr14 ?? 0,
+							side: "SELL",
+							exchange,
+							sector: null,
+							borrowFeeAnnualPct: null,
+							openPositionCount: allPositions.length,
+							openPositionSectors: allPositions.map(() => null),
+							weeklyDrawdownActive,
+						});
+
+						if (!gateResult.allowed) {
+							log.debug(
+								{ symbol, reason: gateResult.reason, strategyId: strategy.id },
+								"Short trade rejected by risk gate",
+							);
+							continue;
+						}
+
+						const { quantity: gateQty, stopLossPrice: shortStopLoss } = gateResult.sizing!;
+						// Cap at capital allocator limit
+						const quantity = Math.min(
+							gateQty,
+							Math.floor(allocation.maxPositionSize / cached.last),
 						);
-						const quantity = Math.floor(positionValue / cached.last);
 
 						if (quantity > 0) {
 							try {
@@ -224,6 +298,7 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 									limitPrice: cached.bid ?? cached.last,
 									reasoning: `Strategy ${strategy.name}: entry_short signal triggered`,
 									confidence: 0.7,
+									stopLossPrice: shortStopLoss,
 								});
 								result.tradesPlaced++;
 
@@ -247,18 +322,23 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 
 				// Evaluate exit signal (only if we have a position)
 				if (existingPos && signals.exit) {
-					const shouldExit = evaluateSignal(signals.exit, parameters, cached, indicators);
+					const shouldExit = evaluateSignal(signals.exit, parameters, cached, indicators, {
+						entryPrice: existingPos.avgCost,
+						openedAt: existingPos.updatedAt,
+						quantity: existingPos.quantity,
+					});
 
 					if (shouldExit) {
+						const isShortExit = existingPos.quantity < 0;
 						try {
 							await placeTrade({
 								strategyId: strategy.id,
 								symbol,
 								exchange,
-								side: "SELL",
-								quantity: existingPos.quantity,
+								side: isShortExit ? "BUY" : "SELL",
+								quantity: Math.abs(existingPos.quantity),
 								orderType: "LIMIT",
-								limitPrice: cached.bid ?? cached.last,
+								limitPrice: isShortExit ? (cached.ask ?? cached.last) : (cached.bid ?? cached.last),
 								reasoning: `Strategy ${strategy.name}: exit signal triggered`,
 								confidence: 0.7,
 							});
@@ -301,29 +381,54 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 }
 
 /**
+ * Build signal context for the live executor.
+ * Exported for testing — same context builder as paper evaluator.
+ */
+export function buildLiveSignalContext(
+	quote: QuoteFields,
+	indicators: SymbolIndicators,
+	position: PositionFields | null,
+): Record<string, number | null | undefined> {
+	return buildSignalContext({ quote, indicators, position });
+}
+
+/**
  * Evaluate a signal expression against current market data.
- * Signal expressions are simple rule strings like:
- *   "rsi14 < 30 AND changePercent < -2"
- *   "rsi14 > 70 OR priceAboveSma20 == false"
- *
- * This is a simplified evaluator — matches the paper trading evaluator's logic.
+ * Uses the same buildSignalContext + evalExpr pipeline as paper trading.
  */
 function evaluateSignal(
-	_signal: string,
+	signal: string,
 	_parameters: Record<string, unknown>,
-	_quote: {
+	quote: {
 		last: number | null;
 		bid: number | null;
 		ask: number | null;
 		changePercent: number | null;
 	},
-	_indicators: SymbolIndicators,
+	indicators: SymbolIndicators,
+	position?: { entryPrice: number; openedAt: string; quantity: number },
 ): boolean {
-	// Signal evaluation delegates to the same LLM-based evaluator used in paper trading.
-	// This function is a placeholder — the actual implementation will call the strategy
-	// evaluator module which already handles signal interpretation.
-	// For Phase 7 MVP, return false (no automatic trading) until evaluator integration is wired.
-	return false;
+	const fullQuote: QuoteFields = {
+		last: quote.last,
+		bid: quote.bid,
+		ask: quote.ask,
+		volume: null,
+		avgVolume: null,
+		changePercent: quote.changePercent,
+		newsSentiment: null,
+		newsEarningsSurprise: null,
+		newsGuidanceChange: null,
+		newsManagementTone: null,
+		newsRegulatoryRisk: null,
+		newsAcquisitionLikelihood: null,
+		newsCatalystType: null,
+		newsExpectedMoveDuration: null,
+	};
+	const posFields: PositionFields | null = position
+		? { entryPrice: position.entryPrice, openedAt: position.openedAt, quantity: position.quantity }
+		: null;
+	const ctx = buildSignalContext({ quote: fullQuote, indicators, position: posFields });
+	return evalExpr(signal, ctx);
 }
 
 /**

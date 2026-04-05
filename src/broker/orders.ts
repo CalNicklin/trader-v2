@@ -19,6 +19,7 @@ export interface TradeRequest {
 	limitPrice?: number;
 	reasoning?: string;
 	confidence?: number;
+	stopLossPrice?: number;
 }
 
 export interface TradeResult {
@@ -94,6 +95,7 @@ export async function placeTrade(req: TradeRequest): Promise<TradeResult> {
 			strategyId: req.strategyId,
 			symbol: req.symbol,
 			expectedPrice: req.limitPrice ?? undefined,
+			stopLossPrice: req.stopLossPrice,
 		});
 
 		return { tradeId: tradeRecord.id, ibOrderId, status: "SUBMITTED" };

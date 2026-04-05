@@ -20,6 +20,7 @@ interface TrackedOrderInfo {
 	strategyId?: number;
 	symbol?: string;
 	expectedPrice?: number;
+	stopLossPrice?: number;
 }
 
 const trackedOrders = new Map<number, number>();
@@ -102,6 +103,75 @@ function subscribe(api: SubscribableApi, db: UpdatableDb): void {
 					trackedOrderInfo.delete(event.tradeId);
 				}
 
+				// Position lifecycle: create/close positions on fills
+				if (event.status === "FILLED") {
+					const info = trackedOrderInfo.get(event.tradeId);
+					if (info) {
+						import("../live/position-manager.ts")
+							.then(async ({ onEntryFill, onExitFill }) => {
+								const { getDb: getDatabase } = await import("../db/client.ts");
+								const { livePositions: lp, liveTrades: lt } = await import("../db/schema.ts");
+								const { and: andOp, eq: eqOp } = await import("drizzle-orm");
+								const database = getDatabase();
+
+								// Get the trade record to determine side
+								const [trade] = await database
+									.select()
+									.from(lt)
+									.where(eqOp(lt.id, event.tradeId))
+									.limit(1);
+
+								if (!trade) return;
+
+								// Check if we have an existing position for this symbol
+								const [existing] = await database
+									.select()
+									.from(lp)
+									.where(andOp(eqOp(lp.symbol, trade.symbol), eqOp(lp.exchange, trade.exchange)))
+									.limit(1);
+
+								if (existing) {
+									// This is an exit fill
+									const exitPrice = event.fillData?.fillPrice ?? trade.limitPrice ?? 0;
+									await onExitFill({
+										symbol: trade.symbol,
+										exchange: trade.exchange,
+										exitPrice,
+										quantity: trade.quantity,
+										commission: event.fillData?.commission ?? 0,
+									});
+
+									// Update liveTrades PnL
+									const isShort = existing.quantity < 0;
+									const pnl = isShort
+										? (existing.avgCost - exitPrice) * Math.abs(existing.quantity) -
+											(event.fillData?.commission ?? 0)
+										: (exitPrice - existing.avgCost) * existing.quantity -
+											(event.fillData?.commission ?? 0);
+
+									await database.update(lt).set({ pnl }).where(eqOp(lt.id, event.tradeId));
+								} else {
+									// This is an entry fill
+									await onEntryFill({
+										symbol: trade.symbol,
+										exchange: trade.exchange,
+										strategyId: trade.strategyId ?? 0,
+										quantity: trade.side === "SELL" ? -trade.quantity : trade.quantity,
+										avgCost: event.fillData?.fillPrice ?? trade.limitPrice ?? 0,
+										stopLossPrice: info?.stopLossPrice ?? null,
+										side: trade.side as "BUY" | "SELL",
+									});
+								}
+							})
+							.catch((err: unknown) => {
+								log.error(
+									{ error: err, tradeId: event.tradeId },
+									"Position lifecycle handling failed",
+								);
+							});
+					}
+				}
+
 				db.update(liveTrades)
 					.set(updateData)
 					.where(eq(liveTrades.id, event.tradeId))
@@ -146,7 +216,7 @@ export function startOrderMonitoring(api: SubscribableApi, db: UpdatableDb): voi
 export function trackOrder(
 	ibOrderId: number,
 	tradeId: number,
-	info?: { strategyId?: number; symbol?: string; expectedPrice?: number },
+	info?: { strategyId?: number; symbol?: string; expectedPrice?: number; stopLossPrice?: number },
 ): void {
 	trackedOrders.set(ibOrderId, tradeId);
 	if (info) {

@@ -89,6 +89,17 @@ export async function connect(): Promise<IBApiNext> {
 						.getCurrentTime()
 						.then((time: number) => {
 							log.info({ serverTime: time }, "IBKR reconnection health check passed");
+
+							// Trigger position reconciliation on reconnect
+							import("../live/reconciliation.ts")
+								.then(async ({ reconcilePositions }) => {
+									const { getPositions } = await import("./account.ts");
+									const positions = await getPositions();
+									await reconcilePositions(positions);
+								})
+								.catch((err: unknown) => {
+									log.warn({ error: err }, "Reconnect reconciliation failed (non-fatal)");
+								});
 						})
 						.catch((err: unknown) => {
 							log.warn({ error: err }, "IBKR reconnection health check failed");

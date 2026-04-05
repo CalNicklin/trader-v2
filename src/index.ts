@@ -21,6 +21,44 @@ async function boot() {
 	await ensureSeedStrategies();
 	log.info("Seed strategies verified");
 
+	// Connect to IBKR if live trading enabled
+	if (config.LIVE_TRADING_ENABLED) {
+		try {
+			const { connect, waitForConnection } = await import("./broker/connection.ts");
+			const { startOrderMonitoring } = await import("./broker/order-monitor.ts");
+			const { getDb: getDatabase } = await import("./db/client.ts");
+
+			log.info("Live trading enabled — connecting to IBKR...");
+			await connect();
+
+			const connected = await waitForConnection(30000);
+			if (connected) {
+				const { getApi } = await import("./broker/connection.ts");
+				startOrderMonitoring(getApi(), getDatabase());
+				log.info("IBKR connected and order monitoring started");
+			} else {
+				log.warn("IBKR connection timeout — scheduler jobs will check connection");
+			}
+		} catch (err) {
+			log.error({ error: err }, "IBKR connection failed — live trading will retry via scheduler");
+		}
+	}
+
+	// Run position reconciliation on boot
+	if (config.LIVE_TRADING_ENABLED) {
+		try {
+			const { isConnected } = await import("./broker/connection.ts");
+			if (isConnected()) {
+				const { getPositions } = await import("./broker/account.ts");
+				const { reconcilePositions } = await import("./live/reconciliation.ts");
+				const ibkrPositions = await getPositions();
+				await reconcilePositions(ibkrPositions);
+			}
+		} catch (err) {
+			log.warn({ error: err }, "Position reconciliation on boot failed (non-fatal)");
+		}
+	}
+
 	// Start the scheduler
 	startScheduler();
 	log.info("Scheduler started — trader v2 is running");
@@ -34,6 +72,14 @@ async function boot() {
 async function shutdown(signal: string) {
 	log.info({ signal }, "Shutting down...");
 	stopScheduler();
+	try {
+		const { stopOrderMonitoring } = await import("./broker/order-monitor.ts");
+		const { disconnect } = await import("./broker/connection.ts");
+		stopOrderMonitoring();
+		await disconnect();
+	} catch {
+		// Broker modules may not be loaded if live trading was disabled
+	}
 	const { stopServer } = await import("./monitoring/server.ts");
 	stopServer();
 	closeDb();

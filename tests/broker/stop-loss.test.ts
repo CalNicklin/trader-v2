@@ -59,4 +59,24 @@ describe("stop-loss", () => {
 		const breaches = findStopLossBreaches(positions, quotes);
 		expect(breaches).toHaveLength(1);
 	});
+
+	test("detects short stop-loss breach (price >= stop)", async () => {
+		const { findStopLossBreaches } = await import("../../src/broker/stop-loss.ts");
+		const breaches = findStopLossBreaches(
+			[{ id: 1, symbol: "TSLA", quantity: -5, stopLossPrice: 210 }],
+			new Map([["TSLA", { last: 215, bid: 214 }]]),
+		);
+		expect(breaches).toHaveLength(1);
+		expect(breaches[0]!.symbol).toBe("TSLA");
+		expect(breaches[0]!.quantity).toBe(-5);
+	});
+
+	test("does not trigger short stop-loss below threshold", async () => {
+		const { findStopLossBreaches } = await import("../../src/broker/stop-loss.ts");
+		const breaches = findStopLossBreaches(
+			[{ id: 1, symbol: "TSLA", quantity: -5, stopLossPrice: 210 }],
+			new Map([["TSLA", { last: 200, bid: 199 }]]),
+		);
+		expect(breaches).toHaveLength(0);
+	});
 });

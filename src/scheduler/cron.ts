@@ -91,6 +91,13 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// Guardian stop at 21:00 weekdays (market close)
+	tasks.push(
+		cron.schedule("0 21 * * 1-5", () => runJob("guardian_stop"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	// Live strategy evaluation every 10 minutes during market hours, offset to :07
 	tasks.push(
 		cron.schedule("7,17,27,37,47,57 8-20 * * 1-5", () => runJob("live_evaluation"), {

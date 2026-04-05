@@ -12,6 +12,7 @@ export interface HealthData {
 	apiSpendToday: number;
 	lastQuoteTime: string | null;
 	paused: boolean;
+	ibkrConnected?: boolean;
 }
 
 // Module-level pause state
@@ -66,6 +67,17 @@ export async function getHealthData(): Promise<HealthData> {
 		}
 	}
 
+	let ibkrConnected: boolean | undefined;
+	try {
+		const { isConnected } = await import("../broker/connection.ts");
+		const { getConfig } = await import("../config.ts");
+		if (getConfig().LIVE_TRADING_ENABLED) {
+			ibkrConnected = isConnected();
+		}
+	} catch {
+		// Broker module not loaded
+	}
+
 	return {
 		status,
 		uptime: process.uptime(),
@@ -75,5 +87,6 @@ export async function getHealthData(): Promise<HealthData> {
 		apiSpendToday,
 		lastQuoteTime,
 		paused: _paused,
+		ibkrConnected,
 	};
 }
