@@ -24,7 +24,7 @@ describe("HTTP server", () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get("content-type")).toContain("application/json");
 
-		const data = await res.json();
+		const data = await res.json() as any;
 		expect(data.status).toBe("ok");
 		expect(data.uptime).toBeGreaterThan(0);
 		expect(data.activeStrategies).toBeTypeOf("number");
@@ -64,7 +64,7 @@ describe("HTTP server", () => {
 
 		// Confirm paused via health endpoint
 		const health = await fetch(`http://localhost:${port}/health`);
-		const data = await health.json();
+		const data = await health.json() as any;
 		expect(data.paused).toBe(true);
 	});
 
@@ -84,7 +84,7 @@ describe("HTTP server", () => {
 		expect(res.headers.get("location")).toBe("/");
 
 		const health = await fetch(`http://localhost:${port}/health`);
-		const data = await health.json();
+		const data = await health.json() as any;
 		expect(data.paused).toBe(false);
 	});
 

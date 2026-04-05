@@ -48,7 +48,7 @@ describe("parseProposerResponse", () => {
 			'```json\n[{"title":"Test","description":"desc","targetFile":"src/x.ts","changeDescription":"change","reasoning":"reason","priority":"high"}]\n```';
 		const ideas = parseProposerResponse(response);
 		expect(ideas.length).toBe(1);
-		expect(ideas[0].title).toBe("Test");
+		expect(ideas[0]!.title).toBe("Test");
 	});
 
 	test("returns empty array for invalid JSON", () => {

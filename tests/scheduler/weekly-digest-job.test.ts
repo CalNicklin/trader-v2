@@ -80,7 +80,7 @@ describe("weekly digest", () => {
 
 		const data = await getWeeklyDigestData();
 		expect(data.evolutionEvents.length).toBe(1);
-		expect(data.evolutionEvents[0].mutationType).toBe("parameter_tweak");
+		expect(data.evolutionEvents[0]!.mutationType).toBe("parameter_tweak");
 	});
 
 	test("includes improvement proposals from the past week", async () => {

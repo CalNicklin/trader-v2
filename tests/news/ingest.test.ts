@@ -37,6 +37,7 @@ describe("news ingest orchestrator", () => {
 				confidence: 0.9,
 				eventType: "earnings_beat",
 				urgency: "high" as const,
+				signals: null,
 			}),
 		);
 
