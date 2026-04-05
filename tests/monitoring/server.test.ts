@@ -24,7 +24,7 @@ describe("HTTP server", () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get("content-type")).toContain("application/json");
 
-		const data = await res.json() as any;
+		const data = (await res.json()) as any;
 		expect(data.status).toBe("ok");
 		expect(data.uptime).toBeGreaterThan(0);
 		expect(data.activeStrategies).toBeTypeOf("number");
