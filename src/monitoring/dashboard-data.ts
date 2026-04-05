@@ -1,0 +1,289 @@
+import { desc, eq, ne, sql } from "drizzle-orm";
+import { getDb } from "../db/client.ts";
+import {
+	agentLogs,
+	livePositions,
+	liveTrades,
+	paperTrades,
+	quotesCache,
+	riskState,
+	strategies,
+	strategyMetrics,
+} from "../db/schema.ts";
+import { DAILY_LOSS_HALT_PCT, WEEKLY_DRAWDOWN_LIMIT_PCT } from "../risk/constants.ts";
+import { getDailySpend } from "../utils/budget.ts";
+import { getNextCronOccurrences } from "./cron-schedule.ts";
+import { isPaused } from "./health.ts";
+
+export interface DashboardData {
+	status: "ok" | "degraded" | "error";
+	uptime: number;
+	timestamp: string;
+	paused: boolean;
+	ibkrConnected: boolean;
+	ibkrAccount: string | null;
+
+	dailyPnl: number;
+	weeklyPnl: number;
+	dailyPnlLimit: number;
+	weeklyPnlLimit: number;
+	openPositionCount: number;
+	tradesToday: number;
+	apiSpendToday: number;
+	apiBudget: number;
+	lastQuoteTime: string | null;
+
+	strategies: Array<{
+		id: number;
+		name: string;
+		status: string;
+		winRate: number | null;
+		sharpeRatio: number | null;
+		tradeCount: number;
+		universe: string[];
+	}>;
+
+	positions: Array<{
+		symbol: string;
+		exchange: string;
+		quantity: number;
+		avgCost: number;
+		unrealizedPnl: number | null;
+		strategyId: number | null;
+	}>;
+
+	cronJobs: Array<{
+		name: string;
+		nextRun: string;
+		nextRunIn: string;
+		lastStatus: "ok" | "error" | "never";
+	}>;
+
+	recentLogs: Array<{
+		time: string;
+		level: string;
+		phase: string | null;
+		message: string;
+	}>;
+
+	gitHash: string;
+}
+
+/** Cached at boot — doesn't change during runtime. */
+let _gitHash: string | null = null;
+
+function getGitHash(): string {
+	if (_gitHash) return _gitHash;
+	try {
+		const result = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"]);
+		_gitHash = result.stdout.toString().trim() || "unknown";
+	} catch {
+		_gitHash = "unknown";
+	}
+	return _gitHash;
+}
+
+/** Cached IBKR account ID — fetched once. */
+let _ibkrAccount: string | null = null;
+let _ibkrAccountFetched = false;
+
+async function getIbkrAccount(): Promise<string | null> {
+	if (_ibkrAccountFetched) return _ibkrAccount;
+	try {
+		const { getConfig } = await import("../config.ts");
+		if (!getConfig().LIVE_TRADING_ENABLED) {
+			_ibkrAccountFetched = true;
+			return null;
+		}
+		const { getAccountSummary } = await import("../broker/account.ts");
+		const summary = await getAccountSummary();
+		_ibkrAccount = summary.accountId;
+	} catch {
+		_ibkrAccount = null;
+	}
+	_ibkrAccountFetched = true;
+	return _ibkrAccount;
+}
+
+export async function getDashboardData(): Promise<DashboardData> {
+	const db = getDb();
+
+	// IBKR connection — only import broker module if live trading is on
+	let ibkrConnected = false;
+	try {
+		const { getConfig } = await import("../config.ts");
+		if (getConfig().LIVE_TRADING_ENABLED) {
+			const { isConnected } = await import("../broker/connection.ts");
+			ibkrConnected = isConnected();
+		}
+	} catch {
+		// Broker module not loaded
+	}
+
+	// P&L from risk_state
+	const dailyRow = db.select().from(riskState).where(eq(riskState.key, "daily_pnl")).get();
+	const weeklyRow = db.select().from(riskState).where(eq(riskState.key, "weekly_pnl")).get();
+	const dailyPnl = dailyRow ? Number.parseFloat(dailyRow.value) || 0 : 0;
+	const weeklyPnl = weeklyRow ? Number.parseFloat(weeklyRow.value) || 0 : 0;
+
+	// Positions
+	const positions = db.select().from(livePositions).all();
+
+	// Trades today
+	const today = new Date().toISOString().split("T")[0]!;
+	const tradesTodayResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(liveTrades)
+		.where(sql`date(${liveTrades.createdAt}) = ${today}`)
+		.get();
+	const tradesToday = tradesTodayResult?.count ?? 0;
+
+	// API spend
+	const apiSpendToday = await getDailySpend(db);
+	let apiBudget = 0;
+	try {
+		const { getConfig } = await import("../config.ts");
+		apiBudget = getConfig().DAILY_API_BUDGET_USD;
+	} catch {
+		// Config not available
+	}
+
+	// Last quote
+	const lastQuote = db
+		.select({ updatedAt: quotesCache.updatedAt })
+		.from(quotesCache)
+		.orderBy(desc(quotesCache.updatedAt))
+		.limit(1)
+		.get();
+
+	// Strategies with metrics
+	const allStrategies = db
+		.select({
+			id: strategies.id,
+			name: strategies.name,
+			status: strategies.status,
+			universe: strategies.universe,
+			winRate: strategyMetrics.winRate,
+			sharpeRatio: strategyMetrics.sharpeRatio,
+		})
+		.from(strategies)
+		.leftJoin(strategyMetrics, eq(strategies.id, strategyMetrics.strategyId))
+		.where(ne(strategies.status, "retired"))
+		.all();
+
+	// Trade counts per strategy
+	const tradeCounts = db
+		.select({
+			strategyId: paperTrades.strategyId,
+			count: sql<number>`count(*)`,
+		})
+		.from(paperTrades)
+		.groupBy(paperTrades.strategyId)
+		.all();
+	const tradeCountMap = new Map(tradeCounts.map((t) => [t.strategyId, t.count]));
+
+	const tierOrder: Record<string, number> = {
+		core: 0,
+		active: 1,
+		probation: 2,
+		paper: 3,
+	};
+	const strategyData = allStrategies
+		.map((s) => ({
+			id: s.id,
+			name: s.name,
+			status: s.status,
+			winRate: s.winRate,
+			sharpeRatio: s.sharpeRatio,
+			tradeCount: tradeCountMap.get(s.id) ?? 0,
+			universe: JSON.parse(s.universe ?? "[]") as string[],
+		}))
+		.sort((a, b) => (tierOrder[a.status] ?? 99) - (tierOrder[b.status] ?? 99));
+
+	// Cron schedule with last run status
+	const cronOccurrences = getNextCronOccurrences();
+	const cronJobs = cronOccurrences.map((occ) => {
+		const lastLog = db
+			.select({ level: agentLogs.level })
+			.from(agentLogs)
+			.where(eq(agentLogs.phase, occ.name))
+			.orderBy(desc(agentLogs.createdAt))
+			.limit(1)
+			.get();
+
+		let lastStatus: "ok" | "error" | "never" = "never";
+		if (lastLog) {
+			lastStatus = lastLog.level === "ERROR" ? "error" : "ok";
+		}
+
+		return { ...occ, lastStatus };
+	});
+
+	// Recent logs
+	const logs = db
+		.select({
+			createdAt: agentLogs.createdAt,
+			level: agentLogs.level,
+			phase: agentLogs.phase,
+			message: agentLogs.message,
+		})
+		.from(agentLogs)
+		.orderBy(desc(agentLogs.createdAt))
+		.limit(20)
+		.all();
+
+	const recentLogs = logs.map((l) => ({
+		time: new Date(l.createdAt).toLocaleTimeString("en-GB", {
+			hour: "2-digit",
+			minute: "2-digit",
+			timeZone: "UTC",
+		}),
+		level: l.level,
+		phase: l.phase,
+		message: l.message,
+	}));
+
+	// Status determination
+	let status: "ok" | "degraded" | "error" = "ok";
+	if (isPaused()) {
+		status = "degraded";
+	} else if (lastQuote?.updatedAt) {
+		const lastQuoteAge = Date.now() - new Date(lastQuote.updatedAt).getTime();
+		const hour = new Date().getUTCHours();
+		if (lastQuoteAge > 3_600_000 && hour >= 8 && hour <= 21) {
+			status = "degraded";
+		}
+	}
+
+	const ibkrAccount = await getIbkrAccount();
+
+	return {
+		status,
+		uptime: process.uptime(),
+		timestamp: new Date().toISOString(),
+		paused: isPaused(),
+		ibkrConnected,
+		ibkrAccount: ibkrConnected ? ibkrAccount : null,
+		dailyPnl,
+		weeklyPnl,
+		dailyPnlLimit: DAILY_LOSS_HALT_PCT * 100,
+		weeklyPnlLimit: WEEKLY_DRAWDOWN_LIMIT_PCT * 100,
+		openPositionCount: positions.length,
+		tradesToday,
+		apiSpendToday,
+		apiBudget,
+		lastQuoteTime: lastQuote?.updatedAt ?? null,
+		strategies: strategyData,
+		positions: positions.map((p) => ({
+			symbol: p.symbol,
+			exchange: p.exchange,
+			quantity: p.quantity,
+			avgCost: p.avgCost,
+			unrealizedPnl: p.unrealizedPnl,
+			strategyId: p.strategyId,
+		})),
+		cronJobs,
+		recentLogs,
+		gitHash: getGitHash(),
+	};
+}
