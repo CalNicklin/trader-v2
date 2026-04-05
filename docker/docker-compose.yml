@@ -4,6 +4,7 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:4002:4002"
+      - "127.0.0.1:4004:4004"
       - "127.0.0.1:5900:5900"
     environment:
       TWS_USERID: ${IBKR_USERNAME}
@@ -15,7 +16,7 @@ services:
       EXISTING_SESSION_DETECTED_ACTION: "primaryoverride"
       TWS_COLD_RESTART: "05:00"
     healthcheck:
-      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/4002"]
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/4004"]
       interval: 10s
       timeout: 5s
       retries: 6
