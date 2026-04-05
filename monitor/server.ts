@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { loadConfig } from "./server/config.ts";
 import { fetchHealth } from "./server/health.ts";
+import { fetchDeploys } from "./server/deploys.ts";
 
 const config = loadConfig();
 
@@ -25,6 +26,12 @@ const server = Bun.serve({
 			if (!data) {
 				return Response.json({ error: "VPS unreachable" }, { status: 502 });
 			}
+			return Response.json(data);
+		}
+
+		// API: deploy status
+		if (url.pathname === "/api/deploys") {
+			const data = await fetchDeploys(config);
 			return Response.json(data);
 		}
 
