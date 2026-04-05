@@ -6,15 +6,9 @@ import {
 	checkCorrelatedExposure,
 	checkMaxShortSize,
 	checkRiskPerTrade,
-	type PortfolioState,
 } from "../../src/risk/limits.ts";
 
 describe("risk/limits", () => {
-	const _basePortfolio: PortfolioState = {
-		accountBalance: 500,
-		openPositions: [],
-	};
-
 	describe("checkRiskPerTrade", () => {
 		test("allows trade within 1% risk", () => {
 			const result = checkRiskPerTrade(500, 5);
