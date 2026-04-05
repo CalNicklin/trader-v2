@@ -4,3 +4,7 @@ process.env.ALERT_EMAIL_TO = "test@example.com";
 process.env.NODE_ENV = "test";
 process.env.LOG_LEVEL = "error";
 process.env.DB_PATH = ":memory:";
+process.env.IBKR_HOST = "127.0.0.1";
+process.env.IBKR_PORT = "4002";
+process.env.IBKR_CLIENT_ID = "99";
+process.env.LIVE_TRADING_ENABLED = "false";

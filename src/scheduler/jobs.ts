@@ -13,7 +13,9 @@ export type JobName =
 	| "earnings_calendar_sync"
 	| "news_poll"
 	| "heartbeat"
-	| "self_improvement";
+	| "self_improvement"
+	| "guardian_start"
+	| "live_evaluation";
 
 let jobRunning = false;
 const JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -131,6 +133,18 @@ async function executeJob(name: JobName): Promise<void> {
 		case "self_improvement": {
 			const { runSelfImproveJob } = await import("./self-improve-job.ts");
 			await runSelfImproveJob();
+			break;
+		}
+
+		case "guardian_start": {
+			const { startGuardianJob } = await import("./guardian-job.ts");
+			await startGuardianJob();
+			break;
+		}
+
+		case "live_evaluation": {
+			const { runLiveEvalJob } = await import("./live-eval-job.ts");
+			await runLiveEvalJob();
 			break;
 		}
 	}

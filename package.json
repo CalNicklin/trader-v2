@@ -30,10 +30,12 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@octokit/rest": "^22.0.1",
+    "@stoqey/ib": "^1.5.3",
     "drizzle-orm": "^0.45.1",
     "node-cron": "^4.2.1",
     "pino": "^10.3.1",
     "resend": "^6.9.2",
+    "rxjs": "^7.8.1",
     "yahoo-finance2": "^3.13.0",
     "zod": "^4.3.6"
   }

@@ -31,6 +31,17 @@ const envSchema = z.object({
 	// Finnhub
 	FINNHUB_API_KEY: z.string().optional(),
 
+	// IBKR
+	IBKR_HOST: z.string().default("127.0.0.1"),
+	IBKR_PORT: z.coerce.number().default(4002), // 4001=live TWS, 4002=paper TWS, 7497=live gateway
+	IBKR_CLIENT_ID: z.coerce.number().default(1),
+
+	// Live trading kill switch (default OFF)
+	LIVE_TRADING_ENABLED: z
+		.enum(["true", "false"])
+		.default("false")
+		.transform((v) => v === "true"),
+
 	// HTTP server
 	HTTP_PORT: z.coerce.number().default(3847),
 

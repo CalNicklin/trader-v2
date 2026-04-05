@@ -84,6 +84,20 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// Guardian start at 08:00 weekdays (starts the 60s interval loop)
+	tasks.push(
+		cron.schedule("0 8 * * 1-5", () => runJob("guardian_start"), {
+			timezone: "Europe/London",
+		}),
+	);
+
+	// Live strategy evaluation every 10 minutes during market hours, offset to :07
+	tasks.push(
+		cron.schedule("7,17,27,37,47,57 8-20 * * 1-5", () => runJob("live_evaluation"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	log.info({ jobCount: tasks.length }, "Scheduler started");
 }
 
