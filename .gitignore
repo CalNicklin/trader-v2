@@ -7,3 +7,5 @@ node_modules/
 dist/
 src/evals/results/
 .worktrees/
+.claire/
+.claude/
