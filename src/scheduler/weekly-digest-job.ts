@@ -12,6 +12,14 @@ import { createChildLogger } from "../utils/logger";
 
 const log = createChildLogger({ module: "weekly-digest" });
 
+function esc(s: string): string {
+	return s
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
+}
+
 export interface WeeklyDigestData {
 	periodStart: string;
 	periodEnd: string;
@@ -124,10 +132,10 @@ export function buildWeeklyDigestHtml(data: WeeklyDigestData): string {
 			? data.evolutionEvents
 					.map(
 						(e) => `<tr>
-					<td>${e.parentName}</td>
-					<td>${e.childName}</td>
-					<td>${e.mutationType}</td>
-					<td>${e.createdAt}</td>
+					<td>${esc(e.parentName)}</td>
+					<td>${esc(e.childName)}</td>
+					<td>${esc(e.mutationType)}</td>
+					<td>${esc(e.createdAt)}</td>
 				</tr>`,
 					)
 					.join("\n")
@@ -138,8 +146,8 @@ export function buildWeeklyDigestHtml(data: WeeklyDigestData): string {
 			? data.activeStrategies
 					.map(
 						(s) => `<tr>
-					<td>${s.name}</td>
-					<td>${s.status}</td>
+					<td>${esc(s.name)}</td>
+					<td>${esc(s.status)}</td>
 					<td>Gen ${s.generation}</td>
 					<td>${s.winRate != null ? `${(s.winRate * 100).toFixed(0)}%` : "—"}</td>
 					<td>${s.sharpeRatio?.toFixed(2) ?? "—"}</td>
@@ -154,9 +162,9 @@ export function buildWeeklyDigestHtml(data: WeeklyDigestData): string {
 			? data.improvementProposals
 					.map(
 						(p) => `<tr>
-					<td>${p.title}</td>
-					<td>${p.status}</td>
-					<td>${p.prUrl ? `<a href="${p.prUrl}">View PR</a>` : "—"}</td>
+					<td>${esc(p.title)}</td>
+					<td>${esc(p.status)}</td>
+					<td>${p.prUrl?.startsWith("https://") ? `<a href="${esc(p.prUrl)}">View PR</a>` : "—"}</td>
 				</tr>`,
 					)
 					.join("\n")
