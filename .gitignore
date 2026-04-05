@@ -9,3 +9,5 @@ src/evals/results/
 .worktrees/
 .claire/
 .claude/
+monitor/dist/
+monitor/node_modules/

@@ -17,7 +17,8 @@
     "eval:pre-filter": "bun src/evals/run.ts pre-filter",
     "eval:pipeline": "bun src/evals/run.ts pipeline",
     "eval:evolution": "bun run src/evals/run.ts evolution",
-    "monitor": "cd monitor && bun run server.ts"
+    "monitor": "cd monitor && bun run build && bun run server.ts",
+    "monitor:dev": "cd monitor && bun run server.ts & bun run dev"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.15",
