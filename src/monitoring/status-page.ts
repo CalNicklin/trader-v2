@@ -59,7 +59,7 @@ export function buildConsolePage(data: DashboardData): string {
 	for (const s of data.strategies) {
 		tierCounts[s.status] = (tierCounts[s.status] ?? 0) + 1;
 	}
-	const liveCount = tierCounts.probation + tierCounts.active + tierCounts.core;
+	const liveCount = (tierCounts.probation ?? 0) + (tierCounts.active ?? 0) + (tierCounts.core ?? 0);
 
 	// KPIs
 	const lastQuoteDisplay = data.lastQuoteTime

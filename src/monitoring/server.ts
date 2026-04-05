@@ -1,8 +1,9 @@
 import type { Server } from "bun";
 import { getConfig } from "../config";
 import { createChildLogger } from "../utils/logger";
+import { getDashboardData } from "./dashboard-data";
 import { getHealthData, setPaused } from "./health";
-import { buildStatusPageHtml } from "./status-page";
+import { buildConsolePage } from "./status-page";
 
 const log = createChildLogger({ module: "http-server" });
 
@@ -63,17 +64,28 @@ async function handleRequest(req: Request): Promise<Response> {
 		});
 	}
 
-	// Status page
+	// Dashboard console
 	if (req.method === "GET" && url.pathname === "/") {
 		try {
-			const data = await getHealthData();
-			const html = buildStatusPageHtml(data);
+			const data = await getDashboardData();
+			const html = buildConsolePage(data);
 			return new Response(html, {
 				headers: { "content-type": "text/html; charset=utf-8" },
 			});
 		} catch (err) {
-			log.error({ err }, "Status page failed");
+			log.error({ err }, "Dashboard page failed");
 			return new Response("Internal Server Error", { status: 500 });
+		}
+	}
+
+	// Dashboard API (JSON)
+	if (req.method === "GET" && url.pathname === "/api/dashboard") {
+		try {
+			const data = await getDashboardData();
+			return Response.json(data);
+		} catch (err) {
+			log.error({ err }, "Dashboard API failed");
+			return Response.json({ error: "internal" }, { status: 500 });
 		}
 	}
 
