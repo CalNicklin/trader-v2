@@ -19,7 +19,8 @@ export type JobName =
 	| "live_evaluation"
 	| "risk_guardian"
 	| "risk_daily_reset"
-	| "risk_weekly_reset";
+	| "risk_weekly_reset"
+	| "daily_tournament";
 
 let jobRunning = false;
 const JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -173,6 +174,12 @@ async function executeJob(name: JobName): Promise<void> {
 		case "risk_weekly_reset": {
 			const { resetWeeklyState } = await import("../risk/guardian.ts");
 			await resetWeeklyState();
+			break;
+		}
+
+		case "daily_tournament": {
+			const { runDailyTournaments } = await import("../evolution/tournament");
+			await runDailyTournaments();
 			break;
 		}
 	}

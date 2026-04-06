@@ -5,10 +5,10 @@ import { createChildLogger } from "../utils/logger";
 import { withRetry } from "../utils/retry";
 import { recordUsage } from "../utils/token-tracker";
 import { getPerformanceLandscape } from "./analyzer";
-import { checkDrawdowns, enforcePopulationCap, MAX_POPULATION } from "./population";
+import { MAX_POPULATION } from "./population";
 import { buildEvolutionPrompt, parseEvolutionResponse } from "./prompt";
 import { spawnChild } from "./spawner";
-import { runTournaments } from "./tournament";
+import type { TournamentResult } from "./types";
 import { validateMutation } from "./validator";
 
 const log = createChildLogger({ module: "evolution" });
@@ -22,14 +22,10 @@ export async function runEvolutionCycle(): Promise<{
 	spawned: number[];
 	skippedReason?: string;
 }> {
-	// Step 1: Kill strategies exceeding drawdown threshold
-	const drawdownKills = await checkDrawdowns();
-
-	// Step 2: Resolve mature parent/child pairs
-	const tournamentResults = await runTournaments();
-
-	// Step 3: Cull if over population cap
-	const populationCulls = await enforcePopulationCap();
+	// Steps 1-3 now handled by daily_tournament job (runs weekdays at 21:45)
+	const drawdownKills: number[] = [];
+	const tournamentResults: TournamentResult[] = [];
+	const populationCulls: number[] = [];
 
 	// Step 4: Get current performance landscape
 	const landscape = await getPerformanceLandscape();

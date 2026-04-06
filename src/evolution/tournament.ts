@@ -2,6 +2,7 @@ import { eq, isNull } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { graduationEvents, strategies, strategyMetrics, strategyMutations } from "../db/schema";
 import { createChildLogger } from "../utils/logger";
+import { checkDrawdowns, enforcePopulationCap } from "./population";
 import type { TournamentResult } from "./types";
 
 const log = createChildLogger({ module: "evolution:tournament" });
@@ -123,4 +124,30 @@ export async function runTournaments(): Promise<TournamentResult[]> {
 	}
 
 	return results;
+}
+
+export async function runDailyTournaments(): Promise<void> {
+	log.info({ phase: "daily_tournament" }, "Starting daily tournament cycle");
+
+	const drawdownKills = await checkDrawdowns();
+	if (drawdownKills.length > 0) {
+		log.info(
+			{ phase: "daily_tournament", kills: drawdownKills.length },
+			"Drawdown kills executed",
+		);
+	}
+
+	const results = await runTournaments();
+	log.info(
+		{ phase: "daily_tournament", tournaments: results.length },
+		"Tournaments completed",
+	);
+
+	const culled = await enforcePopulationCap();
+	if (culled.length > 0) {
+		log.info(
+			{ phase: "daily_tournament", culled: culled.length },
+			"Population cap enforced",
+		);
+	}
 }

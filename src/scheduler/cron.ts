@@ -126,6 +126,13 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// Daily tournament — 21:45 weekdays (after trade review at 21:15)
+	tasks.push(
+		cron.schedule("45 21 * * 1-5", () => runJob("daily_tournament"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	log.info({ jobCount: tasks.length }, "Scheduler started");
 }
 
