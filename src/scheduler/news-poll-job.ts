@@ -72,8 +72,6 @@ export async function runNewsPoll(): Promise<void> {
 	let duplicates = 0;
 
 	for (const { symbol, exchange } of watchlist) {
-		// Finnhub free tier only supports US stocks
-		if (exchange !== "NASDAQ" && exchange !== "NYSE") continue;
 		const fhSymbol = finnhubSymbol(symbol, exchange);
 		const articles = await fetchCompanyNews(fhSymbol, config.FINNHUB_API_KEY);
 
