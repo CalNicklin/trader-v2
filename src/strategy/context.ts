@@ -1,5 +1,6 @@
 import type { ExprContext } from "./expr-eval.ts";
 import type { SymbolIndicators } from "./historical.ts";
+import type { RegimeSignals } from "./regime.ts";
 
 export interface QuoteFields {
 	last: number | null;
@@ -28,6 +29,7 @@ export interface ContextInput {
 	quote: QuoteFields;
 	indicators: SymbolIndicators;
 	position: PositionFields | null;
+	regime?: RegimeSignals;
 }
 
 export function buildSignalContext(input: ContextInput): ExprContext {
@@ -46,7 +48,7 @@ export function buildSignalContext(input: ContextInput): ExprContext {
 		}
 	}
 
-	return {
+	const ctx: ExprContext = {
 		last: quote.last,
 		bid: quote.bid,
 		ask: quote.ask,
@@ -65,4 +67,12 @@ export function buildSignalContext(input: ContextInput): ExprContext {
 		hold_days: holdDays,
 		pnl_pct: pnlPct,
 	};
+
+	if (input.regime) {
+		ctx.atr_percentile = input.regime.atr_percentile;
+		ctx.volume_breadth = input.regime.volume_breadth;
+		ctx.momentum_regime = input.regime.momentum_regime;
+	}
+
+	return ctx;
 }
