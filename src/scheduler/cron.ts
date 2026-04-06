@@ -133,6 +133,15 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// Dispatch — 3x daily at 09:00, 12:00, 15:00 UK time
+	for (const hour of [9, 12, 15]) {
+		tasks.push(
+			cron.schedule(`0 ${hour} * * 1-5`, () => runJob("dispatch"), {
+				timezone: "Europe/London",
+			}),
+		);
+	}
+
 	log.info({ jobCount: tasks.length }, "Scheduler started");
 }
 

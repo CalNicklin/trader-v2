@@ -20,7 +20,8 @@ export type JobName =
 	| "risk_guardian"
 	| "risk_daily_reset"
 	| "risk_weekly_reset"
-	| "daily_tournament";
+	| "daily_tournament"
+	| "dispatch";
 
 let jobRunning = false;
 const JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -180,6 +181,12 @@ async function executeJob(name: JobName): Promise<void> {
 		case "daily_tournament": {
 			const { runDailyTournaments } = await import("../evolution/tournament");
 			await runDailyTournaments();
+			break;
+		}
+
+		case "dispatch": {
+			const { runDispatch } = await import("../strategy/dispatch.ts");
+			await runDispatch();
 			break;
 		}
 	}

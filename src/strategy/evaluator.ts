@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { strategies } from "../db/schema.ts";
 import {
@@ -11,6 +11,7 @@ import { checkTradeRiskGate } from "../risk/gate.ts";
 import { isTradingHalted, isWeeklyDrawdownActive } from "../risk/guardian.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { buildSignalContext, type QuoteFields } from "./context.ts";
+import { clearDispatchDecisions, getLatestDispatchDecisions } from "./dispatch.ts";
 import { evalExpr } from "./expr-eval.ts";
 import type { SymbolIndicators } from "./historical.ts";
 import { buildEffectiveUniverse, filterByLiquidity } from "./universe.ts";
@@ -234,4 +235,90 @@ export async function evaluateAllStrategies(
 			}
 		}
 	}
+
+	// ── Graduated strategies (dispatch-filtered) ────────────────────────────
+	const dispatchDecisions = getLatestDispatchDecisions();
+
+	const graduatedStatuses = ["probation", "active", "core"] as const;
+	const graduatedStrategies = await db
+		.select()
+		.from(strategies)
+		.where(inArray(strategies.status, [...graduatedStatuses]));
+
+	if (graduatedStrategies.length === 0) {
+		clearDispatchDecisions();
+		return;
+	}
+
+	// Build a set of activated strategy-symbol pairs from dispatch
+	const activatedPairs = new Set(
+		dispatchDecisions
+			.filter((d) => d.action === "activate")
+			.map((d) => `${d.strategyId}:${d.symbol}`),
+	);
+
+	// Build a set of explicitly skipped pairs
+	const skippedPairs = new Set(
+		dispatchDecisions.filter((d) => d.action === "skip").map((d) => `${d.strategyId}:${d.symbol}`),
+	);
+
+	log.info(
+		{
+			graduated: graduatedStrategies.length,
+			activated: activatedPairs.size,
+			skipped: skippedPairs.size,
+		},
+		"Evaluating graduated strategies with dispatch filtering",
+	);
+
+	for (const strategy of graduatedStrategies) {
+		if (!strategy.universe) continue;
+		const rawUniverse: string[] = JSON.parse(strategy.universe);
+		const withInjections = await buildEffectiveUniverse(rawUniverse);
+		const defaultExchange = "NASDAQ";
+		const filteredUniverse = await filterByLiquidity(withInjections, defaultExchange);
+
+		const openPositions = await getOpenPositions(strategy.id);
+		const riskState = {
+			openPositionCount: openPositions.length,
+			openPositionSectors: openPositions.map(() => null as string | null),
+			weeklyDrawdownActive,
+		};
+
+		for (const symbolSpec of filteredUniverse) {
+			const [symbol, exchange] = symbolSpec.includes(":")
+				? symbolSpec.split(":")
+				: [symbolSpec, "NASDAQ"];
+
+			const pairKey = `${strategy.id}:${symbol}`;
+
+			// Skip if dispatch explicitly said skip
+			if (skippedPairs.has(pairKey)) {
+				log.debug({ strategy: strategy.name, symbol }, "Skipped by dispatch");
+				continue;
+			}
+
+			// If dispatch had opinions on this strategy but didn't activate this symbol, skip
+			const dispatchHasOpinionOnStrategy = dispatchDecisions.some(
+				(d) => d.strategyId === strategy.id,
+			);
+			if (dispatchHasOpinionOnStrategy && !activatedPairs.has(pairKey)) {
+				continue;
+			}
+
+			const data = await getQuoteAndIndicators(symbol!, exchange!);
+			if (!data) continue;
+
+			try {
+				await evaluateStrategyForSymbol(strategy, symbol!, exchange!, data, riskState);
+			} catch (error) {
+				log.error(
+					{ strategy: strategy.name, symbol, error },
+					"Error evaluating graduated strategy",
+				);
+			}
+		}
+	}
+
+	clearDispatchDecisions();
 }
