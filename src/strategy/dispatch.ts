@@ -39,7 +39,12 @@ export function parseDispatchResponse(
 	validStrategyIds?: Set<number>,
 ): DispatchDecision[] {
 	try {
-		const parsed: DispatchResponse = JSON.parse(raw);
+		// Strip markdown code fences if present (model often wraps JSON in ```json ... ```)
+		let cleaned = raw.trim();
+		if (cleaned.startsWith("```")) {
+			cleaned = cleaned.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+		}
+		const parsed: DispatchResponse = JSON.parse(cleaned);
 		if (!parsed.decisions || !Array.isArray(parsed.decisions)) return [];
 
 		return parsed.decisions.filter((d) => {
