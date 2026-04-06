@@ -11,10 +11,10 @@ const log = createChildLogger({ module: "graduation" });
 
 // Graduation thresholds from spec Section 4
 const CRITERIA = {
-	minSampleSize: 30,
+	minSampleSize: 20,
 	minExpectancy: 0,
-	minProfitFactor: 1.3,
-	minSharpe: 0.5,
+	minProfitFactor: 1.5,
+	minSharpe: 0.7,
 	maxDrawdownPct: 15,
 	minConsistency: 3, // profitable in >= 3 of last 4 weeks
 	maxParameters: 5,
