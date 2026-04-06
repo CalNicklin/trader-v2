@@ -47,7 +47,7 @@ export interface PerformanceLandscape {
 
 export interface MutationProposal {
 	parentId: number;
-	type: "parameter_tweak" | "new_variant";
+	type: "parameter_tweak" | "new_variant" | "structural";
 	name: string;
 	description: string;
 	parameters: Record<string, number>;
@@ -58,7 +58,7 @@ export interface MutationProposal {
 
 export interface ValidatedMutation {
 	parentId: number;
-	type: "parameter_tweak" | "new_variant";
+	type: "parameter_tweak" | "new_variant" | "structural";
 	name: string;
 	description: string;
 	parameters: Record<string, number>;

@@ -19,6 +19,9 @@ Your job is to analyse a portfolio of paper-trading strategies and propose mutat
 
 - **parameter_tweak**: Adjust numeric parameters of an existing strategy. Keep the same signals and universe; only change parameter values. Required fields: parentId, type, name, description, parameters, reasoning.
 - **new_variant**: Introduce a new variant with different signals or a different universe, derived from a parent strategy. All fields including signals and universe are required.
+- **structural**: Entirely new strategy design. You choose the indicators, signal logic, entry/exit conditions, parameters, and universe. Parameters can use custom names (not limited to the standard set). Max 5 parameters. You MUST provide signals with at least one entry condition. Signal expressions can use any variable from the context: last, bid, ask, volume, avg_volume, change_percent, news_sentiment, earnings_surprise, guidance_change, management_tone, regulatory_risk, acquisition_likelihood, rsi14, atr14, volume_ratio, hold_days, pnl_pct.
+
+Use "structural" when the current strategy templates are fundamentally wrong for the market regime. Use "parameter_tweak" for fine-tuning. Use "new_variant" for exploring variations of an existing approach.
 
 ## Parameter ranges (stay within these bounds)
 
@@ -34,7 +37,7 @@ Respond with a JSON array ONLY — no prose, no markdown outside the code block.
 [
   {
     "parentId": <number>,
-    "type": "parameter_tweak" | "new_variant",
+    "type": "parameter_tweak" | "new_variant" | "structural",
     "name": "<string>",
     "description": "<string>",
     "parameters": { "<key>": <number> },
@@ -110,7 +113,7 @@ ${strategyBlocks}
 Propose mutations to improve this portfolio. Guidelines:
 - Prioritise strategies with 30+ trades and Sharpe < 1.5 for parameter_tweak
 - Propose a new_variant if ${slotsAvailable} slot(s) are available and there is a promising parent
-- Each proposal must stay within parameter ranges and max 5 parameters
+- For \`parameter_tweak\` and \`new_variant\`, stay within parameter ranges. For \`structural\`, any parameter names are allowed, but max 5.
 - Return only a JSON array — no additional text`;
 
 	return { system: SYSTEM_PROMPT, user };
@@ -192,7 +195,7 @@ export function parseEvolutionResponse(raw: string): MutationProposal[] {
 		}
 
 		// Valid type check
-		if (obj.type !== "parameter_tweak" && obj.type !== "new_variant") continue;
+		if (obj.type !== "parameter_tweak" && obj.type !== "new_variant" && obj.type !== "structural") continue;
 
 		// parameters must be a non-null object
 		if (

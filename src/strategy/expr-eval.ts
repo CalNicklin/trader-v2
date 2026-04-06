@@ -15,7 +15,7 @@ type Token =
 
 const TOKEN_RE = /\s*(>=|<=|==|!=|>|<|\(|\))|([A-Za-z_][A-Za-z0-9_]*)|(-?\d+(?:\.\d+)?)\s*/g;
 
-function tokenize(expr: string): Token[] {
+export function tokenize(expr: string): Token[] {
 	const tokens: Token[] = [];
 	TOKEN_RE.lastIndex = 0;
 	let lastIndex = 0;

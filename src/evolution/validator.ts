@@ -1,3 +1,4 @@
+import { tokenize } from "../strategy/expr-eval";
 import type { MutationProposal, StrategyPerformance, ValidatedMutation } from "./types";
 
 export const PARAMETER_RANGES: Record<string, { min: number; max: number }> = {
@@ -54,6 +55,45 @@ export function validateMutation(
 	parent: StrategyPerformance,
 	existingStrategies: StrategyPerformance[],
 ): { valid: true; mutation: ValidatedMutation } | { valid: false; reason: string } {
+	// Handle structural mutations separately — they skip parameter clamping
+	if (proposal.type === "structural") {
+		if (!proposal.signals || (!proposal.signals.entry_long && !proposal.signals.entry_short)) {
+			return { valid: false, reason: "Structural mutation must provide at least one entry signal (entry_long or entry_short)" };
+		}
+		const paramCount = Object.keys(proposal.parameters).length;
+		if (paramCount > MAX_PARAMETERS) {
+			return { valid: false, reason: `Structural mutation has ${paramCount} parameters, max is ${MAX_PARAMETERS}` };
+		}
+		const allSignals = [
+			proposal.signals.entry_long,
+			proposal.signals.entry_short,
+			proposal.signals.exit,
+		].filter(Boolean) as string[];
+		for (const expr of allSignals) {
+			try {
+				tokenize(expr);
+			} catch {
+				return { valid: false, reason: `Invalid signal expression: "${expr}"` };
+			}
+		}
+		for (const [key, val] of Object.entries(proposal.parameters)) {
+			if (typeof val !== "number" || !Number.isFinite(val)) {
+				return { valid: false, reason: `Parameter ${key} must be a finite number` };
+			}
+		}
+		const mutation: ValidatedMutation = {
+			parentId: proposal.parentId,
+			type: "structural",
+			name: proposal.name,
+			description: proposal.description,
+			parameters: proposal.parameters,
+			signals: proposal.signals,
+			universe: proposal.universe || parent.universe,
+			parameterDiff: {},
+		};
+		return { valid: true, mutation };
+	}
+
 	// 1. Clamp parameters
 	const clamped = clampParameters(proposal.parameters);
 

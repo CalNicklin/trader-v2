@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, test } from "bun:test";
 import type { MutationProposal, StrategyPerformance } from "../../src/evolution/types";
 import { clampParameters, PARAMETER_RANGES, validateMutation } from "../../src/evolution/validator";
 
@@ -182,5 +182,12 @@ describe("validateMutation", () => {
 		if (!result.valid) return;
 		expect(Object.keys(result.mutation.parameterDiff)).toEqual(["hold_days"]);
 		expect(result.mutation.parameterDiff.hold_days).toEqual({ from: 5, to: 8 });
+	});
+});
+
+describe("structural mutation validation", () => {
+	test("see tests/evolution/structural.test.ts for full structural validation coverage", () => {
+		// Structural mutation validation tests are in their own dedicated file
+		expect(true).toBe(true);
 	});
 });

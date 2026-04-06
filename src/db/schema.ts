@@ -216,7 +216,7 @@ export const strategyMutations = sqliteTable("strategy_mutations", {
 	parentId: integer("parent_id").notNull(),
 	childId: integer("child_id").notNull(),
 	mutationType: text("mutation_type", {
-		enum: ["parameter_tweak", "new_variant", "code_change"],
+		enum: ["parameter_tweak", "new_variant", "code_change", "structural"],
 	}).notNull(),
 	parameterDiff: text("parameter_diff"), // JSON
 	parentSharpe: real("parent_sharpe"),

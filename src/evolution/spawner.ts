@@ -42,7 +42,7 @@ export async function spawnChild(mutation: ValidatedMutation): Promise<number> {
 	await db.insert(strategyMutations).values({
 		parentId: parent.id,
 		childId: child.id,
-		mutationType: mutation.type as "parameter_tweak" | "new_variant" | "code_change",
+		mutationType: mutation.type as "parameter_tweak" | "new_variant" | "code_change" | "structural",
 		parameterDiff: JSON.stringify(mutation.parameterDiff),
 	});
 
