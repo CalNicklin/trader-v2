@@ -85,11 +85,7 @@ describe("kill test: circuit breakers survive losing streak", () => {
 		expect(kills.length).toBeGreaterThanOrEqual(1);
 		expect(kills).toContain(strategy.id);
 
-		const updated = await db
-			.select()
-			.from(strategies)
-			.where(eq(strategies.id, strategy.id))
-			.get();
+		const updated = await db.select().from(strategies).where(eq(strategies.id, strategy.id)).get();
 		expect(updated?.status).toBe("retired");
 	});
 
@@ -106,9 +102,7 @@ describe("kill test: circuit breakers survive losing streak", () => {
 
 		const decisions = parseDispatchResponse(
 			JSON.stringify({
-				decisions: [
-					{ strategyId: 1, symbol: "AAPL", action: "activate", reasoning: "test" },
-				],
+				decisions: [{ strategyId: 1, symbol: "AAPL", action: "activate", reasoning: "test" }],
 			}),
 		);
 

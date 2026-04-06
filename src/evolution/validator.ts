@@ -58,11 +58,18 @@ export function validateMutation(
 	// Handle structural mutations separately — they skip parameter clamping
 	if (proposal.type === "structural") {
 		if (!proposal.signals || (!proposal.signals.entry_long && !proposal.signals.entry_short)) {
-			return { valid: false, reason: "Structural mutation must provide at least one entry signal (entry_long or entry_short)" };
+			return {
+				valid: false,
+				reason:
+					"Structural mutation must provide at least one entry signal (entry_long or entry_short)",
+			};
 		}
 		const paramCount = Object.keys(proposal.parameters).length;
 		if (paramCount > MAX_PARAMETERS) {
-			return { valid: false, reason: `Structural mutation has ${paramCount} parameters, max is ${MAX_PARAMETERS}` };
+			return {
+				valid: false,
+				reason: `Structural mutation has ${paramCount} parameters, max is ${MAX_PARAMETERS}`,
+			};
 		}
 		const allSignals = [
 			proposal.signals.entry_long,

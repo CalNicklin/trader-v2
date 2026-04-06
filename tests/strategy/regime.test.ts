@@ -1,9 +1,17 @@
-import { describe, test, expect } from "bun:test";
-import { detectRegime, calcAtrPercentile, calcVolumeBreadth, calcMomentumRegime, type RegimeSignals } from "../../src/strategy/regime";
+import { describe, expect, test } from "bun:test";
+import {
+	calcAtrPercentile,
+	calcMomentumRegime,
+	calcVolumeBreadth,
+	detectRegime,
+} from "../../src/strategy/regime";
 
 describe("regime detection", () => {
 	test("calculates ATR percentile from historical ATR values", () => {
-		const atrHistory = [1.0, 1.2, 1.5, 1.3, 1.8, 2.0, 1.6, 1.4, 1.7, 1.9, 2.1, 2.3, 1.5, 1.8, 2.0, 1.6, 1.4, 1.7, 1.9, 2.1];
+		const atrHistory = [
+			1.0, 1.2, 1.5, 1.3, 1.8, 2.0, 1.6, 1.4, 1.7, 1.9, 2.1, 2.3, 1.5, 1.8, 2.0, 1.6, 1.4, 1.7, 1.9,
+			2.1,
+		];
 		const currentAtr = 2.5;
 		const percentile = calcAtrPercentile(currentAtr, atrHistory);
 		expect(percentile).toBeGreaterThan(90);

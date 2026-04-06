@@ -131,23 +131,14 @@ export async function runDailyTournaments(): Promise<void> {
 
 	const drawdownKills = await checkDrawdowns();
 	if (drawdownKills.length > 0) {
-		log.info(
-			{ phase: "daily_tournament", kills: drawdownKills.length },
-			"Drawdown kills executed",
-		);
+		log.info({ phase: "daily_tournament", kills: drawdownKills.length }, "Drawdown kills executed");
 	}
 
 	const results = await runTournaments();
-	log.info(
-		{ phase: "daily_tournament", tournaments: results.length },
-		"Tournaments completed",
-	);
+	log.info({ phase: "daily_tournament", tournaments: results.length }, "Tournaments completed");
 
 	const culled = await enforcePopulationCap();
 	if (culled.length > 0) {
-		log.info(
-			{ phase: "daily_tournament", culled: culled.length },
-			"Population cap enforced",
-		);
+		log.info({ phase: "daily_tournament", culled: culled.length }, "Population cap enforced");
 	}
 }

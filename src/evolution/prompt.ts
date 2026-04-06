@@ -195,7 +195,8 @@ export function parseEvolutionResponse(raw: string): MutationProposal[] {
 		}
 
 		// Valid type check
-		if (obj.type !== "parameter_tweak" && obj.type !== "new_variant" && obj.type !== "structural") continue;
+		if (obj.type !== "parameter_tweak" && obj.type !== "new_variant" && obj.type !== "structural")
+			continue;
 
 		// parameters must be a non-null object
 		if (
