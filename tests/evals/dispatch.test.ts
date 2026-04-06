@@ -8,7 +8,7 @@ describe("dispatch eval infrastructure", () => {
 	});
 
 	test("grader scores perfect dispatch as pass", () => {
-		const task = DISPATCH_EVAL_TASKS[0];
+		const task = DISPATCH_EVAL_TASKS[0]!;
 		const perfectDecisions = task.expectedActivations.map((e) => ({
 			strategyId: e.strategyId,
 			symbol: e.symbol,
@@ -21,7 +21,7 @@ describe("dispatch eval infrastructure", () => {
 	});
 
 	test("grader scores empty dispatch as fail", () => {
-		const task = DISPATCH_EVAL_TASKS[0];
+		const task = DISPATCH_EVAL_TASKS[0]!;
 		const result = gradeDispatch(task, []);
 		expect(result.f1).toBe(0);
 		expect(result.pass).toBe(false);

@@ -56,7 +56,7 @@ describe("kill test: circuit breakers survive losing streak", () => {
 		const { strategies, strategyMetrics } = await import("../../src/db/schema.ts");
 		const { checkDrawdowns } = await import("../../src/evolution/population.ts");
 
-		const [strategy] = await db
+		const rows = await db
 			.insert(strategies)
 			.values({
 				name: "drawdown_kill_test",
@@ -69,6 +69,7 @@ describe("kill test: circuit breakers survive losing streak", () => {
 				createdBy: "evolution",
 			})
 			.returning();
+		const strategy = rows[0]!;
 
 		await db.insert(strategyMetrics).values({
 			strategyId: strategy.id,
@@ -107,6 +108,6 @@ describe("kill test: circuit breakers survive losing streak", () => {
 		);
 
 		expect(decisions).toHaveLength(1);
-		expect(decisions[0].action).toBe("activate");
+		expect(decisions[0]!.action).toBe("activate");
 	});
 });

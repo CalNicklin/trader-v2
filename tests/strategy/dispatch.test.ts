@@ -21,8 +21,8 @@ describe("dispatch response parsing", () => {
 		});
 		const result = parseDispatchResponse(response);
 		expect(result).toHaveLength(2);
-		expect(result[0].strategyId).toBe(1);
-		expect(result[0].action).toBe("activate");
+		expect(result[0]!.strategyId).toBe(1);
+		expect(result[0]!.action).toBe("activate");
 	});
 
 	test("rejects decision referencing unknown strategy ID", () => {

@@ -32,8 +32,8 @@ export function calcMomentumRegime(returns: number[]): number {
 	let numerator = 0;
 	let denominator = 0;
 	for (let i = 1; i < returns.length; i++) {
-		numerator += (returns[i] - mean) * (returns[i - 1] - mean);
-		denominator += (returns[i] - mean) ** 2;
+		numerator += (returns[i]! - mean) * (returns[i - 1]! - mean);
+		denominator += (returns[i]! - mean) ** 2;
 	}
 	if (denominator === 0) return 0.5;
 	const autocorr = numerator / denominator;
