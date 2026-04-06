@@ -424,10 +424,10 @@ RSS Feeds Poll (10m) -->                                              +-------+-
 ### Three-Stage Pipeline
 
 **Stage 1: Streaming Ingest (free, <1s)**
-- Finnhub websocket (free tier: 60 msg/min) — real-time US market news with ticker tags
+- Finnhub REST API (free tier: 60 calls/min) — US stock news via company-news endpoint (free tier only supports US symbols)
+- RSS feeds for UK/AIM stocks (BBC Business, Yahoo Finance UK, Proactive Investors) — polled every 10 min, matched to symbols via company name aliases
 - SEC EDGAR RSS (polled every 5 min) — 8-K filings (US material events, earnings)
 - UK Regulatory News Service (RNS) via RSS (polled every 5 min) — UK equivalent of EDGAR, covers LSE + AIM regulatory announcements
-- RSS feeds (polled every 10 min) — PR Newswire, GlobeNewsWire, Investegate (UK), financial press
 
 All headlines stored in `news_events` table.
 
