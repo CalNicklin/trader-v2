@@ -5,6 +5,7 @@ import { strategies } from "../db/schema.ts";
 import { classifyHeadline } from "../news/classifier.ts";
 import { fetchCompanyNews } from "../news/finnhub.ts";
 import { processArticle } from "../news/ingest.ts";
+import { fetchUkNewsForSymbols } from "../news/rss-feeds.ts";
 import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "news-poll-job" });
@@ -71,7 +72,9 @@ export async function runNewsPoll(): Promise<void> {
 	let filtered = 0;
 	let duplicates = 0;
 
-	for (const { symbol, exchange } of watchlist) {
+	// US stocks: Finnhub API
+	const usSymbols = watchlist.filter((s) => s.exchange === "NASDAQ" || s.exchange === "NYSE");
+	for (const { symbol, exchange } of usSymbols) {
 		const fhSymbol = finnhubSymbol(symbol, exchange);
 		const articles = await fetchCompanyNews(fhSymbol, config.FINNHUB_API_KEY);
 
@@ -89,6 +92,22 @@ export async function runNewsPoll(): Promise<void> {
 
 		// Respect Finnhub rate limit: 60 calls/min
 		await Bun.sleep(1100);
+	}
+
+	// Non-US stocks (LSE, AIM): RSS feeds
+	const nonUsSymbols = watchlist.filter((s) => s.exchange !== "NASDAQ" && s.exchange !== "NYSE");
+	if (nonUsSymbols.length > 0) {
+		const rssResults = await fetchUkNewsForSymbols(nonUsSymbols);
+		for (const { symbol, exchange } of nonUsSymbols) {
+			const articles = rssResults.get(symbol) ?? [];
+			for (const article of articles) {
+				totalArticles++;
+				const result = await processArticle(article, exchange, classifyHeadline);
+				if (result === "classified") classified++;
+				else if (result === "filtered") filtered++;
+				else if (result === "duplicate") duplicates++;
+			}
+		}
 	}
 
 	log.info(

@@ -37,6 +37,7 @@
     "node-cron": "^4.2.1",
     "pino": "^10.3.1",
     "resend": "^6.9.2",
+    "rss-parser": "^3.13.0",
     "rxjs": "^7.8.1",
     "yahoo-finance2": "^3.13.0",
     "zod": "^4.3.6"
