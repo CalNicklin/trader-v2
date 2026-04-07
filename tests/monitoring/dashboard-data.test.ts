@@ -11,6 +11,19 @@ import {
 	tradeInsights,
 } from "../../src/db/schema.ts";
 
+async function setupDb() {
+	const { resetConfigForTesting } = await import("../../src/config.ts");
+	resetConfigForTesting();
+	const { closeDb, getDb } = await import("../../src/db/client.ts");
+	closeDb();
+	const db = getDb();
+	const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
+	migrate(db, { migrationsFolder: "./drizzle/migrations" });
+	db.delete(riskState).run();
+	db.delete(agentLogs).run();
+	return db;
+}
+
 describe("getDashboardData", () => {
 	beforeEach(async () => {
 		const { resetConfigForTesting } = await import("../../src/config.ts");
@@ -243,5 +256,77 @@ describe("getNewsPipelineData", () => {
 		expect(typeof first.time).toBe("string");
 		expect(Array.isArray(first.symbols)).toBe(true);
 		expect(typeof first.headline).toBe("string");
+	});
+});
+
+describe("getGuardianData", () => {
+	beforeEach(async () => {
+		await setupDb();
+	});
+
+	test("returns inactive state with empty risk_state", async () => {
+		const { getGuardianData } = await import("../../src/monitoring/dashboard-data.ts");
+		const data = await getGuardianData();
+
+		expect(data.circuitBreaker.active).toBe(false);
+		expect(data.dailyHalt.active).toBe(false);
+		expect(data.weeklyDrawdown.active).toBe(false);
+		expect(data.peakBalance).toBe(0);
+		expect(data.accountBalance).toBe(0);
+		expect(Array.isArray(data.checkHistory)).toBe(true);
+		expect(data.checkHistory.length).toBe(0);
+	});
+
+	test("returns correct computed values with populated state", async () => {
+		const { closeDb, getDb } = await import("../../src/db/client.ts");
+		closeDb();
+		const db = getDb();
+		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
+		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+		db.delete(riskState).run();
+		db.delete(agentLogs).run();
+
+		// peak=10000, account=9000 → drawdown = 10%
+		db.insert(riskState).values({ key: "peak_balance", value: "10000" }).run();
+		db.insert(riskState).values({ key: "account_balance", value: "9000" }).run();
+		db.insert(riskState).values({ key: "daily_pnl", value: "-300" }).run();
+		db.insert(riskState).values({ key: "weekly_pnl", value: "-500" }).run();
+		db.insert(riskState).values({ key: "circuit_breaker_tripped", value: "true" }).run();
+		db.insert(riskState).values({ key: "daily_halt_active", value: "true" }).run();
+		db.insert(riskState).values({ key: "weekly_drawdown_active", value: "false" }).run();
+
+		db.insert(agentLogs)
+			.values({
+				level: "WARN",
+				phase: "risk_guardian",
+				message: "Daily loss limit approaching",
+			})
+			.run();
+
+		const { getGuardianData } = await import("../../src/monitoring/dashboard-data.ts");
+		const data = await getGuardianData();
+
+		expect(data.circuitBreaker.active).toBe(true);
+		expect(data.dailyHalt.active).toBe(true);
+		expect(data.weeklyDrawdown.active).toBe(false);
+
+		expect(data.peakBalance).toBe(10000);
+		expect(data.accountBalance).toBe(9000);
+
+		// drawdownPct = (10000 - 9000) / 10000 * 100 = 10
+		expect(data.circuitBreaker.drawdownPct).toBe(10);
+		expect(data.circuitBreaker.limitPct).toBe(10);
+
+		// dailyLossPct = abs(min(0, -300)) / 9000 * 100 = 300/9000*100 ≈ 3.3
+		expect(data.dailyHalt.lossPct).toBe(Math.round(300 / 9000 * 100 * 10) / 10);
+		expect(data.dailyHalt.limitPct).toBe(3);
+
+		// weeklyLossPct = abs(min(0, -500)) / 9000 * 100 ≈ 5.6
+		expect(data.weeklyDrawdown.lossPct).toBe(Math.round(500 / 9000 * 100 * 10) / 10);
+		expect(data.weeklyDrawdown.limitPct).toBe(5);
+
+		expect(data.checkHistory.length).toBe(1);
+		expect(data.checkHistory[0]!.level).toBe("WARN");
+		expect(data.checkHistory[0]!.message).toBe("Daily loss limit approaching");
 	});
 });

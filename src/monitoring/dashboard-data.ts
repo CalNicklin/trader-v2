@@ -15,6 +15,7 @@ import {
 import {
 	DAILY_LOSS_HALT_PCT,
 	MAX_CONCURRENT_POSITIONS,
+	MAX_DRAWDOWN_CIRCUIT_BREAKER_PCT,
 	WEEKLY_DRAWDOWN_LIMIT_PCT,
 } from "../risk/constants.ts";
 import { getDailySpend } from "../utils/budget.ts";
@@ -384,5 +385,86 @@ export async function getNewsPipelineData(): Promise<NewsPipelineData> {
 		tradeableHighUrgency,
 		avgSentiment,
 		recentArticles,
+	};
+}
+
+export interface GuardianData {
+	circuitBreaker: { active: boolean; drawdownPct: number; limitPct: number };
+	dailyHalt: { active: boolean; lossPct: number; limitPct: number };
+	weeklyDrawdown: { active: boolean; lossPct: number; limitPct: number };
+	peakBalance: number;
+	accountBalance: number;
+	checkHistory: Array<{ time: string; level: string; message: string }>;
+}
+
+export async function getGuardianData(): Promise<GuardianData> {
+	const db = getDb();
+
+	const rows = db.select().from(riskState).all();
+	const state = new Map(rows.map((r) => [r.key, r.value]));
+
+	const circuitBreakerActive = state.get("circuit_breaker_tripped") === "true";
+	const dailyHaltActive = state.get("daily_halt_active") === "true";
+	const weeklyDrawdownActive = state.get("weekly_drawdown_active") === "true";
+
+	const peakBalance = Number.parseFloat(state.get("peak_balance") ?? "0") || 0;
+	const accountBalance = Number.parseFloat(state.get("account_balance") ?? "0") || 0;
+	const dailyPnl = Number.parseFloat(state.get("daily_pnl") ?? "0") || 0;
+	const weeklyPnl = Number.parseFloat(state.get("weekly_pnl") ?? "0") || 0;
+
+	const drawdownPct =
+		peakBalance > 0 ? Math.round(((peakBalance - accountBalance) / peakBalance) * 100 * 10) / 10 : 0;
+
+	const dailyLossPct =
+		accountBalance > 0
+			? Math.round((Math.abs(Math.min(0, dailyPnl)) / accountBalance) * 100 * 10) / 10
+			: 0;
+
+	const weeklyLossPct =
+		accountBalance > 0
+			? Math.round((Math.abs(Math.min(0, weeklyPnl)) / accountBalance) * 100 * 10) / 10
+			: 0;
+
+	const logs = db
+		.select({
+			createdAt: agentLogs.createdAt,
+			level: agentLogs.level,
+			message: agentLogs.message,
+		})
+		.from(agentLogs)
+		.where(eq(agentLogs.phase, "risk_guardian"))
+		.orderBy(desc(agentLogs.createdAt))
+		.limit(30)
+		.all();
+
+	const checkHistory = logs.map((l) => ({
+		time: new Date(l.createdAt).toLocaleTimeString("en-GB", {
+			hour: "2-digit",
+			minute: "2-digit",
+			timeZone: "UTC",
+		}),
+		level: l.level,
+		message: l.message,
+	}));
+
+	return {
+		circuitBreaker: {
+			active: circuitBreakerActive,
+			drawdownPct,
+			limitPct: Math.round(MAX_DRAWDOWN_CIRCUIT_BREAKER_PCT * 100 * 10) / 10,
+		},
+		dailyHalt: {
+			active: dailyHaltActive,
+			lossPct: dailyLossPct,
+			limitPct: Math.round(DAILY_LOSS_HALT_PCT * 100 * 10) / 10,
+		},
+		weeklyDrawdown: {
+			active: weeklyDrawdownActive,
+			lossPct: weeklyLossPct,
+			limitPct: Math.round(WEEKLY_DRAWDOWN_LIMIT_PCT * 100 * 10) / 10,
+		},
+		peakBalance,
+		accountBalance,
+		checkHistory,
 	};
 }
