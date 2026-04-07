@@ -1,4 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
+import type { Exchange } from "../broker/contracts.ts";
 import { getDb } from "../db/client.ts";
 import { strategies } from "../db/schema.ts";
 import {
@@ -186,6 +187,10 @@ export async function evaluateAllStrategies(
 		symbol: string,
 		exchange: string,
 	) => Promise<{ quote: QuoteFields; indicators: SymbolIndicators } | null>,
+	options?: {
+		exchanges?: Exchange[];
+		allowNewEntries?: boolean;
+	},
 ): Promise<void> {
 	// Check if trading is halted before evaluating any strategies
 	const haltStatus = await isTradingHalted();
@@ -212,6 +217,14 @@ export async function evaluateAllStrategies(
 		const defaultExchange = "NASDAQ";
 		const universe = await filterByLiquidity(withInjections, defaultExchange);
 
+		// Apply exchange filter if provided (session-aware scheduling)
+		const exchangeFiltered = options?.exchanges
+			? universe.filter((spec) => {
+					const ex = spec.includes(":") ? spec.split(":")[1]! : "NASDAQ";
+					return options.exchanges!.includes(ex as Exchange);
+				})
+			: universe;
+
 		// Gather open position state for this strategy
 		const openPositions = await getOpenPositions(strategy.id);
 		const riskState = {
@@ -220,10 +233,17 @@ export async function evaluateAllStrategies(
 			weeklyDrawdownActive,
 		};
 
-		for (const symbolSpec of universe) {
+		const openSymbols = new Set(openPositions.map((p) => `${p.symbol}:${p.exchange}`));
+
+		for (const symbolSpec of exchangeFiltered) {
 			const [symbol, exchange] = symbolSpec.includes(":")
 				? symbolSpec.split(":")
 				: [symbolSpec, "NASDAQ"];
+
+			// Skip symbols with no open position when entries are disallowed (us_close)
+			if (options?.allowNewEntries === false && !openSymbols.has(`${symbol}:${exchange}`)) {
+				continue;
+			}
 
 			const data = await getQuoteAndIndicators(symbol!, exchange!);
 			if (!data) continue;
@@ -278,6 +298,14 @@ export async function evaluateAllStrategies(
 		const defaultExchange = "NASDAQ";
 		const filteredUniverse = await filterByLiquidity(withInjections, defaultExchange);
 
+		// Apply exchange filter if provided (session-aware scheduling)
+		const exchangeFilteredGrad = options?.exchanges
+			? filteredUniverse.filter((spec) => {
+					const ex = spec.includes(":") ? spec.split(":")[1]! : "NASDAQ";
+					return options.exchanges!.includes(ex as Exchange);
+				})
+			: filteredUniverse;
+
 		const openPositions = await getOpenPositions(strategy.id);
 		const riskState = {
 			openPositionCount: openPositions.length,
@@ -285,10 +313,17 @@ export async function evaluateAllStrategies(
 			weeklyDrawdownActive,
 		};
 
-		for (const symbolSpec of filteredUniverse) {
+		const openSymbolsGrad = new Set(openPositions.map((p) => `${p.symbol}:${p.exchange}`));
+
+		for (const symbolSpec of exchangeFilteredGrad) {
 			const [symbol, exchange] = symbolSpec.includes(":")
 				? symbolSpec.split(":")
 				: [symbolSpec, "NASDAQ"];
+
+			// Skip symbols with no open position when entries are disallowed (us_close)
+			if (options?.allowNewEntries === false && !openSymbolsGrad.has(`${symbol}:${exchange}`)) {
+				continue;
+			}
 
 			const pairKey = `${strategy.id}:${symbol}`;
 
