@@ -4,7 +4,7 @@
 
 **Spec:** `docs/specs/2026-04-03-trader-v2-design.md` — the masterplan for the entire system.
 
-**Current state:** Phases 1–6 and 9 are built and deployed on Hetzner (systemd + GitHub Actions CI/CD). The paper trading loop is running with richer signal classification, universe management, learning loop feedback, self-improvement PRs, and monitoring.
+**Current state:** Phases 1–6 and 9 are built and deployed on Hetzner (systemd + GitHub Actions CI/CD). The paper trading loop is running with richer signal classification, universe management, learning loop feedback, self-improvement PRs, monitoring, and session-aware scheduling. Additional features deployed: hybrid architecture (structural evolution, dispatch, daily tournaments), news research agent (Sonnet deep-dive on tradeable events), missed opportunity tracker, and session-aware per-market scheduling with parallel UK/US pipelines.
 
 ### Implementation Plans
 
@@ -22,6 +22,15 @@ Execute in dependency order. Phases 5, 6, 9 can run in parallel. Phase 7 depends
 | **7** | `docs/plans/2026-04-04-phase7-broker-live-executor.md` | **Next** | IBKR broker cherry-pick from v1, live executor, settlement |
 | **8** | `docs/plans/2026-04-04-phase8-risk-hard-limits.md` | Pending | All hard risk limits, ATR position sizing, demotion/kill |
 | **9** | `docs/plans/2026-04-04-phase9-monitoring-self-improvement.md` | **Done** | Health endpoint, heartbeat, weekly digest, self-improvement PRs |
+
+### Post-Phase Improvements
+
+| Feature | Plan/Spec | Status | What It Builds |
+|---------|-----------|--------|----------------|
+| Hybrid Architecture | `docs/plans/2026-04-06-hybrid-architecture-improvements.md` | **Done** | Structural evolution, Claude-driven dispatch, daily tournaments, regime detection |
+| News Research Agent | `docs/plans/2026-04-07-news-research-intelligence.md` | **Done** | Sonnet deep-dive on tradeable events, multi-symbol analysis, missed opportunity tracker |
+| Dashboard Tabs | `docs/plans/2026-04-07-dashboard-subsystem-tabs.md` | **Done** | Subsystem tabs for monitoring dashboard |
+| Session-Aware Scheduling | `docs/plans/2026-04-07-session-aware-scheduling.md` | **Done** | Per-market UK/US pipelines, session boundaries, parallel job locks |
 
 Plans are task-by-task with full code, TDD steps, and exact file paths. An agent can execute a plan by reading it and following the tasks sequentially.
 
@@ -94,6 +103,23 @@ Evals -> identify weakness -> improve prompt/model -> re-eval -> confirm improve
 - **Health**: `http://<VPS_HOST>:3847/health` (JSON), `http://<VPS_HOST>:3847/` (HTML dashboard)
 - **Restart**: `./scripts/vps-ssh.sh "sudo systemctl restart trader-v2"`
 - Credentials read from `.env` (VPS_HOST, VPS_USER, VPS_SSH_KEY)
+
+## Scheduling Architecture
+
+The system uses **session-aware scheduling** with named trading sessions (see `src/scheduler/sessions.ts`):
+
+| Session | UK Time | Exchanges | Notes |
+|---------|---------|-----------|-------|
+| `pre_market` | 06:00–07:59 | — | News polling only |
+| `uk_session` | 08:00–14:29 | LSE | UK quotes + eval every 10 min |
+| `overlap` | 14:30–16:29 | LSE + NASDAQ/NYSE | Both markets, staggered 5 min apart |
+| `us_session` | 16:30–20:59 | NASDAQ/NYSE | US quotes + eval every 10 min |
+| `us_close` | 21:00–21:14 | NASDAQ/NYSE | Exits only, 5-min polling |
+| `post_close` | 22:00–22:45 | — | Batch analysis jobs |
+
+- **Per-category job locks** (`src/scheduler/locks.ts`) — UK and US pipelines run in parallel, not serialized
+- **Dispatch** fires at session boundaries: 08:05, 14:35, 16:35, 18:00
+- Schedule defined in `src/scheduler/cron.ts`, mirrored in `src/monitoring/cron-schedule.ts` (keep in sync)
 
 ## Key Conventions
 - LSE prices are in **pence** (GBp), not pounds
