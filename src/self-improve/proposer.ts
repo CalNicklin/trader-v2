@@ -3,6 +3,7 @@ import { getConfig } from "../config";
 import { getDb } from "../db/client";
 import { improvementProposals } from "../db/schema";
 import { getPerformanceLandscape } from "../evolution/analyzer";
+import type { PerformanceLandscape } from "../evolution/types";
 import { canAffordCall } from "../utils/budget";
 import { createChildLogger } from "../utils/logger";
 import { recordUsage } from "../utils/token-tracker";
@@ -43,12 +44,30 @@ export function generateBranchName(title: string): string {
 	return `self-improve/${slug}-${date}`;
 }
 
-function buildProposerPrompt(landscapeJson: string): string {
+function buildProposerPrompt(
+	landscapeJson: string,
+	landscape: PerformanceLandscape,
+): string {
+	const actionLines: string[] = [];
+	for (const strategy of landscape.strategies) {
+		if (strategy.suggestedActions.length > 0) {
+			actionLines.push(`\n${strategy.name} (id=${strategy.id}):`);
+			for (const action of strategy.suggestedActions.slice(0, 3)) {
+				actionLines.push(`  → ${action.direction} ${action.parameter}: ${action.reasoning}`);
+			}
+		}
+	}
+
+	const actionsSection =
+		actionLines.length > 0
+			? `\n## Learning Loop Suggested Actions\nThese are parameter change suggestions from the learning loop. Consider whether code changes could address the underlying issues:\n${actionLines.join("\n")}\n`
+			: "";
+
 	return `You are analysing a trading agent system to identify code improvements.
 
 ## Current System State
 ${landscapeJson}
-
+${actionsSection}
 ## Whitelisted Files (you can propose direct code changes)
 ${WHITELISTED_PATHS.join("\n")}
 
@@ -123,7 +142,7 @@ export async function runSelfImprovementCycle(): Promise<ProposalResult> {
 	const response = await client.messages.create({
 		model: config.CLAUDE_MODEL_HEAVY,
 		max_tokens: 4096,
-		messages: [{ role: "user", content: buildProposerPrompt(landscapeJson) }],
+		messages: [{ role: "user", content: buildProposerPrompt(landscapeJson, landscape) }],
 	});
 
 	await recordUsage("self_improvement", response.usage.input_tokens, response.usage.output_tokens);
