@@ -4,7 +4,7 @@
 
 **Spec:** `docs/specs/2026-04-03-trader-v2-design.md` — the masterplan for the entire system.
 
-**Current state:** Phases 1–6 and 9 are built and deployed on Hetzner (systemd + GitHub Actions CI/CD). The paper trading loop is running with richer signal classification, universe management, learning loop feedback, self-improvement PRs, monitoring, and session-aware scheduling. Additional features deployed: hybrid architecture (structural evolution, dispatch, daily tournaments), news research agent (Sonnet deep-dive on tradeable events), missed opportunity tracker, and session-aware per-market scheduling with parallel UK/US pipelines.
+**Current state:** All phases (1–9) are built and deployed on Hetzner (systemd + GitHub Actions CI/CD). The paper trading loop is running with richer signal classification, universe management, learning loop feedback, self-improvement PRs (Opus-powered), monitoring, and session-aware scheduling. IBKR broker integration and risk hard limits are fully implemented — live trading is gated behind `LIVE_TRADING_ENABLED=true` in the VPS `.env`. Strategies graduating from paper → probation will begin receiving capital allocation once live trading is enabled. Additional features deployed: hybrid architecture (structural evolution, dispatch, daily tournaments), news research agent (Sonnet deep-dive on tradeable events), missed opportunity tracker, session-aware per-market scheduling with parallel UK/US pipelines, and learning loop feedback (structured insight actions fed to evolution/self-improvement, `ledToImprovement` tracking).
 
 ### Implementation Plans
 
@@ -19,8 +19,8 @@ Execute in dependency order. Phases 5, 6, 9 can run in parallel. Phase 7 depends
 | 4 | `docs/plans/2026-04-04-phase4-strategy-evolution.md` | **Done** | Autonomous parameter mutation, tournaments, population |
 | **5** | `docs/plans/2026-04-04-phase5-learning-loop.md` | **Done** | Trade review, pattern analysis, graduation reasoning, meta-evolution |
 | **6** | `docs/plans/2026-04-04-phase6-news-signals-seeds-universe.md` | **Done** | Richer classification, seed updates, universe management |
-| **7** | `docs/plans/2026-04-04-phase7-broker-live-executor.md` | **Next** | IBKR broker cherry-pick from v1, live executor, settlement |
-| **8** | `docs/plans/2026-04-04-phase8-risk-hard-limits.md` | Pending | All hard risk limits, ATR position sizing, demotion/kill |
+| **7** | `docs/plans/2026-04-04-phase7-broker-live-executor.md` | **Done** | IBKR broker, live executor, settlement, stop-loss/trailing stops |
+| **8** | `docs/plans/2026-04-04-phase8-risk-hard-limits.md` | **Done** | ATR position sizing, drawdown limits, demotion/kill, circuit breaker |
 | **9** | `docs/plans/2026-04-04-phase9-monitoring-self-improvement.md` | **Done** | Health endpoint, heartbeat, weekly digest, self-improvement PRs |
 
 ### Post-Phase Improvements
@@ -31,6 +31,7 @@ Execute in dependency order. Phases 5, 6, 9 can run in parallel. Phase 7 depends
 | News Research Agent | `docs/plans/2026-04-07-news-research-intelligence.md` | **Done** | Sonnet deep-dive on tradeable events, multi-symbol analysis, missed opportunity tracker |
 | Dashboard Tabs | `docs/plans/2026-04-07-dashboard-subsystem-tabs.md` | **Done** | Subsystem tabs for monitoring dashboard |
 | Session-Aware Scheduling | `docs/plans/2026-04-07-session-aware-scheduling.md` | **Done** | Per-market UK/US pipelines, session boundaries, parallel job locks |
+| Learning Loop Feedback | `docs/plans/2026-04-07-learning-loop-feedback.md` | **Done** | Structured insight actions in evolution/self-improvement prompts, `ledToImprovement` tracking, Opus for heavy reasoning |
 
 Plans are task-by-task with full code, TDD steps, and exact file paths. An agent can execute a plan by reading it and following the tasks sequentially.
 
@@ -92,7 +93,7 @@ Evals -> identify weakness -> improve prompt/model -> re-eval -> confirm improve
 ## Cost Control
 - All LLM calls go through budget guard (`canAffordCall`)
 - `token_usage` table tracks all API spend
-- Haiku for fast/cheap tasks, Sonnet for complex reasoning
+- Haiku for fast/cheap tasks, Sonnet for standard reasoning, Opus for evolution + self-improvement
 - Daily budget enforced via `DAILY_API_BUDGET_USD`
 
 ## VPS Operations
