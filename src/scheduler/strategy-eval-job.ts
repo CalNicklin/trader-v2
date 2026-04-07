@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import type { Exchange } from "../broker/contracts.ts";
 import { getQuoteFromCache } from "../data/quotes.ts";
 import { getDb } from "../db/client.ts";
 import { strategies } from "../db/schema.ts";
@@ -11,7 +12,23 @@ import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "strategy-eval-job" });
 
-export async function runStrategyEvaluation(): Promise<void> {
+export function filterUniverseByExchanges(
+	universe: string[],
+	exchanges?: Exchange[],
+): string[] {
+	if (!exchanges || exchanges.length === 0) return universe;
+
+	const exchangeSet = new Set(exchanges);
+	return universe.filter((spec) => {
+		const exchange = spec.includes(":") ? spec.split(":")[1]! : "NASDAQ";
+		return exchangeSet.has(exchange as Exchange);
+	});
+}
+
+export async function runStrategyEvaluation(options?: {
+	exchanges?: Exchange[];
+	allowNewEntries?: boolean;
+}): Promise<void> {
 	await evaluateAllStrategies(async (symbol, exchange) => {
 		const cached = await getQuoteFromCache(symbol, exchange);
 		if (!cached || cached.last == null) return null;
@@ -50,5 +67,8 @@ export async function runStrategyEvaluation(): Promise<void> {
 		await runGraduationGate(strat.id);
 	}
 
-	log.info("Strategy evaluation cycle complete");
+	log.info(
+		{ exchanges: options?.exchanges ?? "all" },
+		"Strategy evaluation cycle complete",
+	);
 }
