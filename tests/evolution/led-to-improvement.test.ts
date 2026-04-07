@@ -38,10 +38,7 @@ describe("ledToImprovement tracking", () => {
 
 		await markMatchedInsights(1, { stop_loss_pct: { from: 3, to: 5 } });
 
-		const updated = await db
-			.select()
-			.from(tradeInsights)
-			.where(eq(tradeInsights.id, insight!.id));
+		const updated = await db.select().from(tradeInsights).where(eq(tradeInsights.id, insight!.id));
 		expect(updated[0]!.ledToImprovement).toBe(true);
 	});
 
@@ -67,10 +64,7 @@ describe("ledToImprovement tracking", () => {
 
 		await markMatchedInsights(1, { hold_days: { from: 10, to: 5 } });
 
-		const updated = await db
-			.select()
-			.from(tradeInsights)
-			.where(eq(tradeInsights.id, insight!.id));
+		const updated = await db.select().from(tradeInsights).where(eq(tradeInsights.id, insight!.id));
 		expect(updated[0]!.ledToImprovement).toBe(true);
 	});
 
@@ -96,10 +90,7 @@ describe("ledToImprovement tracking", () => {
 
 		await markMatchedInsights(1, { stop_loss_pct: { from: 5, to: 3 } });
 
-		const updated = await db
-			.select()
-			.from(tradeInsights)
-			.where(eq(tradeInsights.id, insight!.id));
+		const updated = await db.select().from(tradeInsights).where(eq(tradeInsights.id, insight!.id));
 		expect(updated[0]!.ledToImprovement).toBeNull();
 	});
 
