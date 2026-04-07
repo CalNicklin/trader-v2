@@ -1,19 +1,3 @@
-export const WHITELISTED_PATHS = [
-	"src/strategy/evaluation/",
-	"src/strategy/signals/",
-	"src/news/classifier.ts",
-	"src/reporting/",
-	"src/evolution/prompt.ts",
-] as const;
-
-export const HUMAN_ONLY_PATHS = [
-	"src/risk/",
-	"src/strategy/graduation/",
-	"src/broker/",
-	"src/db/schema.ts",
-	"drizzle/",
-] as const;
-
 export interface ImprovementIdea {
 	title: string;
 	description: string;
@@ -25,7 +9,5 @@ export interface ImprovementIdea {
 
 export interface ProposalResult {
 	prsCreated: number;
-	issuesCreated: number;
-	skipped: number;
 	errors: string[];
 }

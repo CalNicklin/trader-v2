@@ -1,11 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getConfig } from "../../config.ts";
 import { parseProposerResponse } from "../../self-improve/proposer.ts";
-import {
-	HUMAN_ONLY_PATHS,
-	type ImprovementIdea,
-	WHITELISTED_PATHS,
-} from "../../self-improve/types.ts";
+import type { ImprovementIdea } from "../../self-improve/types.ts";
 import { formatSuiteReport } from "../reporter.ts";
 import { gradeProposalCount, gradeProposalShape, gradeTargetFiles } from "./graders.ts";
 import { SELF_IMPROVE_EVAL_TASKS, type SelfImproveEvalTask } from "./tasks.ts";
@@ -39,11 +35,8 @@ function buildProposerPrompt(landscapeJson: string): string {
 ## Current System State
 ${landscapeJson}
 
-## Whitelisted Files (you can propose direct code changes)
-${WHITELISTED_PATHS.join("\n")}
-
-## Human-Only Files (propose as issues for human review)
-${HUMAN_ONLY_PATHS.join("\n")}
+## Scope
+You may propose changes to any file in the codebase. All proposals will be submitted as PRs.
 
 ## Instructions
 Review the system state and propose 1-3 specific, actionable code improvements. Focus on:

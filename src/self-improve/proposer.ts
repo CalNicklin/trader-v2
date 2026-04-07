@@ -8,31 +8,12 @@ import { canAffordCall } from "../utils/budget";
 import { createChildLogger } from "../utils/logger";
 import { recordUsage } from "../utils/token-tracker";
 import { generateCodeChange } from "./code-generator";
-import { createIssue, createPR } from "./github";
-import {
-	HUMAN_ONLY_PATHS,
-	type ImprovementIdea,
-	type ProposalResult,
-	WHITELISTED_PATHS,
-} from "./types";
+import { createPR } from "./github";
+import type { ImprovementIdea, ProposalResult } from "./types";
 
 const log = createChildLogger({ module: "self-improve-proposer" });
 
 const PROPOSER_ESTIMATED_COST_USD = 0.08;
-
-export function isWhitelistedPath(filePath: string): boolean {
-	return WHITELISTED_PATHS.some((prefix) => filePath.startsWith(prefix));
-}
-
-export function isHumanOnlyPath(filePath: string): boolean {
-	return HUMAN_ONLY_PATHS.some((prefix) => filePath.startsWith(prefix));
-}
-
-export function classifyProposal(targetFile: string): "pr" | "issue" | "skip" {
-	if (isWhitelistedPath(targetFile)) return "pr";
-	if (isHumanOnlyPath(targetFile)) return "issue";
-	return "skip";
-}
 
 export function generateBranchName(title: string): string {
 	const slug = title
@@ -65,11 +46,8 @@ function buildProposerPrompt(landscapeJson: string, landscape: PerformanceLandsc
 ## Current System State
 ${landscapeJson}
 ${actionsSection}
-## Whitelisted Files (you can propose direct code changes)
-${WHITELISTED_PATHS.join("\n")}
-
-## Human-Only Files (propose as issues for human review)
-${HUMAN_ONLY_PATHS.join("\n")}
+## Scope
+You may propose changes to any file in the codebase. All proposals will be submitted as PRs.
 
 ## Instructions
 Review the system state and propose 1-3 specific, actionable code improvements. Focus on:
@@ -123,7 +101,7 @@ export function parseProposerResponse(text: string): ImprovementIdea[] {
 }
 
 export async function runSelfImprovementCycle(): Promise<ProposalResult> {
-	const result: ProposalResult = { prsCreated: 0, issuesCreated: 0, skipped: 0, errors: [] };
+	const result: ProposalResult = { prsCreated: 0, errors: [] };
 	const config = getConfig();
 
 	if (!(await canAffordCall(PROPOSER_ESTIMATED_COST_USD))) {
@@ -159,59 +137,32 @@ export async function runSelfImprovementCycle(): Promise<ProposalResult> {
 
 	const db = getDb();
 	for (const idea of ideas) {
-		const classification = classifyProposal(idea.targetFile);
-
-		if (classification === "pr") {
-			const newContent = await generateCodeChange(idea.targetFile, idea.changeDescription);
-			if (newContent) {
-				const branch = generateBranchName(idea.title);
-				const prUrl = await createPR({
-					title: idea.title,
-					description: `${idea.description}\n\n**Reasoning:** ${idea.reasoning}`,
-					branch,
-					changes: [{ path: idea.targetFile, content: newContent }],
-				});
-				if (prUrl) {
-					db.insert(improvementProposals)
-						.values({
-							title: idea.title,
-							description: idea.description,
-							filesChanged: idea.targetFile,
-							prUrl,
-							status: "PR_CREATED" as const,
-						})
-						.run();
-					result.prsCreated++;
-					log.info({ title: idea.title, prUrl }, "Self-improvement PR created");
-				} else {
-					result.errors.push(`Failed to create PR: ${idea.title}`);
-				}
-			} else {
-				result.errors.push(`Failed to generate code for: ${idea.title}`);
-			}
-		} else if (classification === "issue") {
-			const issueUrl = await createIssue({
+		const newContent = await generateCodeChange(idea.targetFile, idea.changeDescription);
+		if (newContent) {
+			const branch = generateBranchName(idea.title);
+			const prUrl = await createPR({
 				title: idea.title,
-				body: `${idea.description}\n\n**Target file:** \`${idea.targetFile}\`\n**Change:** ${idea.changeDescription}\n**Reasoning:** ${idea.reasoning}\n**Priority:** ${idea.priority}`,
-				labels: ["agent-suggestion", idea.priority],
+				description: `${idea.description}\n\n**Reasoning:** ${idea.reasoning}`,
+				branch,
+				changes: [{ path: idea.targetFile, content: newContent }],
 			});
-			if (issueUrl) {
+			if (prUrl) {
 				db.insert(improvementProposals)
 					.values({
 						title: idea.title,
 						description: idea.description,
 						filesChanged: idea.targetFile,
-						status: "ISSUE_CREATED" as const,
+						prUrl,
+						status: "PR_CREATED" as const,
 					})
 					.run();
-				result.issuesCreated++;
-				log.info({ title: idea.title, issueUrl }, "Self-improvement issue created");
+				result.prsCreated++;
+				log.info({ title: idea.title, prUrl }, "Self-improvement PR created");
 			} else {
-				result.errors.push(`Failed to create issue: ${idea.title}`);
+				result.errors.push(`Failed to create PR: ${idea.title}`);
 			}
 		} else {
-			result.skipped++;
-			log.debug({ title: idea.title, classification }, "Proposal skipped (unclassified path)");
+			result.errors.push(`Failed to generate code for: ${idea.title}`);
 		}
 	}
 
