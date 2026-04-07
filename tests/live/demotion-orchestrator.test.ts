@@ -35,7 +35,7 @@ describe("runDemotionChecks", () => {
 
 		// Insert 60 filled trades with negative PnL
 		const trades = Array.from({ length: 60 }, (_, i) => ({
-			strategyId: strategy.id,
+			strategyId: strategy!.id,
 			symbol: "AAPL",
 			exchange: "NASDAQ",
 			side: "BUY" as const,
@@ -55,14 +55,14 @@ describe("runDemotionChecks", () => {
 		await runDemotionChecks();
 
 		// Strategy should be retired
-		const [updated] = await db.select().from(strategies).where(eq(strategies.id, strategy.id));
-		expect(updated.status).toBe("retired");
+		const [updated] = await db.select().from(strategies).where(eq(strategies.id, strategy!.id));
+		expect(updated!.status).toBe("retired");
 
 		// Should have a "killed" graduation event
 		const events = await db
 			.select()
 			.from(graduationEvents)
-			.where(eq(graduationEvents.strategyId, strategy.id));
+			.where(eq(graduationEvents.strategyId, strategy!.id));
 		expect(events.some((e) => e.event === "killed")).toBe(true);
 	});
 
@@ -85,7 +85,7 @@ describe("runDemotionChecks", () => {
 
 		// Insert strategy metrics with negative Sharpe (will trigger probation tier breach)
 		await db.insert(strategyMetrics).values({
-			strategyId: strategy.id,
+			strategyId: strategy!.id,
 			sampleSize: 25,
 			sharpeRatio: -0.3,
 			maxDrawdownPct: 5,
@@ -93,7 +93,7 @@ describe("runDemotionChecks", () => {
 
 		// Insert 25 filled trades with net positive PnL (so kill criteria won't fire)
 		const trades = Array.from({ length: 25 }, (_, i) => ({
-			strategyId: strategy.id,
+			strategyId: strategy!.id,
 			symbol: "AAPL",
 			exchange: "NASDAQ",
 			side: "BUY" as const,
@@ -113,11 +113,11 @@ describe("runDemotionChecks", () => {
 		await runDemotionChecks();
 
 		// Strategy should still be on probation (not killed/retired)
-		const [updated] = await db.select().from(strategies).where(eq(strategies.id, strategy.id));
-		expect(updated.status).toBe("probation");
+		const [updated] = await db.select().from(strategies).where(eq(strategies.id, strategy!.id));
+		expect(updated!.status).toBe("probation");
 
 		// Virtual balance should be halved (first strike: 50% capital reduction)
-		expect(updated.virtualBalance).toBe(5000);
+		expect(updated!.virtualBalance).toBe(5000);
 	});
 
 	test("skips strategies with no live trades", async () => {
@@ -142,8 +142,8 @@ describe("runDemotionChecks", () => {
 		await runDemotionChecks();
 
 		// Strategy status and balance should be unchanged
-		const [updated] = await db.select().from(strategies).where(eq(strategies.id, strategy.id));
-		expect(updated.status).toBe("probation");
-		expect(updated.virtualBalance).toBe(10000);
+		const [updated] = await db.select().from(strategies).where(eq(strategies.id, strategy!.id));
+		expect(updated!.status).toBe("probation");
+		expect(updated!.virtualBalance).toBe(10000);
 	});
 });
