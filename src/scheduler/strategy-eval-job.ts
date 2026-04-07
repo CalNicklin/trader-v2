@@ -26,31 +26,36 @@ export async function runStrategyEvaluation(options?: {
 	exchanges?: Exchange[];
 	allowNewEntries?: boolean;
 }): Promise<void> {
-	await evaluateAllStrategies(async (symbol, exchange) => {
-		const cached = await getQuoteFromCache(symbol, exchange);
-		if (!cached || cached.last == null) return null;
+	await evaluateAllStrategies(
+		async (symbol, exchange) => {
+			const cached = await getQuoteFromCache(symbol, exchange);
+			if (!cached || cached.last == null) return null;
 
-		const indicators = await getIndicators(symbol, exchange);
+			const indicators = await getIndicators(symbol, exchange);
 
-		const quote: QuoteFields = {
-			last: cached.last,
-			bid: cached.bid,
-			ask: cached.ask,
-			volume: cached.volume,
-			avgVolume: cached.avgVolume,
-			changePercent: cached.changePercent,
-			newsSentiment: cached.newsSentiment,
-			newsEarningsSurprise: cached.newsEarningsSurprise,
-			newsGuidanceChange: cached.newsGuidanceChange,
-			newsManagementTone: cached.newsManagementTone,
-			newsRegulatoryRisk: cached.newsRegulatoryRisk,
-			newsAcquisitionLikelihood: cached.newsAcquisitionLikelihood,
-			newsCatalystType: cached.newsCatalystType,
-			newsExpectedMoveDuration: cached.newsExpectedMoveDuration,
-		};
+			const quote: QuoteFields = {
+				last: cached.last,
+				bid: cached.bid,
+				ask: cached.ask,
+				volume: cached.volume,
+				avgVolume: cached.avgVolume,
+				changePercent: cached.changePercent,
+				newsSentiment: cached.newsSentiment,
+				newsEarningsSurprise: cached.newsEarningsSurprise,
+				newsGuidanceChange: cached.newsGuidanceChange,
+				newsManagementTone: cached.newsManagementTone,
+				newsRegulatoryRisk: cached.newsRegulatoryRisk,
+				newsAcquisitionLikelihood: cached.newsAcquisitionLikelihood,
+				newsCatalystType: cached.newsCatalystType,
+				newsExpectedMoveDuration: cached.newsExpectedMoveDuration,
+			};
 
-		return { quote, indicators };
-	});
+			return { quote, indicators };
+		},
+		options
+			? { exchanges: options.exchanges, allowNewEntries: options.allowNewEntries }
+			: undefined,
+	);
 
 	// After evaluation, recalculate metrics for all paper strategies
 	const db = getDb();

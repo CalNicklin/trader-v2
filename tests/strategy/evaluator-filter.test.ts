@@ -1,8 +1,8 @@
-import { describe, expect, test, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { resetConfigForTesting } from "../../src/config";
 import { closeDb, getDb } from "../../src/db/client";
 import { strategies } from "../../src/db/schema";
-import { resetConfigForTesting } from "../../src/config";
 
 describe("evaluator exchange filtering", () => {
 	beforeEach(async () => {
