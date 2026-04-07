@@ -12,10 +12,7 @@ import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "strategy-eval-job" });
 
-export function filterUniverseByExchanges(
-	universe: string[],
-	exchanges?: Exchange[],
-): string[] {
+export function filterUniverseByExchanges(universe: string[], exchanges?: Exchange[]): string[] {
 	if (!exchanges || exchanges.length === 0) return universe;
 
 	const exchangeSet = new Set(exchanges);
@@ -67,8 +64,5 @@ export async function runStrategyEvaluation(options?: {
 		await runGraduationGate(strat.id);
 	}
 
-	log.info(
-		{ exchanges: options?.exchanges ?? "all" },
-		"Strategy evaluation cycle complete",
-	);
+	log.info({ exchanges: options?.exchanges ?? "all" }, "Strategy evaluation cycle complete");
 }
