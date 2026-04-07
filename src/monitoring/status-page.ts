@@ -414,8 +414,48 @@ export function buildNewsPipelineTab(data: NewsPipelineData): string {
 	${articleRows}
 </div>`;
 }
-export function buildGuardianTab(_data: GuardianData): string {
-	return "";
+export function buildGuardianTab(data: GuardianData): string {
+	function guardianCard(label: string, active: boolean, valuePct: number, limitPct: number): string {
+		const statusLabel = active ? "ACTIVE" : "CLEAR";
+		const statusColor = active ? "#ef4444" : "#22c55e";
+		const cardClass = active ? "guardian-card tripped" : "guardian-card";
+		return `<div class="${cardClass}">
+	<div style="display:flex;justify-content:space-between;align-items:center;">
+		<span style="color:#444;font-size:9px;text-transform:uppercase;">${label}</span>
+		${statusDot(!active)}
+	</div>
+	<div style="font-size:13px;font-weight:600;color:${statusColor};margin-top:6px;">${statusLabel}</div>
+	<div style="color:#333;font-size:9px;margin-top:2px;">${valuePct}% / ${limitPct}%</div>
+</div>`;
+	}
+
+	const logRows =
+		data.checkHistory.length === 0
+			? `<div style="color:#333;padding:8px 0;">No guardian checks logged</div>`
+			: data.checkHistory
+					.map((l) => {
+						const msgColor = l.level === "ERROR" ? "#ef4444" : l.level === "WARN" ? "#f59e0b" : "#22c55e";
+						return `<div class="guardian-log-row">
+	<span style="color:#333;">${l.time}</span>
+	<span style="color:${msgColor};">${escHtml(l.message)}</span>
+</div>`;
+					})
+					.join("\n");
+
+	return `
+<div class="guardian-cards">
+	${guardianCard("Circuit Breaker", data.circuitBreaker.active, data.circuitBreaker.drawdownPct, data.circuitBreaker.limitPct)}
+	${guardianCard("Daily Halt", data.dailyHalt.active, data.dailyHalt.lossPct, data.dailyHalt.limitPct)}
+	${guardianCard("Weekly Drawdown", data.weeklyDrawdown.active, data.weeklyDrawdown.lossPct, data.weeklyDrawdown.limitPct)}
+</div>
+<div style="margin-bottom:8px;display:flex;justify-content:space-between;font-size:10px;color:#444;">
+	<span>Peak: £${data.peakBalance.toLocaleString()}</span>
+	<span>Current: £${data.accountBalance.toLocaleString()}</span>
+</div>
+<div class="panel-header">Guardian Check History<span class="count">${data.checkHistory.length}</span></div>
+<div class="scroll-panel" style="max-height:500px;">
+	${logRows}
+</div>`;
 }
 export function buildLearningLoopTab(_data: LearningLoopData): string {
 	return "";

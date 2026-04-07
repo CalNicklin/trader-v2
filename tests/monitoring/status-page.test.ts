@@ -139,6 +139,46 @@ describe("buildConsolePage", () => {
 	});
 });
 
+describe("buildGuardianTab", () => {
+	test("renders state cards and check history", () => {
+		const { buildGuardianTab } = require("../../src/monitoring/status-page");
+		const data = {
+			circuitBreaker: { active: false, drawdownPct: 2.1, limitPct: 10 },
+			dailyHalt: { active: true, lossPct: 3.2, limitPct: 3 },
+			weeklyDrawdown: { active: false, lossPct: 1.2, limitPct: 5 },
+			peakBalance: 10240,
+			accountBalance: 10025,
+			checkHistory: [
+				{ time: "14:34", level: "INFO", message: "All clear" },
+				{ time: "14:24", level: "WARN", message: "Daily loss approaching halt" },
+			],
+		};
+		const html = buildGuardianTab(data);
+		expect(html).toContain("CLEAR");
+		expect(html).toContain("ACTIVE");
+		expect(html).toContain("2.1%");
+		expect(html).toContain("10%");
+		expect(html).toContain("3.2%");
+		expect(html).toContain("All clear");
+		expect(html).toContain("Daily loss approaching halt");
+	});
+
+	test("shows tripped styling when circuit breaker active", () => {
+		const { buildGuardianTab } = require("../../src/monitoring/status-page");
+		const data = {
+			circuitBreaker: { active: true, drawdownPct: 11.5, limitPct: 10 },
+			dailyHalt: { active: false, lossPct: 0, limitPct: 3 },
+			weeklyDrawdown: { active: false, lossPct: 0, limitPct: 5 },
+			peakBalance: 10000,
+			accountBalance: 8850,
+			checkHistory: [],
+		};
+		const html = buildGuardianTab(data);
+		expect(html).toContain("tripped");
+		expect(html).toContain("ACTIVE");
+	});
+});
+
 describe("buildNewsPipelineTab", () => {
 	test("renders summary stats and article rows", () => {
 		const data = {
