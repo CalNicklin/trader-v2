@@ -1,17 +1,22 @@
 import { createChildLogger } from "../utils/logger.ts";
+import { acquireLock, releaseLock, type LockCategory } from "./locks.ts";
 
 const log = createChildLogger({ module: "scheduler-jobs" });
 
 export type JobName =
-	| "quote_refresh"
-	| "strategy_evaluation"
+	| "quote_refresh_uk"
+	| "quote_refresh_us"
+	| "quote_refresh_us_close"
+	| "strategy_eval_uk"
+	| "strategy_eval_us"
+	| "news_poll"
+	| "dispatch"
 	| "daily_summary"
 	| "weekly_digest"
 	| "strategy_evolution"
 	| "trade_review"
 	| "pattern_analysis"
 	| "earnings_calendar_sync"
-	| "news_poll"
 	| "heartbeat"
 	| "self_improvement"
 	| "guardian_start"
@@ -21,23 +26,49 @@ export type JobName =
 	| "risk_daily_reset"
 	| "risk_weekly_reset"
 	| "daily_tournament"
-	| "dispatch"
 	| "missed_opportunity_daily"
 	| "missed_opportunity_weekly";
 
-let jobRunning = false;
-const JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
+	quote_refresh_uk: "quotes_uk",
+	quote_refresh_us: "quotes_us",
+	quote_refresh_us_close: "quotes_us",
+	strategy_eval_uk: "eval_uk",
+	strategy_eval_us: "eval_us",
+	news_poll: "news",
+	dispatch: "dispatch",
+	daily_summary: "analysis",
+	weekly_digest: "analysis",
+	strategy_evolution: "analysis",
+	trade_review: "analysis",
+	pattern_analysis: "analysis",
+	earnings_calendar_sync: "maintenance",
+	heartbeat: "maintenance",
+	self_improvement: "analysis",
+	guardian_start: "risk",
+	guardian_stop: "risk",
+	live_evaluation: "eval_us",
+	risk_guardian: "risk",
+	risk_daily_reset: "maintenance",
+	risk_weekly_reset: "maintenance",
+	daily_tournament: "analysis",
+	missed_opportunity_daily: "analysis",
+	missed_opportunity_weekly: "analysis",
+};
+
+const JOB_TIMEOUT_MS = 10 * 60 * 1000;
 
 export async function runJob(name: JobName): Promise<void> {
-	if (jobRunning) {
+	const category = JOB_LOCK_CATEGORY[name];
+
+	if (!acquireLock(category)) {
 		const level = name === "trade_review" || name === "pattern_analysis" ? "warn" : "debug";
-		log[level]({ job: name }, "Skipping — previous job still running");
+		log[level]({ job: name, category }, "Skipping — category lock held");
 		return;
 	}
 
-	jobRunning = true;
 	const start = Date.now();
-	log.info({ job: name }, "Job starting");
+	log.info({ job: name, category }, "Job starting");
 
 	let timeoutId: ReturnType<typeof setTimeout> | undefined;
 	const jobPromise = executeJob(name);
@@ -59,12 +90,12 @@ export async function runJob(name: JobName): Promise<void> {
 		log.error({ job: name, error, durationMs: Date.now() - start }, "Job failed");
 	} finally {
 		clearTimeout(timeoutId);
-		jobRunning = false;
+		releaseLock(category);
 	}
 }
 
 async function executeJob(name: JobName): Promise<void> {
-	const TRADE_JOBS: JobName[] = ["strategy_evaluation", "trade_review"];
+	const TRADE_JOBS: JobName[] = ["strategy_eval_uk", "strategy_eval_us", "trade_review"];
 	if (TRADE_JOBS.includes(name)) {
 		const { isPaused } = await import("../monitoring/health.ts");
 		if (isPaused()) {
@@ -74,10 +105,44 @@ async function executeJob(name: JobName): Promise<void> {
 	}
 
 	switch (name) {
-		case "quote_refresh": {
-			// Phase 1: refresh quotes for all symbols in quotes_cache
+		case "quote_refresh_uk": {
 			const { refreshQuotesForAllCached } = await import("./quote-refresh.ts");
-			await refreshQuotesForAllCached();
+			await refreshQuotesForAllCached(["LSE"]);
+			break;
+		}
+
+		case "quote_refresh_us": {
+			const { refreshQuotesForAllCached } = await import("./quote-refresh.ts");
+			await refreshQuotesForAllCached(["NASDAQ", "NYSE"]);
+			break;
+		}
+
+		case "quote_refresh_us_close": {
+			const { getCurrentSession } = await import("./sessions.ts");
+			const session = getCurrentSession();
+			if (session.name !== "us_close") {
+				log.debug({ session: session.name }, "Not in us_close session — skipping");
+				break;
+			}
+			const { refreshQuotesForAllCached } = await import("./quote-refresh.ts");
+			await refreshQuotesForAllCached(["NASDAQ", "NYSE"]);
+			break;
+		}
+
+		case "strategy_eval_uk": {
+			const { runStrategyEvaluation } = await import("./strategy-eval-job.ts");
+			await runStrategyEvaluation({ exchanges: ["LSE"] });
+			break;
+		}
+
+		case "strategy_eval_us": {
+			const { runStrategyEvaluation } = await import("./strategy-eval-job.ts");
+			const { getCurrentSession } = await import("./sessions.ts");
+			const session = getCurrentSession();
+			await runStrategyEvaluation({
+				exchanges: ["NASDAQ", "NYSE"],
+				allowNewEntries: session.allowNewEntries,
+			});
 			break;
 		}
 
@@ -88,12 +153,6 @@ async function executeJob(name: JobName): Promise<void> {
 				subject: `Heartbeat: Trader v2 alive — uptime ${uptimeHrs}h`,
 				html: `<p>Trader v2 is running. Uptime: ${uptimeHrs} hours. Time: ${new Date().toISOString()}</p>`,
 			});
-			break;
-		}
-
-		case "strategy_evaluation": {
-			const { runStrategyEvaluation } = await import("./strategy-eval-job.ts");
-			await runStrategyEvaluation();
 			break;
 		}
 
@@ -126,6 +185,7 @@ async function executeJob(name: JobName): Promise<void> {
 			await runTradeReviewJob();
 			break;
 		}
+
 		case "pattern_analysis": {
 			const { runPatternAnalysisJob } = await import("./pattern-analysis-job.ts");
 			await runPatternAnalysisJob();
