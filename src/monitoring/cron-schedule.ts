@@ -45,6 +45,7 @@ export const CRON_SCHEDULE: Record<string, CronEntry> = {
 
 	// Post-close analysis (22:00+)
 	daily_summary: { cron: "0 22 * * 1-5" },
+	promotion_check: { cron: "5 22 * * 1-5" },
 	trade_review: { cron: "15 22 * * 1-5" },
 	missed_opportunity_daily: { cron: "25 22 * * 1-5" },
 	daily_tournament: { cron: "35 22 * * 1-5" },

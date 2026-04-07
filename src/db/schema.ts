@@ -30,6 +30,7 @@ export const strategies = sqliteTable("strategies", {
 		.notNull()
 		.$defaultFn(() => new Date().toISOString()),
 	retiredAt: text("retired_at"),
+	promotedAt: text("promoted_at"),
 });
 
 // ── Paper Trading ───────────────────────────────────────────────────────────

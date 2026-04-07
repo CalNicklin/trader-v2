@@ -27,7 +27,8 @@ export type JobName =
 	| "risk_weekly_reset"
 	| "daily_tournament"
 	| "missed_opportunity_daily"
-	| "missed_opportunity_weekly";
+	| "missed_opportunity_weekly"
+	| "promotion_check";
 
 const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	quote_refresh_uk: "quotes_uk",
@@ -54,6 +55,7 @@ const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	daily_tournament: "analysis",
 	missed_opportunity_daily: "analysis",
 	missed_opportunity_weekly: "analysis",
+	promotion_check: "analysis",
 };
 
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
@@ -261,6 +263,12 @@ async function executeJob(name: JobName): Promise<void> {
 		case "missed_opportunity_weekly": {
 			const { runWeeklyMissedOpportunityReview } = await import("./missed-opportunity-job.ts");
 			await runWeeklyMissedOpportunityReview();
+			break;
+		}
+
+		case "promotion_check": {
+			const { runPromotionCheck } = await import("./promotion-job.ts");
+			await runPromotionCheck();
 			break;
 		}
 	}

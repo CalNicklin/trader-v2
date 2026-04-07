@@ -90,6 +90,11 @@ export function startScheduler(): void {
 		cron.schedule("0 22 * * 1-5", () => runJob("daily_summary"), { timezone: "Europe/London" }),
 	);
 	tasks.push(
+		cron.schedule("5 22 * * 1-5", () => runJob("promotion_check"), {
+			timezone: "Europe/London",
+		}),
+	);
+	tasks.push(
 		cron.schedule("15 22 * * 1-5", () => runJob("trade_review"), { timezone: "Europe/London" }),
 	);
 	tasks.push(

@@ -202,7 +202,10 @@ export async function runGraduationGate(strategyId: number): Promise<void> {
 			return;
 		}
 
-		await db.update(strategies).set({ status: "probation" }).where(eq(strategies.id, strategyId));
+		await db
+			.update(strategies)
+			.set({ status: "probation", promotedAt: new Date().toISOString() })
+			.where(eq(strategies.id, strategyId));
 
 		await db.insert(graduationEvents).values({
 			strategyId,
