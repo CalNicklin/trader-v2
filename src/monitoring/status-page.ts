@@ -358,6 +358,30 @@ body{font-family:'JetBrains Mono','Courier New',monospace;background:#050505;col
 .type-badge.type-missed_opportunity{background:#78350f;color:#fbbf24}
 .type-badge.type-universe_suggestion{background:#1e3a5f;color:#60a5fa}
 .tab-content{padding:16px 14px;background:#0a0a0a;min-height:calc(100vh - 120px)}
+.section-divider{display:flex;align-items:center;gap:10px;margin:18px 0 12px}
+.section-label{color:#555;font-size:9px;text-transform:uppercase;letter-spacing:2px;white-space:nowrap}
+.section-line{flex:1;height:1px;background:#1a1a1a}
+.research-columns{display:grid;grid-template-columns:1fr 220px;gap:12px;margin-top:8px}
+.research-col-main{min-width:0}
+.research-col-side{min-width:0}
+.ra-row{display:grid;grid-template-columns:45px 90px 48px 42px 80px 55px 1fr;gap:6px;padding:4px 0;font-size:11px;color:#666;border-bottom:1px solid #0f0f0f}
+.ra-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
+.ra-time{color:#333}
+.ra-sym{color:#e2e8f0;font-weight:500}
+.ra-dir{font-weight:600}
+.ra-conf{color:#888}
+.ra-tags{display:flex;gap:3px}
+.ra-price{color:#666;font-size:10px}
+.ra-thesis{color:#555;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rec-tag{font-size:8px;padding:1px 4px;border-radius:2px;font-weight:600;letter-spacing:.5px}
+.rec-tag.rec{background:#f59e0b22;color:#f59e0b}
+.rec-tag.univ{background:#22c55e11;color:#22c55e88}
+.rec-tag.new{background:#c084fc11;color:#c084fc}
+.ts-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px}
+.ts-sym{color:#94a3b8;font-weight:500;min-width:55px}
+.ts-bar-track{flex:1;height:4px;background:#1a1a1a;border-radius:2px;overflow:hidden}
+.ts-bar-fill{height:100%;border-radius:2px}
+.ts-count{color:#555;min-width:24px;text-align:right;font-size:10px}
 .news-row{display:grid;grid-template-columns:45px 65px 1fr 60px 50px;gap:8px;padding:5px 0;font-size:11px;color:#666;border-bottom:1px solid #0f0f0f}
 .news-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
 .guardian-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
@@ -388,7 +412,67 @@ ${mainContent}
 export function buildNewsPipelineTab(data: NewsPipelineData): string {
 	const sentimentColor = data.avgSentiment >= 0 ? "#22c55e" : "#ef4444";
 	const sentimentStr = `${data.avgSentiment >= 0 ? "+" : ""}${data.avgSentiment.toFixed(2)}`;
+	const r = data.research;
 
+	const accuracyStr =
+		r.accuracyTracked > 0 ? `${((r.accuracyCorrect / r.accuracyTracked) * 100).toFixed(0)}%` : "—";
+	const accuracyColor =
+		r.accuracyTracked > 0
+			? r.accuracyCorrect / r.accuracyTracked >= 0.6
+				? "#22c55e"
+				: "#ef4444"
+			: "#555";
+
+	// ── Top symbols bar ───────────────────────────────────────────────────
+	const topSymbolsHtml = r.topSymbols
+		.map((s) => {
+			const sentColor = s.avgSentiment >= 0 ? "#22c55e" : "#ef4444";
+			const barWidth = Math.max(8, Math.min(100, (s.count / (r.topSymbols[0]?.count ?? 1)) * 100));
+			return `<div class="ts-row">
+	<span class="ts-sym">${escHtml(s.symbol)}</span>
+	<div class="ts-bar-track"><div class="ts-bar-fill" style="width:${barWidth}%;background:${sentColor}88;"></div></div>
+	<span class="ts-count">${s.count}</span>
+</div>`;
+		})
+		.join("\n");
+
+	// ── Recent analyses feed ──────────────────────────────────────────────
+	const analysesHtml =
+		r.recentAnalyses.length === 0
+			? `<div style="color:#333;padding:8px 0;">No research analyses yet</div>`
+			: r.recentAnalyses
+					.map((a) => {
+						const dirColor =
+							a.direction === "long" ? "#22c55e" : a.direction === "short" ? "#ef4444" : "#666";
+						const dirLabel = a.direction.toUpperCase();
+						const confPct = `${(a.confidence * 100).toFixed(0)}%`;
+						const recTag = a.recommendTrade ? `<span class="rec-tag rec">REC</span>` : "";
+						const univTag = a.inUniverse
+							? `<span class="rec-tag univ">UNIV</span>`
+							: `<span class="rec-tag new">NEW</span>`;
+						const priceInfo =
+							a.priceAtAnalysis != null
+								? a.priceAfter1d != null
+									? (() => {
+											const move = ((a.priceAfter1d - a.priceAtAnalysis) / a.priceAtAnalysis) * 100;
+											const moveColor = move >= 0 ? "#22c55e" : "#ef4444";
+											return `<span style="color:${moveColor};font-size:10px;">${move >= 0 ? "+" : ""}${move.toFixed(1)}%</span>`;
+										})()
+									: `<span style="color:#333;font-size:10px;">$${a.priceAtAnalysis.toFixed(0)} →?</span>`
+								: "";
+						return `<div class="ra-row">
+	<span class="ra-time">${a.time}</span>
+	<span class="ra-sym">${escHtml(a.symbol)}:${escHtml(a.exchange)}</span>
+	<span class="ra-dir" style="color:${dirColor};">${dirLabel}</span>
+	<span class="ra-conf">${confPct}</span>
+	<span class="ra-tags">${recTag}${univTag}</span>
+	<span class="ra-price">${priceInfo}</span>
+	<span class="ra-thesis">${escHtml(a.tradeThesis.slice(0, 80))}</span>
+</div>`;
+					})
+					.join("\n");
+
+	// ── Classifications table ─────────────────────────────────────────────
 	const articleRows =
 		data.recentArticles.length === 0
 			? `<div style="color:#333;padding:8px 0;">No articles in last 24h</div>`
@@ -413,14 +497,49 @@ export function buildNewsPipelineTab(data: NewsPipelineData): string {
 					.join("\n");
 
 	return `
-<div class="stat-cards">
+<div class="stat-cards" style="grid-template-columns:repeat(4,1fr);">
 	<div class="stat-card"><div class="sc-label">Articles (24h)</div><div class="sc-value" style="color:#e2e8f0;">${data.totalArticles24h}</div><div class="sc-sub">stored from Finnhub</div></div>
 	<div class="stat-card"><div class="sc-label">Classified</div><div class="sc-value" style="color:#3b82f6;">${data.classifiedCount}</div><div class="sc-sub">passed pre-filter</div></div>
 	<div class="stat-card"><div class="sc-label">Tradeable</div><div class="sc-value" style="color:#22c55e;">${data.tradeableHighUrgency}</div><div class="sc-sub">high-urgency signals</div></div>
 	<div class="stat-card"><div class="sc-label">Avg Sentiment</div><div class="sc-value" style="color:${sentimentColor};">${sentimentStr}</div><div class="sc-sub">across classified</div></div>
 </div>
-<div class="panel-header">Recent Classifications<span class="count">${data.recentArticles.length}</span></div>
-<div class="scroll-panel" style="max-height:500px;">
+
+<div class="section-divider">
+	<span class="section-label">Research Intelligence</span>
+	<span class="section-line"></span>
+</div>
+
+<div class="stat-cards" style="grid-template-columns:repeat(5,1fr);">
+	<div class="stat-card"><div class="sc-label">Analyses</div><div class="sc-value" style="color:#c084fc;">${r.totalAnalyses}</div><div class="sc-sub">total research rows</div></div>
+	<div class="stat-card"><div class="sc-label">Symbols</div><div class="sc-value" style="color:#60a5fa;">${r.uniqueSymbols}</div><div class="sc-sub">unique discovered</div></div>
+	<div class="stat-card"><div class="sc-label">Recommendations</div><div class="sc-value" style="color:#f59e0b;">${r.recommendations}</div><div class="sc-sub">conf ≥ 0.8</div></div>
+	<div class="stat-card"><div class="sc-label">New Symbols</div><div class="sc-value" style="color:#fb923c;">${r.outOfUniverse}</div><div class="sc-sub">out-of-universe recs</div></div>
+	<div class="stat-card"><div class="sc-label">Accuracy</div><div class="sc-value" style="color:${accuracyColor};">${accuracyStr}</div><div class="sc-sub">${r.accuracyTracked} tracked</div></div>
+</div>
+
+<div class="research-columns">
+<div class="research-col-main">
+	<div class="panel-header">Recent Analyses<span class="count">${r.recentAnalyses.length}</span></div>
+	<div class="scroll-panel" style="max-height:400px;">
+		<div class="ra-row header"><span>Time</span><span>Symbol</span><span>Dir</span><span>Conf</span><span>Tags</span><span>Move</span><span>Thesis</span></div>
+		${analysesHtml}
+	</div>
+</div>
+<div class="research-col-side">
+	<div class="panel-header">Top Symbols<span class="count">${r.topSymbols.length}</span></div>
+	<div class="scroll-panel" style="max-height:400px;">
+		${topSymbolsHtml}
+	</div>
+</div>
+</div>
+
+<div class="section-divider" style="margin-top:20px;">
+	<span class="section-label">Classifications</span>
+	<span class="section-line"></span>
+</div>
+
+<div class="panel-header">Recent Articles<span class="count">${data.recentArticles.length}</span></div>
+<div class="scroll-panel" style="max-height:350px;">
 	<div class="news-row header"><span>Time</span><span>Symbol</span><span>Headline</span><span>Sentiment</span><span>Urgency</span></div>
 	${articleRows}
 </div>`;

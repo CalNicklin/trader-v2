@@ -230,6 +230,30 @@ describe("buildLearningLoopTab", () => {
 	});
 });
 
+const baseResearch = {
+	totalAnalyses: 0,
+	uniqueSymbols: 0,
+	recommendations: 0,
+	outOfUniverse: 0,
+	accuracyTracked: 0,
+	accuracyCorrect: 0,
+	recentAnalyses: [] as Array<{
+		time: string;
+		headline: string;
+		symbol: string;
+		exchange: string;
+		direction: string;
+		confidence: number;
+		sentiment: number;
+		tradeThesis: string;
+		recommendTrade: boolean;
+		inUniverse: boolean;
+		priceAtAnalysis: number | null;
+		priceAfter1d: number | null;
+	}>,
+	topSymbols: [] as Array<{ symbol: string; count: number; avgSentiment: number }>,
+};
+
 describe("buildNewsPipelineTab", () => {
 	test("renders summary stats and article rows", () => {
 		const data = {
@@ -249,6 +273,7 @@ describe("buildNewsPipelineTab", () => {
 					tradeable: true,
 				},
 			],
+			research: baseResearch,
 		};
 		const html = buildNewsPipelineTab(data);
 		expect(html).toContain("47");
@@ -261,6 +286,58 @@ describe("buildNewsPipelineTab", () => {
 		expect(html).toContain("HIGH");
 	});
 
+	test("renders research intelligence section", () => {
+		const data = {
+			totalArticles24h: 10,
+			classifiedCount: 5,
+			tradeableHighUrgency: 2,
+			avgSentiment: 0.3,
+			recentArticles: [],
+			research: {
+				...baseResearch,
+				totalAnalyses: 657,
+				uniqueSymbols: 126,
+				recommendations: 76,
+				outOfUniverse: 42,
+				accuracyTracked: 20,
+				accuracyCorrect: 14,
+				recentAnalyses: [
+					{
+						time: "14:25",
+						headline: "TSLA partnership announced",
+						symbol: "TSLA",
+						exchange: "NASDAQ",
+						direction: "long",
+						confidence: 0.92,
+						sentiment: 0.85,
+						tradeThesis: "Major partnership signals growth",
+						recommendTrade: true,
+						inUniverse: false,
+						priceAtAnalysis: 341.0,
+						priceAfter1d: null,
+					},
+				],
+				topSymbols: [
+					{ symbol: "NVDA", count: 36, avgSentiment: 0.4 },
+					{ symbol: "TSLA", count: 28, avgSentiment: 0.2 },
+				],
+			},
+		};
+		const html = buildNewsPipelineTab(data);
+		expect(html).toContain("Research Intelligence");
+		expect(html).toContain("657");
+		expect(html).toContain("126");
+		expect(html).toContain("76");
+		expect(html).toContain("70%"); // 14/20 accuracy
+		expect(html).toContain("TSLA");
+		expect(html).toContain("LONG");
+		expect(html).toContain("92%"); // confidence
+		expect(html).toContain("REC");
+		expect(html).toContain("NEW");
+		expect(html).toContain("NVDA");
+		expect(html).toContain("36");
+	});
+
 	test("renders empty state when no articles", () => {
 		const data = {
 			totalArticles24h: 0,
@@ -268,10 +345,12 @@ describe("buildNewsPipelineTab", () => {
 			tradeableHighUrgency: 0,
 			avgSentiment: 0,
 			recentArticles: [],
+			research: baseResearch,
 		};
 		const html = buildNewsPipelineTab(data);
 		expect(html).toContain("0");
 		expect(html).toContain("No articles");
+		expect(html).toContain("No research analyses yet");
 	});
 });
 

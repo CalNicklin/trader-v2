@@ -4,6 +4,7 @@ import {
 	agentLogs,
 	livePositions,
 	liveTrades,
+	newsAnalyses,
 	newsEvents,
 	paperTrades,
 	quotesCache,
@@ -37,6 +38,29 @@ export interface NewsPipelineData {
 		eventType: string | null;
 		tradeable: boolean | null;
 	}>;
+	research: {
+		totalAnalyses: number;
+		uniqueSymbols: number;
+		recommendations: number;
+		outOfUniverse: number;
+		accuracyTracked: number;
+		accuracyCorrect: number;
+		recentAnalyses: Array<{
+			time: string;
+			headline: string;
+			symbol: string;
+			exchange: string;
+			direction: string;
+			confidence: number;
+			sentiment: number;
+			tradeThesis: string;
+			recommendTrade: boolean;
+			inUniverse: boolean;
+			priceAtAnalysis: number | null;
+			priceAfter1d: number | null;
+		}>;
+		topSymbols: Array<{ symbol: string; count: number; avgSentiment: number }>;
+	};
 }
 
 export interface DashboardData {
@@ -379,12 +403,123 @@ export async function getNewsPipelineData(): Promise<NewsPipelineData> {
 		tradeable: r.tradeable ?? null,
 	}));
 
+	// ── Research intelligence ──────────────────────────────────────────────
+	const totalAnalysesResult = db.select({ count: sql<number>`count(*)` }).from(newsAnalyses).get();
+	const totalAnalyses = totalAnalysesResult?.count ?? 0;
+
+	const uniqueSymbolsResult = db
+		.select({ count: sql<number>`count(DISTINCT ${newsAnalyses.symbol})` })
+		.from(newsAnalyses)
+		.get();
+	const uniqueSymbols = uniqueSymbolsResult?.count ?? 0;
+
+	const recommendationsResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(newsAnalyses)
+		.where(sql`${newsAnalyses.recommendTrade} = 1`)
+		.get();
+	const recommendations = recommendationsResult?.count ?? 0;
+
+	const outOfUniverseResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(newsAnalyses)
+		.where(sql`${newsAnalyses.recommendTrade} = 1 AND ${newsAnalyses.inUniverse} = 0`)
+		.get();
+	const outOfUniverse = outOfUniverseResult?.count ?? 0;
+
+	const accuracyTrackedResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(newsAnalyses)
+		.where(sql`${newsAnalyses.priceAfter1d} IS NOT NULL`)
+		.get();
+	const accuracyTracked = accuracyTrackedResult?.count ?? 0;
+
+	const accuracyCorrectResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(newsAnalyses)
+		.where(
+			sql`${newsAnalyses.priceAfter1d} IS NOT NULL AND ${newsAnalyses.priceAtAnalysis} IS NOT NULL AND (
+				(${newsAnalyses.direction} = 'long' AND ${newsAnalyses.priceAfter1d} > ${newsAnalyses.priceAtAnalysis})
+				OR (${newsAnalyses.direction} = 'short' AND ${newsAnalyses.priceAfter1d} < ${newsAnalyses.priceAtAnalysis})
+			)`,
+		)
+		.get();
+	const accuracyCorrect = accuracyCorrectResult?.count ?? 0;
+
+	const recentAnalysesRows = db
+		.select({
+			createdAt: newsAnalyses.createdAt,
+			headline: newsEvents.headline,
+			symbol: newsAnalyses.symbol,
+			exchange: newsAnalyses.exchange,
+			direction: newsAnalyses.direction,
+			confidence: newsAnalyses.confidence,
+			sentiment: newsAnalyses.sentiment,
+			tradeThesis: newsAnalyses.tradeThesis,
+			recommendTrade: newsAnalyses.recommendTrade,
+			inUniverse: newsAnalyses.inUniverse,
+			priceAtAnalysis: newsAnalyses.priceAtAnalysis,
+			priceAfter1d: newsAnalyses.priceAfter1d,
+		})
+		.from(newsAnalyses)
+		.leftJoin(newsEvents, eq(newsAnalyses.newsEventId, newsEvents.id))
+		.orderBy(desc(newsAnalyses.createdAt))
+		.limit(40)
+		.all();
+
+	const recentAnalyses = recentAnalysesRows.map((r) => ({
+		time: new Date(r.createdAt).toLocaleTimeString("en-GB", {
+			hour: "2-digit",
+			minute: "2-digit",
+			timeZone: "UTC",
+		}),
+		headline: r.headline ?? "",
+		symbol: r.symbol,
+		exchange: r.exchange,
+		direction: r.direction,
+		confidence: r.confidence,
+		sentiment: r.sentiment,
+		tradeThesis: r.tradeThesis,
+		recommendTrade: r.recommendTrade,
+		inUniverse: r.inUniverse,
+		priceAtAnalysis: r.priceAtAnalysis,
+		priceAfter1d: r.priceAfter1d,
+	}));
+
+	const topSymbolsRows = db
+		.select({
+			symbol: newsAnalyses.symbol,
+			count: sql<number>`count(*)`,
+			avgSentiment: sql<number>`avg(${newsAnalyses.sentiment})`,
+		})
+		.from(newsAnalyses)
+		.groupBy(newsAnalyses.symbol)
+		.orderBy(sql`count(*) DESC`)
+		.limit(10)
+		.all();
+
+	const topSymbols = topSymbolsRows.map((r) => ({
+		symbol: r.symbol,
+		count: r.count,
+		avgSentiment: r.avgSentiment,
+	}));
+
 	return {
 		totalArticles24h,
 		classifiedCount,
 		tradeableHighUrgency,
 		avgSentiment,
 		recentArticles,
+		research: {
+			totalAnalyses,
+			uniqueSymbols,
+			recommendations,
+			outOfUniverse,
+			accuracyTracked,
+			accuracyCorrect,
+			recentAnalyses,
+			topSymbols,
+		},
 	};
 }
 
