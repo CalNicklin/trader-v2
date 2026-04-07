@@ -341,6 +341,100 @@ describe("getLearningLoopData", () => {
 	});
 });
 
+describe("getTradeActivityData", () => {
+	beforeEach(async () => {
+		const { resetConfigForTesting } = await import("../../src/config.ts");
+		resetConfigForTesting();
+		const { closeDb, getDb } = await import("../../src/db/client.ts");
+		closeDb();
+		const db = getDb();
+		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
+		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+		db.delete(paperTrades).run();
+		db.delete(strategies).run();
+	});
+
+	test("returns empty state with no trades", async () => {
+		const { getTradeActivityData } = await import("../../src/monitoring/dashboard-data.ts");
+		const data = await getTradeActivityData();
+
+		expect(Array.isArray(data.trades)).toBe(true);
+		expect(data.trades.length).toBe(0);
+		expect(data.tradesToday).toBe(0);
+		expect(data.winRateToday).toBeNull();
+		expect(data.avgWinner).toBeNull();
+		expect(data.avgLoser).toBeNull();
+	});
+
+	test("returns correct trades and stats with populated data", async () => {
+		const { getDb } = await import("../../src/db/client.ts");
+		const { getTradeActivityData } = await import("../../src/monitoring/dashboard-data.ts");
+		const db = getDb();
+
+		const [s] = db
+			.insert(strategies)
+			.values({
+				name: "momentum_strat",
+				description: "desc",
+				parameters: "{}",
+				signals: '{"entry_long":"price>0"}',
+				universe: '["AAPL"]',
+				status: "paper",
+			})
+			.returning()
+			.all();
+
+		db.insert(paperTrades)
+			.values({
+				strategyId: s!.id,
+				symbol: "AAPL",
+				exchange: "NASDAQ",
+				side: "BUY",
+				quantity: 10,
+				price: 150.0,
+				pnl: 170,
+				signalType: "momentum",
+				reasoning: "Strong uptrend",
+			})
+			.run();
+
+		db.insert(paperTrades)
+			.values({
+				strategyId: s!.id,
+				symbol: "MSFT",
+				exchange: "NASDAQ",
+				side: "SELL",
+				quantity: 5,
+				price: 300.0,
+				pnl: -14,
+				signalType: "reversal",
+				reasoning: "Failed breakout",
+			})
+			.run();
+
+		const data = await getTradeActivityData();
+
+		expect(data.trades.length).toBe(2);
+		expect(data.tradesToday).toBe(2);
+
+		// winRate: 1 winner out of 2 = 0.5
+		expect(data.winRateToday).toBeCloseTo(0.5, 5);
+		// avgWinner: 170
+		expect(data.avgWinner).toBe(170);
+		// avgLoser: -14
+		expect(data.avgLoser).toBe(-14);
+
+		const first = data.trades[0]!;
+		expect(typeof first.time).toBe("string");
+		expect(typeof first.symbol).toBe("string");
+		expect(typeof first.exchange).toBe("string");
+		expect(typeof first.side).toBe("string");
+		expect(typeof first.price).toBe("number");
+		expect(first.strategyName).toBe("momentum_strat");
+		expect(typeof first.signalType).toBe("string");
+	});
+});
+
 describe("getGuardianData", () => {
 	beforeEach(async () => {
 		await setupDb();

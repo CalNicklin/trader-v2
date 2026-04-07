@@ -467,6 +467,88 @@ export async function getLearningLoopData(): Promise<LearningLoopData> {
 	};
 }
 
+export interface TradeActivityData {
+	trades: Array<{
+		time: string;
+		symbol: string;
+		exchange: string;
+		side: string;
+		price: number;
+		pnl: number | null;
+		strategyName: string;
+		signalType: string;
+		reasoning: string | null;
+	}>;
+	tradesToday: number;
+	winRateToday: number | null;
+	avgWinner: number | null;
+	avgLoser: number | null;
+}
+
+export async function getTradeActivityData(): Promise<TradeActivityData> {
+	const db = getDb();
+
+	const rows = db
+		.select({
+			createdAt: paperTrades.createdAt,
+			symbol: paperTrades.symbol,
+			exchange: paperTrades.exchange,
+			side: paperTrades.side,
+			price: paperTrades.price,
+			pnl: paperTrades.pnl,
+			signalType: paperTrades.signalType,
+			reasoning: paperTrades.reasoning,
+			strategyName: strategies.name,
+		})
+		.from(paperTrades)
+		.leftJoin(strategies, eq(paperTrades.strategyId, strategies.id))
+		.orderBy(desc(paperTrades.createdAt))
+		.limit(50)
+		.all();
+
+	const trades = rows.map((r) => ({
+		time: new Date(r.createdAt).toLocaleTimeString("en-GB", {
+			hour: "2-digit",
+			minute: "2-digit",
+			timeZone: "UTC",
+		}),
+		symbol: r.symbol,
+		exchange: r.exchange,
+		side: r.side,
+		price: r.price,
+		pnl: r.pnl ?? null,
+		strategyName: r.strategyName ?? "unknown",
+		signalType: r.signalType,
+		reasoning: r.reasoning ? r.reasoning.slice(0, 80) : null,
+	}));
+
+	const today = new Date().toISOString().split("T")[0]!;
+	const todayTrades = rows.filter((r) => r.createdAt.startsWith(today));
+	const tradesToday = todayTrades.length;
+
+	const todayWithPnl = todayTrades.filter((r) => r.pnl !== null && r.pnl !== undefined);
+
+	let winRateToday: number | null = null;
+	let avgWinner: number | null = null;
+	let avgLoser: number | null = null;
+
+	if (todayWithPnl.length > 0) {
+		const winners = todayWithPnl.filter((r) => (r.pnl as number) > 0);
+		const losers = todayWithPnl.filter((r) => (r.pnl as number) <= 0);
+		winRateToday = winners.length / todayWithPnl.length;
+		avgWinner = winners.length > 0 ? winners.reduce((sum, r) => sum + (r.pnl as number), 0) / winners.length : null;
+		avgLoser = losers.length > 0 ? losers.reduce((sum, r) => sum + (r.pnl as number), 0) / losers.length : null;
+	}
+
+	return {
+		trades,
+		tradesToday,
+		winRateToday,
+		avgWinner,
+		avgLoser,
+	};
+}
+
 export interface GuardianData {
 	circuitBreaker: { active: boolean; drawdownPct: number; limitPct: number };
 	dailyHalt: { active: boolean; lossPct: number; limitPct: number };
