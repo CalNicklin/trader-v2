@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { newsEvents, quotesCache } from "../db/schema.ts";
 import { createChildLogger } from "../utils/logger.ts";
@@ -99,6 +100,19 @@ export interface NewsEventInput {
  */
 export async function storeNewsEvent(input: NewsEventInput): Promise<void> {
 	const db = getDb();
+
+	// Capture price at classification time for the primary symbol
+	let priceAtClassification: number | null = null;
+	if (input.sentiment != null && input.symbols.length > 0) {
+		const primarySymbol = input.symbols[0]!;
+		const [cached] = await db
+			.select({ last: quotesCache.last })
+			.from(quotesCache)
+			.where(eq(quotesCache.symbol, primarySymbol))
+			.limit(1);
+		priceAtClassification = cached?.last ?? null;
+	}
+
 	await db.insert(newsEvents).values({
 		source: input.source,
 		headline: input.headline,
@@ -117,5 +131,6 @@ export async function storeNewsEvent(input: NewsEventInput): Promise<void> {
 		catalystType: input.signals?.catalystType ?? null,
 		expectedMoveDuration: input.signals?.expectedMoveDuration ?? null,
 		classifiedAt: input.sentiment != null ? new Date().toISOString() : null,
+		priceAtClassification,
 	});
 }
