@@ -82,7 +82,7 @@ export async function runEvolutionCycle(): Promise<{
 	const response = await withRetry(
 		() =>
 			client.messages.create({
-				model: config.CLAUDE_MODEL,
+				model: config.CLAUDE_MODEL_HEAVY,
 				max_tokens: 4096,
 				system,
 				messages: [{ role: "user", content: user }],

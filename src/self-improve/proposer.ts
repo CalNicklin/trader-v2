@@ -121,7 +121,7 @@ export async function runSelfImprovementCycle(): Promise<ProposalResult> {
 
 	const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 	const response = await client.messages.create({
-		model: config.CLAUDE_MODEL,
+		model: config.CLAUDE_MODEL_HEAVY,
 		max_tokens: 4096,
 		messages: [{ role: "user", content: buildProposerPrompt(landscapeJson) }],
 	});

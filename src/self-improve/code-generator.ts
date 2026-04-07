@@ -62,7 +62,7 @@ Return the complete modified file content:`;
 	try {
 		const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 		const response = await client.messages.create({
-			model: config.CLAUDE_MODEL,
+			model: config.CLAUDE_MODEL_HEAVY,
 			max_tokens: 8192,
 			messages: [{ role: "user", content: prompt }],
 		});
