@@ -178,14 +178,19 @@ export async function getDashboardData(): Promise<DashboardData> {
 	// Positions
 	const positions = db.select().from(livePositions).all();
 
-	// Trades today
+	// Trades today (paper + live)
 	const today = new Date().toISOString().split("T")[0]!;
-	const tradesTodayResult = db
+	const liveTodayResult = db
 		.select({ count: sql<number>`count(*)` })
 		.from(liveTrades)
 		.where(sql`date(${liveTrades.createdAt}) = ${today}`)
 		.get();
-	const tradesToday = tradesTodayResult?.count ?? 0;
+	const paperTodayResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(paperTrades)
+		.where(sql`date(${paperTrades.createdAt}) = ${today}`)
+		.get();
+	const tradesToday = (liveTodayResult?.count ?? 0) + (paperTodayResult?.count ?? 0);
 
 	// API spend
 	const apiSpendToday = await getDailySpend(db);
