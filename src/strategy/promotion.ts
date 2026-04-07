@@ -1,7 +1,3 @@
-import { createChildLogger } from "../utils/logger.ts";
-
-const _log = createChildLogger({ module: "promotion" });
-
 // ── Thresholds ──────────────────────────────────────────────────────────────
 
 const PROBATION_TO_ACTIVE_MIN_TRADES = 30;

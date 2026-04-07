@@ -19,22 +19,18 @@ export async function runSelfImproveJob(): Promise<void> {
 		log.info(
 			{
 				prsCreated: result.prsCreated,
-				issuesCreated: result.issuesCreated,
-				skipped: result.skipped,
 				errors: result.errors.length,
 			},
 			"Self-improvement cycle complete",
 		);
 
-		if (result.prsCreated > 0 || result.issuesCreated > 0 || result.errors.length > 0) {
+		if (result.prsCreated > 0 || result.errors.length > 0) {
 			await sendEmail({
-				subject: `Trader v2 Self-Improve: ${result.prsCreated} PRs, ${result.issuesCreated} issues`,
+				subject: `Trader v2 Self-Improve: ${result.prsCreated} PRs`,
 				html: `
                     <h2>Self-Improvement Cycle Results</h2>
                     <ul>
                         <li><strong>PRs created:</strong> ${result.prsCreated}</li>
-                        <li><strong>Issues created:</strong> ${result.issuesCreated}</li>
-                        <li><strong>Skipped:</strong> ${result.skipped}</li>
                         ${result.errors.length > 0 ? `<li><strong>Errors:</strong><ul>${result.errors.map((e) => `<li>${e}</li>`).join("")}</ul></li>` : ""}
                     </ul>
                 `,
