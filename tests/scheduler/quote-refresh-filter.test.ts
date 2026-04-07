@@ -1,6 +1,6 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
-import { getDb, closeDb } from "../../src/db/client";
+import { closeDb, getDb } from "../../src/db/client";
 import { quotesCache } from "../../src/db/schema";
 
 describe("quote refresh exchange filter", () => {
