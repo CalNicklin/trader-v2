@@ -392,6 +392,7 @@ export interface LearningLoopData {
 	insightsCount7d: number;
 	ledToImprovement: number;
 	patternsFound: number;
+	missedOpportunities: number;
 	recentInsights: Array<{
 		time: string;
 		insightType: string;
@@ -430,6 +431,15 @@ export async function getLearningLoopData(): Promise<LearningLoopData> {
 		.get();
 	const patternsFound = patternsResult?.count ?? 0;
 
+	const missedResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(tradeInsights)
+		.where(
+			sql`${tradeInsights.createdAt} >= ${cutoff} AND ${tradeInsights.insightType} = 'missed_opportunity'`,
+		)
+		.get();
+	const missedOpportunities = missedResult?.count ?? 0;
+
 	const rows = db
 		.select({
 			createdAt: tradeInsights.createdAt,
@@ -463,6 +473,7 @@ export async function getLearningLoopData(): Promise<LearningLoopData> {
 		insightsCount7d,
 		ledToImprovement,
 		patternsFound,
+		missedOpportunities,
 		recentInsights,
 	};
 }

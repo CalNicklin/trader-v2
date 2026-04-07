@@ -355,6 +355,8 @@ body{font-family:'JetBrains Mono','Courier New',monospace;background:#050505;col
 .type-trade_review{color:#3b82f6;background:#3b82f611}
 .type-pattern_analysis{color:#a855f7;background:#a855f711}
 .type-graduation{color:#22c55e;background:#22c55e11}
+.type-badge.type-missed_opportunity{background:#78350f;color:#fbbf24}
+.type-badge.type-universe_suggestion{background:#1e3a5f;color:#60a5fa}
 .tab-content{padding:16px 14px;background:#0a0a0a;min-height:calc(100vh - 120px)}
 .news-row{display:grid;grid-template-columns:45px 65px 1fr 60px 50px;gap:8px;padding:5px 0;font-size:11px;color:#666;border-bottom:1px solid #0f0f0f}
 .news-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
@@ -494,10 +496,11 @@ export function buildLearningLoopTab(data: LearningLoopData): string {
 					.join("\n");
 
 	return `
-<div class="stat-cards" style="grid-template-columns:repeat(3,1fr);">
+<div class="stat-cards" style="grid-template-columns:repeat(4,1fr);">
 	<div class="stat-card"><div class="sc-label">Insights (7d)</div><div class="sc-value" style="color:#e2e8f0;">${data.insightsCount7d}</div><div class="sc-sub">from trade reviews</div></div>
 	<div class="stat-card"><div class="sc-label">Led to Change</div><div class="sc-value" style="color:#22c55e;">${data.ledToImprovement}</div><div class="sc-sub">parameter updates</div></div>
 	<div class="stat-card"><div class="sc-label">Patterns Found</div><div class="sc-value" style="color:#a855f7;">${data.patternsFound}</div><div class="sc-sub">this week</div></div>
+	<div class="stat-card"><div class="sc-label">Missed</div><div class="sc-value" style="color:#f59e0b;">${data.missedOpportunities}</div><div class="sc-sub">opportunities</div></div>
 </div>
 <div class="panel-header">Recent Insights<span class="count">${data.recentInsights.length}</span></div>
 <div class="scroll-panel" style="max-height:500px;">
