@@ -119,6 +119,48 @@ export function checkKillCriteria(stats: StrategyLiveStats, now: Date): KillResu
 	return { shouldKill: false };
 }
 
+export interface TierBreachInput {
+	tier: "probation" | "active" | "core";
+	rollingSharpe20: number;
+	currentDrawdownPct: number;
+	worstPaperDrawdownPct: number;
+	consecutiveNegativeSharpePeriods: number;
+}
+
+export interface TierBreachResult {
+	breached: boolean;
+	reason?: string;
+}
+
+const DRAWDOWN_BREACH_MULT = 1.5;
+const CONSECUTIVE_NEG_SHARPE_PERIODS = 2;
+
+export function checkTierBreach(input: TierBreachInput): TierBreachResult {
+	if (input.tier === "probation") {
+		if (input.rollingSharpe20 < 0) {
+			return { breached: true, reason: `Sharpe (${input.rollingSharpe20.toFixed(2)}) is negative on probation` };
+		}
+		return { breached: false };
+	}
+
+	// active or core
+	if (input.currentDrawdownPct > input.worstPaperDrawdownPct * DRAWDOWN_BREACH_MULT) {
+		return {
+			breached: true,
+			reason: `Drawdown ${input.currentDrawdownPct}% exceeds ${DRAWDOWN_BREACH_MULT}x worst paper drawdown (${input.worstPaperDrawdownPct}%)`,
+		};
+	}
+
+	if (input.consecutiveNegativeSharpePeriods >= CONSECUTIVE_NEG_SHARPE_PERIODS) {
+		return {
+			breached: true,
+			reason: `${input.consecutiveNegativeSharpePeriods} consecutive negative Sharpe periods`,
+		};
+	}
+
+	return { breached: false };
+}
+
 export function checkBehavioralDivergence(comparison: BehavioralComparison): DivergenceResult {
 	const reasons: string[] = [];
 	const threshold = BEHAVIORAL_DIVERGENCE_THRESHOLD;

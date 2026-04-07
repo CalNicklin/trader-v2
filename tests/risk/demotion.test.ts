@@ -4,9 +4,11 @@ import {
 	type BehavioralComparison,
 	checkBehavioralDivergence,
 	checkKillCriteria,
+	checkTierBreach,
 	checkTwoStrikeDemotion,
 	type DemotionEvent,
 	type StrategyLiveStats,
+	type TierBreachInput,
 } from "../../src/risk/demotion.ts";
 
 describe("risk/demotion", () => {
@@ -171,6 +173,83 @@ describe("risk/demotion", () => {
 			};
 			const result = checkBehavioralDivergence(comparison);
 			expect(result).toBeDefined();
+		});
+	});
+
+	describe("checkTierBreach", () => {
+		test("probation: breaches when rolling Sharpe < 0", () => {
+			const input: TierBreachInput = {
+				tier: "probation",
+				rollingSharpe20: -0.1,
+				currentDrawdownPct: 0,
+				worstPaperDrawdownPct: 0,
+				consecutiveNegativeSharpePeriods: 0,
+			};
+			const result = checkTierBreach(input);
+			expect(result.breached).toBe(true);
+			expect(result.reason).toContain("Sharpe");
+		});
+
+		test("probation: no breach when rolling Sharpe >= 0", () => {
+			const input: TierBreachInput = {
+				tier: "probation",
+				rollingSharpe20: 0.5,
+				currentDrawdownPct: 0,
+				worstPaperDrawdownPct: 0,
+				consecutiveNegativeSharpePeriods: 0,
+			};
+			const result = checkTierBreach(input);
+			expect(result.breached).toBe(false);
+		});
+
+		test("active: breaches when drawdown > 1.5x worst paper drawdown", () => {
+			const input: TierBreachInput = {
+				tier: "active",
+				rollingSharpe20: 0.5,
+				currentDrawdownPct: 20,
+				worstPaperDrawdownPct: 10,
+				consecutiveNegativeSharpePeriods: 0,
+			};
+			const result = checkTierBreach(input);
+			expect(result.breached).toBe(true);
+			expect(result.reason).toContain("Drawdown");
+		});
+
+		test("active: breaches when Sharpe < 0 for 2 consecutive periods", () => {
+			const input: TierBreachInput = {
+				tier: "active",
+				rollingSharpe20: -0.3,
+				currentDrawdownPct: 0,
+				worstPaperDrawdownPct: 10,
+				consecutiveNegativeSharpePeriods: 2,
+			};
+			const result = checkTierBreach(input);
+			expect(result.breached).toBe(true);
+			expect(result.reason).toContain("consecutive");
+		});
+
+		test("active: no breach when drawdown within 1.5x and Sharpe negative for only 1 period", () => {
+			const input: TierBreachInput = {
+				tier: "active",
+				rollingSharpe20: -0.1,
+				currentDrawdownPct: 12,
+				worstPaperDrawdownPct: 10,
+				consecutiveNegativeSharpePeriods: 1,
+			};
+			const result = checkTierBreach(input);
+			expect(result.breached).toBe(false);
+		});
+
+		test("core: same rules as active", () => {
+			const input: TierBreachInput = {
+				tier: "core",
+				rollingSharpe20: 0.5,
+				currentDrawdownPct: 20,
+				worstPaperDrawdownPct: 10,
+				consecutiveNegativeSharpePeriods: 0,
+			};
+			const result = checkTierBreach(input);
+			expect(result.breached).toBe(true);
 		});
 	});
 });
