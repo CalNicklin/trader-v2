@@ -53,4 +53,9 @@ if (suite === "all" || suite === "self-improve") {
 	await runSelfImproveEvalSuite({ trials, suiteName: "self-improve" });
 }
 
+if (suite === "all" || suite === "sentiment") {
+	const { runSentimentEvalSuite } = await import("./sentiment/suite.ts");
+	await runSentimentEvalSuite({ trials, suiteName: "sentiment" });
+}
+
 console.log(`\nTotal duration: ${Date.now() - start}ms`);
