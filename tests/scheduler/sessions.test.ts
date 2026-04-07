@@ -1,8 +1,7 @@
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
 	getCurrentSession,
 	isExchangeOpen,
-	type SessionName,
 	UK_EXCHANGES,
 	US_EXCHANGES,
 } from "../../src/scheduler/sessions";

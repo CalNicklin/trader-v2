@@ -28,6 +28,11 @@ interface SessionDef {
 	allowNewEntries: boolean;
 }
 
+/**
+ * Sessions ordered by start time. Checked sequentially —
+ * first match wins, so order matters.
+ * Times are UK (Europe/London).
+ */
 const SESSION_DEFS: SessionDef[] = [
 	{
 		name: "pre_market",
@@ -44,7 +49,7 @@ const SESSION_DEFS: SessionDef[] = [
 		startMinute: 0,
 		endHour: 14,
 		endMinute: 30,
-		exchanges: ["LSE"],
+		exchanges: [...UK_EXCHANGES],
 		allowNewEntries: true,
 	},
 	{
@@ -53,7 +58,7 @@ const SESSION_DEFS: SessionDef[] = [
 		startMinute: 30,
 		endHour: 16,
 		endMinute: 30,
-		exchanges: ["LSE", "NASDAQ", "NYSE"],
+		exchanges: [...UK_EXCHANGES, ...US_EXCHANGES],
 		allowNewEntries: true,
 	},
 	{
@@ -62,7 +67,7 @@ const SESSION_DEFS: SessionDef[] = [
 		startMinute: 30,
 		endHour: 21,
 		endMinute: 0,
-		exchanges: ["NASDAQ", "NYSE"],
+		exchanges: [...US_EXCHANGES],
 		allowNewEntries: true,
 	},
 	{
@@ -71,7 +76,7 @@ const SESSION_DEFS: SessionDef[] = [
 		startMinute: 0,
 		endHour: 21,
 		endMinute: 15,
-		exchanges: ["NASDAQ", "NYSE"],
+		exchanges: [...US_EXCHANGES],
 		allowNewEntries: false,
 	},
 	{
