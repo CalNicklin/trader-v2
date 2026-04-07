@@ -14,9 +14,6 @@ export const HUMAN_ONLY_PATHS = [
 	"drizzle/",
 ] as const;
 
-export const MAX_PRS_PER_WEEK = 2;
-export const MAX_ISSUES_PER_WEEK = 3;
-
 export interface ImprovementIdea {
 	title: string;
 	description: string;

@@ -1,5 +1,4 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { sql } from "drizzle-orm";
 import { getConfig } from "../config";
 import { getDb } from "../db/client";
 import { improvementProposals } from "../db/schema";
@@ -12,8 +11,6 @@ import { createIssue, createPR } from "./github";
 import {
 	HUMAN_ONLY_PATHS,
 	type ImprovementIdea,
-	MAX_ISSUES_PER_WEEK,
-	MAX_PRS_PER_WEEK,
 	type ProposalResult,
 	WHITELISTED_PATHS,
 } from "./types";
@@ -44,29 +41,6 @@ export function generateBranchName(title: string): string {
 		.slice(0, 40);
 	const date = new Date().toISOString().split("T")[0]!.replace(/-/g, "");
 	return `self-improve/${slug}-${date}`;
-}
-
-async function getWeeklyProposalCounts(): Promise<{ prs: number; issues: number }> {
-	const db = getDb();
-	const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-	const prs = db
-		.select({ count: sql<number>`count(*)` })
-		.from(improvementProposals)
-		.where(
-			sql`${improvementProposals.status} = 'PR_CREATED' AND ${improvementProposals.createdAt} >= ${weekAgo}`,
-		)
-		.get();
-
-	const issues = db
-		.select({ count: sql<number>`count(*)` })
-		.from(improvementProposals)
-		.where(
-			sql`${improvementProposals.status} = 'ISSUE_CREATED' AND ${improvementProposals.createdAt} >= ${weekAgo}`,
-		)
-		.get();
-
-	return { prs: prs?.count ?? 0, issues: issues?.count ?? 0 };
 }
 
 function buildProposerPrompt(landscapeJson: string): string {
@@ -142,12 +116,6 @@ export async function runSelfImprovementCycle(): Promise<ProposalResult> {
 		return result;
 	}
 
-	const counts = await getWeeklyProposalCounts();
-	if (counts.prs >= MAX_PRS_PER_WEEK && counts.issues >= MAX_ISSUES_PER_WEEK) {
-		log.info({ prs: counts.prs, issues: counts.issues }, "Weekly rate limit reached, skipping");
-		return result;
-	}
-
 	const landscape = await getPerformanceLandscape();
 	const landscapeJson = JSON.stringify(landscape, null, 2);
 
@@ -177,7 +145,7 @@ export async function runSelfImprovementCycle(): Promise<ProposalResult> {
 	for (const idea of ideas) {
 		const classification = classifyProposal(idea.targetFile);
 
-		if (classification === "pr" && counts.prs + result.prsCreated < MAX_PRS_PER_WEEK) {
+		if (classification === "pr") {
 			const newContent = await generateCodeChange(idea.targetFile, idea.changeDescription);
 			if (newContent) {
 				const branch = generateBranchName(idea.title);
@@ -205,10 +173,7 @@ export async function runSelfImprovementCycle(): Promise<ProposalResult> {
 			} else {
 				result.errors.push(`Failed to generate code for: ${idea.title}`);
 			}
-		} else if (
-			classification === "issue" &&
-			counts.issues + result.issuesCreated < MAX_ISSUES_PER_WEEK
-		) {
+		} else if (classification === "issue") {
 			const issueUrl = await createIssue({
 				title: idea.title,
 				body: `${idea.description}\n\n**Target file:** \`${idea.targetFile}\`\n**Change:** ${idea.changeDescription}\n**Reasoning:** ${idea.reasoning}\n**Priority:** ${idea.priority}`,
@@ -232,7 +197,7 @@ export async function runSelfImprovementCycle(): Promise<ProposalResult> {
 			result.skipped++;
 			log.debug(
 				{ title: idea.title, classification },
-				"Proposal skipped (rate limit or unclassified)",
+				"Proposal skipped (unclassified path)",
 			);
 		}
 	}
