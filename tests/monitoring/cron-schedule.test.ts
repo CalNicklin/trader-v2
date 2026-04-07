@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { CRON_SCHEDULE, getNextCronOccurrences } from "../../src/monitoring/cron-schedule.ts";
 
 describe("cron-schedule", () => {
-	test("CRON_SCHEDULE contains all 17 jobs", () => {
-		expect(Object.keys(CRON_SCHEDULE).length).toBe(17);
+	test("CRON_SCHEDULE contains all 27 jobs", () => {
+		expect(Object.keys(CRON_SCHEDULE).length).toBe(27);
 	});
 
 	test("CRON_SCHEDULE has required fields", () => {
@@ -16,7 +16,7 @@ describe("cron-schedule", () => {
 
 	test("getNextCronOccurrences returns sorted results", () => {
 		const results = getNextCronOccurrences();
-		expect(results.length).toBe(17);
+		expect(results.length).toBe(27);
 
 		// Should be sorted by nextRun ascending
 		for (let i = 1; i < results.length; i++) {
