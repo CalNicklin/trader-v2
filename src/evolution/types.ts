@@ -12,6 +12,13 @@ export interface StrategyPerformance {
 	recentTrades: TradeSummary[];
 	virtualBalance: number;
 	insightSummary: string[];
+	suggestedActions: SuggestedAction[];
+}
+
+export interface SuggestedAction {
+	parameter: string;
+	direction: "increase" | "decrease" | "none";
+	reasoning: string;
 }
 
 export interface SignalDef {
