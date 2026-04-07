@@ -18,6 +18,7 @@ const parentStrategy = {
 	recentTrades: [],
 	virtualBalance: 10000,
 	insightSummary: [],
+	suggestedActions: [],
 };
 
 describe("structural mutation validation", () => {

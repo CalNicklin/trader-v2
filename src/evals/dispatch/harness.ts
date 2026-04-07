@@ -43,6 +43,7 @@ export async function runDispatchEvals(trials = 3): Promise<{
 				recentTrades: [],
 				virtualBalance: 10000,
 				insightSummary: [],
+				suggestedActions: [],
 			}));
 
 			const prompt = buildDispatchPrompt(fakeStrategies, task.regime, task.recentNews);

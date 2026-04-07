@@ -17,6 +17,7 @@ function makeParent(overrides: Partial<StrategyPerformance> = {}): StrategyPerfo
 		recentTrades: [],
 		virtualBalance: 10000,
 		insightSummary: [],
+		suggestedActions: [],
 		...overrides,
 	};
 }
