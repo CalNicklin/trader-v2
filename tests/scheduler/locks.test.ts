@@ -1,5 +1,11 @@
-import { describe, test, expect, beforeEach } from "bun:test";
-import { acquireLock, releaseLock, isLocked, resetAllLocks, type LockCategory } from "../../src/scheduler/locks";
+import { beforeEach, describe, expect, test } from "bun:test";
+import {
+	acquireLock,
+	isLocked,
+	type LockCategory,
+	releaseLock,
+	resetAllLocks,
+} from "../../src/scheduler/locks";
 
 describe("per-category locks", () => {
 	beforeEach(() => {
