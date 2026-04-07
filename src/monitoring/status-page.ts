@@ -489,6 +489,42 @@ export function buildLearningLoopTab(data: LearningLoopData): string {
 	${insightCards}
 </div>`;
 }
-export function buildTradeActivityTab(_data: TradeActivityData): string {
-	return "";
+export function buildTradeActivityTab(data: TradeActivityData): string {
+	const tradeRows =
+		data.trades.length === 0
+			? `<div style="color:#333;padding:8px 0;">No trades recorded</div>`
+			: data.trades
+					.map((t) => {
+						const sideColor = t.side === "BUY" ? "#22c55e" : "#ef4444";
+						const pnlStr = t.pnl != null ? `${t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(0)}` : "—";
+						const pnlColor = t.pnl != null ? (t.pnl >= 0 ? "#22c55e" : "#ef4444") : "#666";
+						return `<div class="trade-row">
+	<span style="color:#333;">${t.time}</span>
+	<span style="color:#94a3b8;font-weight:500;">${escHtml(t.symbol)}</span>
+	<span style="color:${sideColor};">${t.side}</span>
+	<span style="color:#666;">${t.price.toLocaleString()}p</span>
+	<span style="color:${pnlColor};">${pnlStr}</span>
+	<span style="color:#555;font-size:10px;">${escHtml(t.strategyName)}</span>
+	<span style="color:#444;font-size:10px;">${escHtml(t.signalType)}</span>
+	<span style="color:#444;font-size:10px;">${escHtml(t.reasoning ?? "")}</span>
+</div>`;
+					})
+					.join("\n");
+
+	const winRateStr = data.winRateToday != null ? `${(data.winRateToday * 100).toFixed(0)}%` : "—";
+	const avgWinStr = data.avgWinner != null ? `+${data.avgWinner.toFixed(0)}` : "—";
+	const avgLoseStr = data.avgLoser != null ? `${data.avgLoser.toFixed(0)}` : "—";
+
+	return `
+<div class="panel-header">Recent Trades<span class="count">${data.trades.length}</span></div>
+<div class="scroll-panel" style="max-height:500px;">
+	<div class="trade-row header"><span>Time</span><span>Symbol</span><span>Side</span><span>Price</span><span>P&amp;L</span><span>Strategy</span><span>Signal</span><span>Reason</span></div>
+	${tradeRows}
+</div>
+<div class="stat-cards" style="margin-top:16px;">
+	<div class="stat-card"><div class="sc-label">Today</div><div class="sc-value" style="color:#e2e8f0;">${data.tradesToday}</div><div class="sc-sub">trades</div></div>
+	<div class="stat-card"><div class="sc-label">Win Rate</div><div class="sc-value" style="color:${data.winRateToday != null && data.winRateToday >= 0.5 ? "#22c55e" : "#ef4444"};">${winRateStr}</div><div class="sc-sub">today</div></div>
+	<div class="stat-card"><div class="sc-label">Avg Winner</div><div class="sc-value" style="color:#22c55e;">${avgWinStr}</div><div class="sc-sub">pence</div></div>
+	<div class="stat-card"><div class="sc-label">Avg Loser</div><div class="sc-value" style="color:#ef4444;">${avgLoseStr}</div><div class="sc-sub">pence</div></div>
+</div>`;
 }

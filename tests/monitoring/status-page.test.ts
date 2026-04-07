@@ -274,3 +274,62 @@ describe("buildNewsPipelineTab", () => {
 		expect(html).toContain("No articles");
 	});
 });
+
+describe("buildTradeActivityTab", () => {
+	test("renders trade table and summary stats", () => {
+		const { buildTradeActivityTab } = require("../../src/monitoring/status-page");
+		const data = {
+			trades: [
+				{
+					time: "14:10",
+					symbol: "SHEL.L",
+					exchange: "LSE",
+					side: "BUY",
+					price: 2340,
+					pnl: null,
+					strategyName: "mom-v3",
+					signalType: "entry_long",
+					reasoning: "News catalyst: dividend raise",
+				},
+				{
+					time: "13:45",
+					symbol: "AZN.L",
+					exchange: "LSE",
+					side: "SELL",
+					price: 10620,
+					pnl: 170,
+					strategyName: "mr-v4",
+					signalType: "exit",
+					reasoning: "Target hit (1.5R)",
+				},
+			],
+			tradesToday: 5,
+			winRateToday: 0.6,
+			avgWinner: 142,
+			avgLoser: -68,
+		};
+		const html = buildTradeActivityTab(data);
+		expect(html).toContain("SHEL.L");
+		expect(html).toContain("BUY");
+		expect(html).toContain("2,340");
+		expect(html).toContain("+170");
+		expect(html).toContain("mom-v3");
+		expect(html).toContain("5");
+		expect(html).toContain("60%");
+		expect(html).toContain("+142");
+		expect(html).toContain("-68");
+	});
+
+	test("renders empty state", () => {
+		const { buildTradeActivityTab } = require("../../src/monitoring/status-page");
+		const data = {
+			trades: [],
+			tradesToday: 0,
+			winRateToday: null,
+			avgWinner: null,
+			avgLoser: null,
+		};
+		const html = buildTradeActivityTab(data);
+		expect(html).toContain("No trades");
+	});
+});
