@@ -364,7 +364,9 @@ body{font-family:'JetBrains Mono','Courier New',monospace;background:#050505;col
 .research-columns{display:grid;grid-template-columns:1fr 220px;gap:12px;margin-top:8px}
 .research-col-main{min-width:0}
 .research-col-side{min-width:0}
-.ra-row{display:grid;grid-template-columns:45px 90px 48px 42px 80px 55px 1fr;gap:6px;padding:4px 0;font-size:11px;color:#666;border-bottom:1px solid #0f0f0f}
+.ra-scroll{overflow-x:auto}
+.ra-scroll::-webkit-scrollbar{height:3px}.ra-scroll::-webkit-scrollbar-track{background:transparent}.ra-scroll::-webkit-scrollbar-thumb{background:#222;border-radius:2px}
+.ra-row{display:grid;grid-template-columns:45px 90px 48px 42px 80px 55px minmax(300px,1fr);gap:6px;padding:4px 0;font-size:11px;color:#666;border-bottom:1px solid #0f0f0f;min-width:700px}
 .ra-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
 .ra-time{color:#333}
 .ra-sym{color:#e2e8f0;font-weight:500}
@@ -372,7 +374,7 @@ body{font-family:'JetBrains Mono','Courier New',monospace;background:#050505;col
 .ra-conf{color:#888}
 .ra-tags{display:flex;gap:3px}
 .ra-price{color:#666;font-size:10px}
-.ra-thesis{color:#555;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ra-thesis{color:#555;font-size:10px;white-space:normal;word-break:break-word}
 .rec-tag{font-size:8px;padding:1px 4px;border-radius:2px;font-weight:600;letter-spacing:.5px}
 .rec-tag.rec{background:#f59e0b22;color:#f59e0b}
 .rec-tag.univ{background:#22c55e11;color:#22c55e88}
@@ -467,7 +469,7 @@ export function buildNewsPipelineTab(data: NewsPipelineData): string {
 	<span class="ra-conf">${confPct}</span>
 	<span class="ra-tags">${recTag}${univTag}</span>
 	<span class="ra-price">${priceInfo}</span>
-	<span class="ra-thesis">${escHtml(a.tradeThesis.slice(0, 80))}</span>
+	<span class="ra-thesis">${escHtml(a.tradeThesis)}</span>
 </div>`;
 					})
 					.join("\n");
@@ -520,7 +522,7 @@ export function buildNewsPipelineTab(data: NewsPipelineData): string {
 <div class="research-columns">
 <div class="research-col-main">
 	<div class="panel-header">Recent Analyses<span class="count">${r.recentAnalyses.length}</span></div>
-	<div class="scroll-panel" style="max-height:400px;">
+	<div class="scroll-panel ra-scroll" style="max-height:400px;">
 		<div class="ra-row header"><span>Time</span><span>Symbol</span><span>Dir</span><span>Conf</span><span>Tags</span><span>Move</span><span>Thesis</span></div>
 		${analysesHtml}
 	</div>
