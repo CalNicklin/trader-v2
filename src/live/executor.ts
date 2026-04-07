@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Exchange } from "../broker/contracts.ts";
 import { placeTrade } from "../broker/orders.ts";
 import type { UnsettledTrade } from "../broker/settlement.ts";
@@ -6,7 +6,7 @@ import { getAvailableCash } from "../broker/settlement.ts";
 import { getConfig } from "../config.ts";
 import { getQuoteFromCache } from "../data/quotes.ts";
 import { getDb } from "../db/client.ts";
-import { agentLogs, livePositions, liveTrades, strategies } from "../db/schema.ts";
+import { agentLogs, graduationEvents, livePositions, liveTrades, paperTrades, strategies, strategyMetrics } from "../db/schema.ts";
 import { checkTradeRiskGate } from "../risk/gate.ts";
 import { isTradingHalted, isWeeklyDrawdownActive } from "../risk/guardian.ts";
 import { buildSignalContext, type PositionFields, type QuoteFields } from "../strategy/context.ts";
@@ -14,6 +14,15 @@ import { evalExpr } from "../strategy/expr-eval.ts";
 import { getIndicators, type SymbolIndicators } from "../strategy/historical.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { computeAllocations, type StrategyTier } from "./capital-allocator.ts";
+import {
+	type BehavioralComparison,
+	checkBehavioralDivergence as checkDivergenceAgg,
+	checkKillCriteria,
+	checkTierBreach,
+	checkTwoStrikeDemotion,
+	type DemotionEvent,
+	type StrategyLiveStats,
+} from "../risk/demotion.ts";
 
 const log = createChildLogger({ module: "live-executor" });
 
@@ -377,6 +386,13 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 		});
 	}
 
+	// Run demotion checks (non-fatal)
+	try {
+		await runDemotionChecks();
+	} catch (err) {
+		log.warn({ error: err }, "Demotion checks failed — non-fatal");
+	}
+
 	return result;
 }
 
@@ -448,6 +464,323 @@ async function estimateAvailableCash(): Promise<number> {
 	// This will be replaced with actual IBKR account balance API call
 	const STARTING_CAPITAL = 500; // GBP — from spec "£200-500 IBKR regular account"
 	return Math.max(0, STARTING_CAPITAL - totalPositionValue);
+}
+
+/**
+ * Retire a strategy: set status="retired", retiredAt=now, and record a "killed" graduation event.
+ */
+async function retireStrategy(
+	db: ReturnType<typeof getDb>,
+	strategyId: number,
+	fromTier: string,
+	reason: string,
+): Promise<void> {
+	const now = new Date().toISOString();
+	await db
+		.update(strategies)
+		.set({ status: "retired", retiredAt: now })
+		.where(eq(strategies.id, strategyId));
+
+	await db.insert(graduationEvents).values({
+		strategyId,
+		event: "killed",
+		fromTier,
+		toTier: "retired",
+		evidence: JSON.stringify({ reason }),
+	});
+
+	await db.insert(agentLogs).values({
+		level: "ACTION" as const,
+		phase: "demotion-checks",
+		message: `Strategy ${strategyId} retired (killed): ${reason}`,
+		data: JSON.stringify({ strategyId, fromTier, reason }),
+	});
+
+	log.warn({ strategyId, fromTier, reason }, "Strategy killed and retired");
+}
+
+/**
+ * Run demotion checks for all graduated strategies.
+ * Evaluates kill criteria, tier breaches, and behavioral divergence.
+ * Records all actions to graduationEvents and agentLogs.
+ */
+export async function runDemotionChecks(): Promise<void> {
+	const db = getDb();
+	const now = new Date();
+
+	// Fetch all graduated strategies
+	const graduated = await db
+		.select()
+		.from(strategies)
+		.where(inArray(strategies.status, LIVE_TIERS));
+
+	for (const strategy of graduated) {
+		try {
+			// Fetch all filled live trades for this strategy
+			const trades = await db
+				.select()
+				.from(liveTrades)
+				.where(and(eq(liveTrades.strategyId, strategy.id), eq(liveTrades.status, "FILLED")))
+				.orderBy(desc(liveTrades.filledAt));
+
+			// Skip strategies with no live trades
+			if (trades.length === 0) continue;
+
+			// Compute kill criteria stats
+			const totalPnl = trades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+
+			// Current loss streak = count of consecutive losses from most recent trades
+			let currentLossStreak = 0;
+			for (const trade of trades) {
+				if ((trade.pnl ?? 0) < 0) {
+					currentLossStreak++;
+				} else {
+					break;
+				}
+			}
+
+			// Expected loss streak stats from historical data (simple binomial approximation)
+			const winCount = trades.filter((t) => (t.pnl ?? 0) > 0).length;
+			const lossRate = trades.length > 0 ? (trades.length - winCount) / trades.length : 0.5;
+			const p = lossRate;
+			const expectedLossStreakMean = p > 0 && p < 1 ? 1 / (1 - p) : 1;
+			const expectedLossStreakStdDev =
+				p > 0 && p < 1 ? Math.sqrt(p / ((1 - p) * (1 - p))) : 0.5;
+
+			// Fetch demotion history from graduationEvents
+			const demotionHistory = await db
+				.select()
+				.from(graduationEvents)
+				.where(
+					and(
+						eq(graduationEvents.strategyId, strategy.id),
+						eq(graduationEvents.event, "demoted"),
+					),
+				);
+			const demotionDates = demotionHistory.map((e) => new Date(e.createdAt));
+
+			const stats: StrategyLiveStats = {
+				liveTradeCount: trades.length,
+				totalPnl,
+				currentLossStreak,
+				expectedLossStreakMean,
+				expectedLossStreakStdDev,
+				demotionCount: demotionDates.length,
+				demotionDates,
+			};
+
+			// Step 1: Check kill criteria
+			const killResult = checkKillCriteria(stats, now);
+			if (killResult.shouldKill) {
+				await retireStrategy(db, strategy.id, strategy.status, killResult.reason!);
+				continue;
+			}
+
+			// Step 2: Check tier breach
+			// Get metrics for drawdown info and Sharpe fallback
+			const [metrics] = await db
+				.select()
+				.from(strategyMetrics)
+				.where(eq(strategyMetrics.strategyId, strategy.id));
+
+			// Compute rolling 20-trade Sharpe from recent trades;
+			// fall back to stored metrics sharpeRatio when stdDev is zero (all trades identical)
+			const recent20 = trades.slice(0, 20);
+			let rollingSharpe20 = metrics?.sharpeRatio ?? 0;
+			if (recent20.length > 1) {
+				const pnls = recent20.map((t) => t.pnl ?? 0);
+				const mean = pnls.reduce((s, v) => s + v, 0) / pnls.length;
+				const variance =
+					pnls.reduce((s, v) => s + (v - mean) ** 2, 0) / (pnls.length - 1);
+				const stdDev = Math.sqrt(variance);
+				if (stdDev > 0) {
+					rollingSharpe20 = mean / stdDev;
+				}
+			}
+
+			const currentDrawdownPct = metrics?.maxDrawdownPct ?? 0;
+
+			// Get worst paper drawdown
+			const paperTradeRows = await db
+				.select({ pnl: paperTrades.pnl })
+				.from(paperTrades)
+				.where(eq(paperTrades.strategyId, strategy.id));
+			const worstPaperDrawdownPct =
+				paperTradeRows.length > 0
+					? Math.abs(Math.min(0, ...paperTradeRows.map((t) => t.pnl ?? 0)))
+					: 0;
+
+			// Count consecutive negative Sharpe periods (approximate using rolling windows)
+			const consecutiveNegativeSharpePeriods =
+				metrics?.sharpeRatio != null && metrics.sharpeRatio < 0 ? 1 : 0;
+
+			const tierBreachResult = checkTierBreach({
+				tier: strategy.status as "probation" | "active" | "core",
+				rollingSharpe20,
+				currentDrawdownPct,
+				worstPaperDrawdownPct,
+				consecutiveNegativeSharpePeriods,
+			});
+
+			if (tierBreachResult.breached) {
+				// Build demotion event history for two-strike logic
+				const allEvents = await db
+					.select()
+					.from(graduationEvents)
+					.where(eq(graduationEvents.strategyId, strategy.id));
+
+				const demotionEvents: DemotionEvent[] = allEvents
+					.filter((e) => e.event === "demoted" || e.event === "graduated")
+					.map((e) => ({
+						date: new Date(e.createdAt),
+						type: (e.event === "demoted" ? "demotion" : "strike") as "strike" | "demotion",
+					}));
+
+				// Also include prior strike events
+				const strikeEvents = allEvents
+					.filter((e) => e.fromTier != null && e.toTier == null)
+					.map((e) => ({ date: new Date(e.createdAt), type: "strike" as const }));
+
+				const twoStrikeResult = checkTwoStrikeDemotion(
+					[...demotionEvents, ...strikeEvents],
+					now,
+				);
+
+				if (twoStrikeResult.action === "kill") {
+					await retireStrategy(db, strategy.id, strategy.status, twoStrikeResult.reason);
+				} else if (twoStrikeResult.action === "demote") {
+					// Demote to paper status
+					await db
+						.update(strategies)
+						.set({ status: "paper" })
+						.where(eq(strategies.id, strategy.id));
+
+					await db.insert(graduationEvents).values({
+						strategyId: strategy.id,
+						event: "demoted",
+						fromTier: strategy.status,
+						toTier: "paper",
+						evidence: JSON.stringify({ reason: twoStrikeResult.reason }),
+					});
+
+					await db.insert(agentLogs).values({
+						level: "ACTION" as const,
+						phase: "demotion-checks",
+						message: `Strategy ${strategy.id} demoted to paper: ${twoStrikeResult.reason}`,
+						data: JSON.stringify({ strategyId: strategy.id, reason: twoStrikeResult.reason }),
+					});
+
+					log.warn(
+						{ strategyId: strategy.id, reason: twoStrikeResult.reason },
+						"Strategy demoted to paper",
+					);
+				} else {
+					// first_strike: reduce capital by capitalMultiplier
+					const multiplier = twoStrikeResult.capitalMultiplier ?? 0.5;
+					const newBalance = strategy.virtualBalance * multiplier;
+
+					await db
+						.update(strategies)
+						.set({ virtualBalance: newBalance })
+						.where(eq(strategies.id, strategy.id));
+
+					// Record strike event in graduation events
+					await db.insert(graduationEvents).values({
+						strategyId: strategy.id,
+						event: "demoted",
+						fromTier: strategy.status,
+						toTier: strategy.status, // stays same tier but capital reduced
+						evidence: JSON.stringify({
+							reason: twoStrikeResult.reason,
+							type: "first_strike",
+							capitalMultiplier: multiplier,
+						}),
+					});
+
+					await db.insert(agentLogs).values({
+						level: "WARN" as const,
+						phase: "demotion-checks",
+						message: `Strategy ${strategy.id} first strike: capital reduced to ${(multiplier * 100).toFixed(0)}%`,
+						data: JSON.stringify({
+							strategyId: strategy.id,
+							reason: twoStrikeResult.reason,
+							newBalance,
+						}),
+					});
+
+					log.warn(
+						{ strategyId: strategy.id, newBalance, reason: twoStrikeResult.reason },
+						"Strategy first strike — capital reduced",
+					);
+				}
+			}
+
+			// Step 3: Check behavioral divergence (log warning only, no auto-demote)
+			const paperTradesFull = await db
+				.select()
+				.from(paperTrades)
+				.where(eq(paperTrades.strategyId, strategy.id));
+
+			if (paperTradesFull.length > 0 && trades.length > 0) {
+				const paperAvgSlippage =
+					paperTradesFull.reduce((s, t) => s + Math.abs(t.friction), 0) /
+					paperTradesFull.length;
+				const liveAvgSlippage =
+					trades.reduce((s, t) => {
+						const slip =
+							t.fillPrice != null && t.limitPrice != null
+								? Math.abs(t.fillPrice - t.limitPrice) / (t.limitPrice || 1)
+								: 0;
+						return s + slip;
+					}, 0) / trades.length;
+
+				const paperFilledCount = paperTradesFull.length;
+				const liveFilledCount = trades.length;
+				const paperFillRate =
+					paperFilledCount > 0
+						? paperFilledCount / (paperFilledCount + 1)
+						: 0;
+				const liveFillRate =
+					liveFilledCount > 0
+						? liveFilledCount / (liveFilledCount + 1)
+						: 0;
+
+				const paperAvgFriction =
+					paperTradesFull.reduce((s, t) => s + t.friction, 0) / paperTradesFull.length;
+				const liveAvgFriction =
+					trades.reduce((s, t) => s + t.friction, 0) / trades.length;
+
+				const comparison: BehavioralComparison = {
+					paperAvgSlippage,
+					liveAvgSlippage,
+					paperFillRate,
+					liveFillRate,
+					paperAvgFriction,
+					liveAvgFriction,
+				};
+
+				const divergenceResult = checkDivergenceAgg(comparison);
+				if (divergenceResult.diverged) {
+					log.warn(
+						{ strategyId: strategy.id, reasons: divergenceResult.reasons },
+						"Behavioral divergence detected between paper and live trading",
+					);
+
+					await db.insert(agentLogs).values({
+						level: "WARN" as const,
+						phase: "demotion-checks",
+						message: `Strategy ${strategy.id} behavioral divergence: ${divergenceResult.reasons.join("; ")}`,
+						data: JSON.stringify({
+							strategyId: strategy.id,
+							reasons: divergenceResult.reasons,
+						}),
+					});
+				}
+			}
+		} catch (err) {
+			log.error({ strategyId: strategy.id, error: err }, "Demotion check failed for strategy");
+		}
+	}
 }
 
 /**
