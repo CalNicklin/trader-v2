@@ -97,8 +97,9 @@ export interface NewsEventInput {
 
 /**
  * Store a classified news event in the news_events table.
+ * Returns the inserted row's ID.
  */
-export async function storeNewsEvent(input: NewsEventInput): Promise<void> {
+export async function storeNewsEvent(input: NewsEventInput): Promise<number> {
 	const db = getDb();
 
 	// Capture price at classification time for the primary symbol
@@ -113,24 +114,29 @@ export async function storeNewsEvent(input: NewsEventInput): Promise<void> {
 		priceAtClassification = cached?.last ?? null;
 	}
 
-	await db.insert(newsEvents).values({
-		source: input.source,
-		headline: input.headline,
-		url: input.url,
-		symbols: JSON.stringify(input.symbols),
-		sentiment: input.sentiment,
-		confidence: input.confidence,
-		tradeable: input.tradeable,
-		eventType: input.eventType,
-		urgency: input.urgency,
-		earningsSurprise: input.signals?.earningsSurprise ?? null,
-		guidanceChange: input.signals?.guidanceChange ?? null,
-		managementTone: input.signals?.managementTone ?? null,
-		regulatoryRisk: input.signals?.regulatoryRisk ?? null,
-		acquisitionLikelihood: input.signals?.acquisitionLikelihood ?? null,
-		catalystType: input.signals?.catalystType ?? null,
-		expectedMoveDuration: input.signals?.expectedMoveDuration ?? null,
-		classifiedAt: input.sentiment != null ? new Date().toISOString() : null,
-		priceAtClassification,
-	});
+	const [inserted] = await db
+		.insert(newsEvents)
+		.values({
+			source: input.source,
+			headline: input.headline,
+			url: input.url,
+			symbols: JSON.stringify(input.symbols),
+			sentiment: input.sentiment,
+			confidence: input.confidence,
+			tradeable: input.tradeable,
+			eventType: input.eventType,
+			urgency: input.urgency,
+			earningsSurprise: input.signals?.earningsSurprise ?? null,
+			guidanceChange: input.signals?.guidanceChange ?? null,
+			managementTone: input.signals?.managementTone ?? null,
+			regulatoryRisk: input.signals?.regulatoryRisk ?? null,
+			acquisitionLikelihood: input.signals?.acquisitionLikelihood ?? null,
+			catalystType: input.signals?.catalystType ?? null,
+			expectedMoveDuration: input.signals?.expectedMoveDuration ?? null,
+			classifiedAt: input.sentiment != null ? new Date().toISOString() : null,
+			priceAtClassification,
+		})
+		.returning({ id: newsEvents.id });
+
+	return inserted!.id;
 }

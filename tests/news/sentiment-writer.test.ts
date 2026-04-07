@@ -1,5 +1,9 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { and, eq } from "drizzle-orm";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { closeDb, getDb } from "../../src/db/client.ts";
+import { newsEvents } from "../../src/db/schema.ts";
+import { storeNewsEvent } from "../../src/news/sentiment-writer.ts";
 
 describe("sentiment writer", () => {
 	let db: ReturnType<typeof import("../../src/db/client.ts").getDb>;
@@ -196,5 +200,42 @@ describe("sentiment writer", () => {
 		expect(rows).toHaveLength(1);
 		expect(rows[0]!.earningsSurprise).toBeNull();
 		expect(rows[0]!.catalystType).toBeNull();
+	});
+});
+
+describe("storeNewsEvent returns ID", () => {
+	beforeEach(() => {
+		closeDb();
+		process.env.DB_PATH = ":memory:";
+		const db = getDb();
+		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+	});
+
+	afterEach(() => {
+		closeDb();
+	});
+
+	test("returns the inserted news event ID", async () => {
+		const id = await storeNewsEvent({
+			source: "finnhub",
+			headline: "Broadcom and Google seal five-year AI chip partnership",
+			url: "https://example.com/article",
+			symbols: ["GOOGL", "AVGO"],
+			sentiment: 0.2,
+			confidence: 0.7,
+			tradeable: true,
+			eventType: "partnership",
+			urgency: "low",
+			signals: null,
+		});
+
+		expect(typeof id).toBe("number");
+		expect(id).toBeGreaterThan(0);
+
+		// Verify it matches what's in the DB
+		const db = getDb();
+		const rows = await db.select().from(newsEvents);
+		expect(rows.length).toBe(1);
+		expect(rows[0]!.id).toBe(id);
 	});
 });
