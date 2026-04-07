@@ -12,7 +12,9 @@ describe("evolution analyzer", () => {
 		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
 		migrate(db, { migrationsFolder: "./drizzle/migrations" });
 
-		const { paperTrades, strategyMetrics, strategies, tradeInsights } = await import("../../src/db/schema.ts");
+		const { paperTrades, strategyMetrics, strategies, tradeInsights } = await import(
+			"../../src/db/schema.ts"
+		);
 		await db.delete(paperTrades);
 		await db.delete(strategyMetrics);
 		await db.delete(strategies);
