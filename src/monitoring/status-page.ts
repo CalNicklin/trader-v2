@@ -1,4 +1,10 @@
-import type { DashboardData, GuardianData, LearningLoopData, NewsPipelineData, TradeActivityData } from "./dashboard-data.ts";
+import type {
+	DashboardData,
+	GuardianData,
+	LearningLoopData,
+	NewsPipelineData,
+	TradeActivityData,
+} from "./dashboard-data.ts";
 
 function formatUptime(seconds: number): string {
 	const h = Math.floor(seconds / 3600);
@@ -387,9 +393,12 @@ export function buildNewsPipelineTab(data: NewsPipelineData): string {
 			: data.recentArticles
 					.map((a) => {
 						const sym = a.symbols.slice(0, 2).join(", ");
-						const sentColor = a.sentiment != null ? (a.sentiment >= 0 ? "#22c55e" : "#ef4444") : "#666";
-						const sentStr = a.sentiment != null ? `${a.sentiment >= 0 ? "+" : ""}${a.sentiment.toFixed(2)}` : "—";
-						const urgencyColor = a.urgency === "high" ? "#f59e0b" : a.urgency === "medium" ? "#888" : "#555";
+						const sentColor =
+							a.sentiment != null ? (a.sentiment >= 0 ? "#22c55e" : "#ef4444") : "#666";
+						const sentStr =
+							a.sentiment != null ? `${a.sentiment >= 0 ? "+" : ""}${a.sentiment.toFixed(2)}` : "—";
+						const urgencyColor =
+							a.urgency === "high" ? "#f59e0b" : a.urgency === "medium" ? "#888" : "#555";
 						const urgencyLabel = a.urgency ? a.urgency.toUpperCase() : "—";
 						return `<div class="news-row">
 	<span style="color:#333;">${a.time}</span>
@@ -415,7 +424,12 @@ export function buildNewsPipelineTab(data: NewsPipelineData): string {
 </div>`;
 }
 export function buildGuardianTab(data: GuardianData): string {
-	function guardianCard(label: string, active: boolean, valuePct: number, limitPct: number): string {
+	function guardianCard(
+		label: string,
+		active: boolean,
+		valuePct: number,
+		limitPct: number,
+	): string {
 		const statusLabel = active ? "ACTIVE" : "CLEAR";
 		const statusColor = active ? "#ef4444" : "#22c55e";
 		const cardClass = active ? "guardian-card tripped" : "guardian-card";
@@ -434,7 +448,8 @@ export function buildGuardianTab(data: GuardianData): string {
 			? `<div style="color:#333;padding:8px 0;">No guardian checks logged</div>`
 			: data.checkHistory
 					.map((l) => {
-						const msgColor = l.level === "ERROR" ? "#ef4444" : l.level === "WARN" ? "#f59e0b" : "#22c55e";
+						const msgColor =
+							l.level === "ERROR" ? "#ef4444" : l.level === "WARN" ? "#f59e0b" : "#22c55e";
 						return `<div class="guardian-log-row">
 	<span style="color:#333;">${l.time}</span>
 	<span style="color:${msgColor};">${escHtml(l.message)}</span>

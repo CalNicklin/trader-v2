@@ -494,11 +494,11 @@ describe("getGuardianData", () => {
 		expect(data.circuitBreaker.limitPct).toBe(10);
 
 		// dailyLossPct = abs(min(0, -300)) / 9000 * 100 = 300/9000*100 ≈ 3.3
-		expect(data.dailyHalt.lossPct).toBe(Math.round(300 / 9000 * 100 * 10) / 10);
+		expect(data.dailyHalt.lossPct).toBe(Math.round((300 / 9000) * 100 * 10) / 10);
 		expect(data.dailyHalt.limitPct).toBe(3);
 
 		// weeklyLossPct = abs(min(0, -500)) / 9000 * 100 ≈ 5.6
-		expect(data.weeklyDrawdown.lossPct).toBe(Math.round(500 / 9000 * 100 * 10) / 10);
+		expect(data.weeklyDrawdown.lossPct).toBe(Math.round((500 / 9000) * 100 * 10) / 10);
 		expect(data.weeklyDrawdown.limitPct).toBe(5);
 
 		expect(data.checkHistory.length).toBe(1);

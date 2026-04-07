@@ -1,4 +1,4 @@
-import { desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { desc, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import {
 	agentLogs,
@@ -536,8 +536,14 @@ export async function getTradeActivityData(): Promise<TradeActivityData> {
 		const winners = todayWithPnl.filter((r) => (r.pnl as number) > 0);
 		const losers = todayWithPnl.filter((r) => (r.pnl as number) <= 0);
 		winRateToday = winners.length / todayWithPnl.length;
-		avgWinner = winners.length > 0 ? winners.reduce((sum, r) => sum + (r.pnl as number), 0) / winners.length : null;
-		avgLoser = losers.length > 0 ? losers.reduce((sum, r) => sum + (r.pnl as number), 0) / losers.length : null;
+		avgWinner =
+			winners.length > 0
+				? winners.reduce((sum, r) => sum + (r.pnl as number), 0) / winners.length
+				: null;
+		avgLoser =
+			losers.length > 0
+				? losers.reduce((sum, r) => sum + (r.pnl as number), 0) / losers.length
+				: null;
 	}
 
 	return {
@@ -574,7 +580,9 @@ export async function getGuardianData(): Promise<GuardianData> {
 	const weeklyPnl = Number.parseFloat(state.get("weekly_pnl") ?? "0") || 0;
 
 	const drawdownPct =
-		peakBalance > 0 ? Math.round(((peakBalance - accountBalance) / peakBalance) * 100 * 10) / 10 : 0;
+		peakBalance > 0
+			? Math.round(((peakBalance - accountBalance) / peakBalance) * 100 * 10) / 10
+			: 0;
 
 	const dailyLossPct =
 		accountBalance > 0
