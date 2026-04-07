@@ -78,3 +78,10 @@ export interface GraduationReviewResult {
 	riskFlags: string[];
 	suggestedConditions: string;
 }
+
+export interface UniverseSuggestion {
+	symbol: string;
+	exchange: string;
+	reason: string;
+	evidenceCount: number;
+}

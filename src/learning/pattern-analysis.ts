@@ -8,7 +8,7 @@ import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
 import { recordUsage } from "../utils/token-tracker.ts";
 import { getActivePrompt } from "./prompts.ts";
-import type { PatternObservation } from "./types.ts";
+import type { PatternObservation, UniverseSuggestion } from "./types.ts";
 
 const log = createChildLogger({ module: "pattern-analysis" });
 
@@ -156,6 +156,54 @@ export async function getRecentTradeClusters(lookbackDays = 7): Promise<Strategy
 	return clusters;
 }
 
+const VALID_SUGGESTION_EXCHANGES = new Set(["NASDAQ", "NYSE", "LSE"]);
+
+export async function getMissedOpportunityContext(lookbackDays = 14): Promise<string[]> {
+	const db = getDb();
+	const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
+
+	const rows = await db
+		.select({ observation: tradeInsights.observation, tags: tradeInsights.tags })
+		.from(tradeInsights)
+		.where(
+			and(eq(tradeInsights.insightType, "missed_opportunity"), gte(tradeInsights.createdAt, since)),
+		)
+		.orderBy(desc(tradeInsights.createdAt))
+		.limit(20);
+
+	return rows.map((r) => r.observation);
+}
+
+export function parseUniverseSuggestions(text: string): UniverseSuggestion[] {
+	try {
+		const cleaned = text
+			.replace(/```json?\n?/g, "")
+			.replace(/```/g, "")
+			.trim();
+		const parsed = JSON.parse(cleaned);
+
+		if (!parsed || !Array.isArray(parsed.universe_suggestions)) return [];
+
+		return parsed.universe_suggestions
+			.filter(
+				(s: Record<string, unknown>) =>
+					typeof s.symbol === "string" &&
+					typeof s.exchange === "string" &&
+					VALID_SUGGESTION_EXCHANGES.has(s.exchange) &&
+					typeof s.reason === "string" &&
+					typeof s.evidence_count === "number",
+			)
+			.map((s: Record<string, unknown>) => ({
+				symbol: s.symbol as string,
+				exchange: s.exchange as string,
+				reason: s.reason as string,
+				evidenceCount: s.evidence_count as number,
+			}));
+	} catch {
+		return [];
+	}
+}
+
 export async function runPatternAnalysis(): Promise<{
 	observations: number;
 	skippedBudget: boolean;
@@ -175,6 +223,15 @@ export async function runPatternAnalysis(): Promise<{
 	const { promptText, promptVersion } = await getActivePrompt("pattern_analysis");
 	const userMessage = buildPatternAnalysisPrompt(clusters);
 
+	const missedOpps = await getMissedOpportunityContext();
+	let fullMessage = userMessage;
+	if (missedOpps.length > 0) {
+		fullMessage += "\n\n--- Missed Opportunities (last 14 days) ---\n";
+		fullMessage += missedOpps.map((o, i) => `${i + 1}. ${o}`).join("\n");
+		fullMessage +=
+			"\n\nIdentify patterns in these missed opportunities. Are there symbol relationships the system should watch? If evidence supports it, include a 'universe_suggestions' array in your response with: symbol, exchange (NASDAQ/NYSE/LSE), reason, evidence_count.";
+	}
+
 	try {
 		const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 		const response = await withRetry(
@@ -183,7 +240,7 @@ export async function runPatternAnalysis(): Promise<{
 					model: config.CLAUDE_MODEL_FAST,
 					max_tokens: 1500,
 					system: promptText,
-					messages: [{ role: "user", content: userMessage }],
+					messages: [{ role: "user", content: fullMessage }],
 				}),
 			"pattern-analysis",
 			{ maxAttempts: 2, baseDelayMs: 1000 },
@@ -209,6 +266,24 @@ export async function runPatternAnalysis(): Promise<{
 				confidence: obs.confidence,
 				promptVersion,
 			});
+		}
+
+		const suggestions = parseUniverseSuggestions(text);
+		for (const suggestion of suggestions) {
+			await db.insert(tradeInsights).values({
+				strategyId: null,
+				insightType: "universe_suggestion",
+				observation: `Add ${suggestion.symbol} (${suggestion.exchange}): ${suggestion.reason}`,
+				tags: JSON.stringify(["universe_suggestion", suggestion.symbol]),
+				confidence: Math.min(1, suggestion.evidenceCount / 5),
+			});
+		}
+
+		if (suggestions.length > 0) {
+			log.info(
+				{ count: suggestions.length, symbols: suggestions.map((s) => s.symbol) },
+				"Universe suggestions generated",
+			);
 		}
 
 		log.info({ count: observations.length }, "Pattern analysis complete");
