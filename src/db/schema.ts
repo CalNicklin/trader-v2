@@ -1,4 +1,4 @@
-import { index, integer, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, unique, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // ── Strategies ──────────────────────────────────────────────────────────────
 
@@ -230,10 +230,10 @@ export const strategyMutations = sqliteTable("strategy_mutations", {
 
 export const tradeInsights = sqliteTable("trade_insights", {
 	id: integer("id").primaryKey({ autoIncrement: true }),
-	strategyId: integer("strategy_id").notNull(),
+	strategyId: integer("strategy_id"),
 	tradeId: integer("trade_id"),
 	insightType: text("insight_type", {
-		enum: ["trade_review", "pattern_analysis", "graduation"],
+		enum: ["trade_review", "pattern_analysis", "graduation", "missed_opportunity", "universe_suggestion"],
 	}).notNull(),
 	tags: text("tags"), // JSON: string[]
 	observation: text("observation").notNull(),
@@ -292,6 +292,39 @@ export const newsEvents = sqliteTable(
 	},
 	(table) => ({
 		headlineIdx: index("news_events_headline_idx").on(table.headline),
+	}),
+);
+
+export const newsAnalyses = sqliteTable(
+	"news_analyses",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		newsEventId: integer("news_event_id").notNull(),
+		symbol: text("symbol").notNull(),
+		exchange: text("exchange").notNull(),
+		sentiment: real("sentiment").notNull(),
+		urgency: text("urgency", { enum: ["low", "medium", "high"] }).notNull(),
+		eventType: text("event_type").notNull(),
+		direction: text("direction", { enum: ["long", "short", "avoid"] }).notNull(),
+		tradeThesis: text("trade_thesis").notNull(),
+		confidence: real("confidence").notNull(),
+		recommendTrade: integer("recommend_trade", { mode: "boolean" }).notNull(),
+		inUniverse: integer("in_universe", { mode: "boolean" }).notNull(),
+		priceAtAnalysis: real("price_at_analysis"),
+		priceAfter1d: real("price_after_1d"),
+		priceAfter1w: real("price_after_1w"),
+		createdAt: text("created_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => ({
+		newsEventIdx: index("news_analyses_news_event_idx").on(table.newsEventId),
+		symbolIdx: index("news_analyses_symbol_idx").on(table.symbol),
+		inUniverseIdx: index("news_analyses_in_universe_idx").on(table.inUniverse),
+		uniqueEventSymbol: uniqueIndex("news_analyses_event_symbol_uniq").on(
+			table.newsEventId,
+			table.symbol,
+		),
 	}),
 );
 

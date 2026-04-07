@@ -43,6 +43,13 @@
       "when": 1775544967092,
       "tag": "0005_hot_loa",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1775552756616,
+      "tag": "0006_good_red_ghost",
+      "breakpoints": true
     }
   ]
 }
