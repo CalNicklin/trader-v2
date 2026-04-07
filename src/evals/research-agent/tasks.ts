@@ -1,0 +1,255 @@
+// src/evals/research-agent/tasks.ts
+
+import type { ResearchInput } from "../../news/research-agent.ts";
+import type { EvalTask } from "../types.ts";
+
+export interface ResearchReference {
+	minSymbols: number;
+	expectedSymbols: string[];
+	expectedDirections: Record<string, "long" | "short" | "avoid">;
+	expectedSentimentRange: Record<string, [number, number]>;
+	isMultiParty: boolean;
+}
+
+export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = [
+	{
+		id: "ra-001",
+		name: "Broadcom-Google partnership (secondary beneficiary)",
+		input: {
+			headline: "Broadcom and Google seal five-year AI chip partnership",
+			source: "finnhub",
+			symbols: ["GOOGL"],
+			classification: {
+				sentiment: 0.2,
+				confidence: 0.7,
+				tradeable: true,
+				eventType: "partnership",
+				urgency: "low",
+			},
+		},
+		reference: {
+			minSymbols: 2,
+			expectedSymbols: ["AVGO", "GOOGL"],
+			expectedDirections: { AVGO: "long", GOOGL: "long" },
+			expectedSentimentRange: { AVGO: [0.5, 1.0], GOOGL: [0.1, 0.5] },
+			isMultiParty: true,
+		},
+		tags: ["multi-party", "partnership", "ai-chips"],
+	},
+	{
+		id: "ra-002",
+		name: "Acquisition announcement (acquirer + target)",
+		input: {
+			headline: "Microsoft announces $20B acquisition of cybersecurity firm CrowdStrike",
+			source: "finnhub",
+			symbols: ["MSFT"],
+			classification: {
+				sentiment: 0.4,
+				confidence: 0.8,
+				tradeable: true,
+				eventType: "acquisition",
+				urgency: "high",
+			},
+		},
+		reference: {
+			minSymbols: 2,
+			expectedSymbols: ["MSFT", "CRWD"],
+			expectedDirections: { CRWD: "long", MSFT: "long" },
+			expectedSentimentRange: { CRWD: [0.5, 1.0], MSFT: [-0.2, 0.5] },
+			isMultiParty: true,
+		},
+		tags: ["multi-party", "acquisition"],
+	},
+	{
+		id: "ra-003",
+		name: "Supply chain disruption (supplier + customer)",
+		input: {
+			headline: "TSMC warns of 3-month production delays at Arizona fab",
+			source: "finnhub",
+			symbols: ["TSM"],
+			classification: {
+				sentiment: -0.6,
+				confidence: 0.85,
+				tradeable: true,
+				eventType: "profit_warning",
+				urgency: "high",
+			},
+		},
+		reference: {
+			minSymbols: 2,
+			expectedSymbols: ["TSM"],
+			expectedDirections: { TSM: "short" },
+			expectedSentimentRange: { TSM: [-1.0, -0.3] },
+			isMultiParty: true,
+		},
+		tags: ["multi-party", "supply-chain"],
+	},
+	{
+		id: "ra-004",
+		name: "Single-symbol earnings (no secondary beneficiaries)",
+		input: {
+			headline: "Netflix beats Q3 subscriber estimates by 12%",
+			source: "finnhub",
+			symbols: ["NFLX"],
+			classification: {
+				sentiment: 0.7,
+				confidence: 0.9,
+				tradeable: true,
+				eventType: "earnings_beat",
+				urgency: "high",
+			},
+		},
+		reference: {
+			minSymbols: 1,
+			expectedSymbols: ["NFLX"],
+			expectedDirections: { NFLX: "long" },
+			expectedSentimentRange: { NFLX: [0.5, 1.0] },
+			isMultiParty: false,
+		},
+		tags: ["single-symbol", "earnings"],
+	},
+	{
+		id: "ra-005",
+		name: "FDA approval with competitor impact",
+		input: {
+			headline: "FDA approves Eli Lilly weight-loss drug, seen as Wegovy competitor",
+			source: "finnhub",
+			symbols: ["LLY"],
+			classification: {
+				sentiment: 0.8,
+				confidence: 0.9,
+				tradeable: true,
+				eventType: "fda_approval",
+				urgency: "high",
+			},
+		},
+		reference: {
+			minSymbols: 2,
+			expectedSymbols: ["LLY", "NVO"],
+			expectedDirections: { LLY: "long", NVO: "short" },
+			expectedSentimentRange: { LLY: [0.5, 1.0], NVO: [-0.8, -0.1] },
+			isMultiParty: true,
+		},
+		tags: ["multi-party", "fda", "competition"],
+	},
+	{
+		id: "ra-006",
+		name: "Sector-wide catalyst (regulation)",
+		input: {
+			headline: "EU announces strict new AI regulation requiring model audits by 2027",
+			source: "finnhub",
+			symbols: ["GOOGL"],
+			classification: {
+				sentiment: -0.3,
+				confidence: 0.6,
+				tradeable: true,
+				eventType: "legal",
+				urgency: "medium",
+			},
+		},
+		reference: {
+			minSymbols: 2,
+			expectedSymbols: ["GOOGL"],
+			expectedDirections: {},
+			expectedSentimentRange: {},
+			isMultiParty: true,
+		},
+		tags: ["multi-party", "regulation", "sector-wide"],
+	},
+	{
+		id: "ra-007",
+		name: "Dividend increase (single symbol, low urgency)",
+		input: {
+			headline: "Johnson & Johnson raises quarterly dividend by 4.2%",
+			source: "finnhub",
+			symbols: ["JNJ"],
+			classification: {
+				sentiment: 0.25,
+				confidence: 0.7,
+				tradeable: true,
+				eventType: "dividend",
+				urgency: "low",
+			},
+		},
+		reference: {
+			minSymbols: 1,
+			expectedSymbols: ["JNJ"],
+			expectedDirections: { JNJ: "long" },
+			expectedSentimentRange: { JNJ: [0.1, 0.5] },
+			isMultiParty: false,
+		},
+		tags: ["single-symbol", "dividend"],
+	},
+	{
+		id: "ra-008",
+		name: "Major contract win with government (defense sector)",
+		input: {
+			headline: "Lockheed Martin wins $15B Pentagon contract for next-gen fighter jets",
+			source: "finnhub",
+			symbols: ["LMT"],
+			classification: {
+				sentiment: 0.6,
+				confidence: 0.85,
+				tradeable: true,
+				eventType: "other",
+				urgency: "high",
+			},
+		},
+		reference: {
+			minSymbols: 1,
+			expectedSymbols: ["LMT"],
+			expectedDirections: { LMT: "long" },
+			expectedSentimentRange: { LMT: [0.4, 1.0] },
+			isMultiParty: false,
+		},
+		tags: ["single-symbol", "contract-win", "defense"],
+	},
+	{
+		id: "ra-009",
+		name: "Profit warning with sector contagion",
+		input: {
+			headline: "Intel issues surprise profit warning citing weak PC demand across industry",
+			source: "finnhub",
+			symbols: ["INTC"],
+			classification: {
+				sentiment: -0.7,
+				confidence: 0.9,
+				tradeable: true,
+				eventType: "profit_warning",
+				urgency: "high",
+			},
+		},
+		reference: {
+			minSymbols: 2,
+			expectedSymbols: ["INTC"],
+			expectedDirections: { INTC: "short" },
+			expectedSentimentRange: { INTC: [-1.0, -0.4] },
+			isMultiParty: true,
+		},
+		tags: ["multi-party", "profit-warning", "sector-contagion"],
+	},
+	{
+		id: "ra-010",
+		name: "LSE stock — merger",
+		input: {
+			headline: "Shell confirms merger talks with BP in all-share deal",
+			source: "finnhub",
+			symbols: ["SHEL"],
+			classification: {
+				sentiment: 0.5,
+				confidence: 0.85,
+				tradeable: true,
+				eventType: "merger",
+				urgency: "high",
+			},
+		},
+		reference: {
+			minSymbols: 2,
+			expectedSymbols: ["SHEL", "BP"],
+			expectedDirections: { SHEL: "long", BP: "long" },
+			expectedSentimentRange: { SHEL: [0.2, 0.8], BP: [0.3, 1.0] },
+			isMultiParty: true,
+		},
+		tags: ["multi-party", "merger", "lse"],
+	},
+];
