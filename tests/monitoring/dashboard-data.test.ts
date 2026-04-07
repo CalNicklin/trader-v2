@@ -3,9 +3,12 @@ import {
 	agentLogs,
 	livePositions,
 	liveTrades,
+	newsEvents,
+	paperTrades,
 	riskState,
 	strategies,
 	strategyMetrics,
+	tradeInsights,
 } from "../../src/db/schema.ts";
 
 describe("getDashboardData", () => {
@@ -23,6 +26,9 @@ describe("getDashboardData", () => {
 		db.delete(agentLogs).run();
 		db.delete(riskState).run();
 		db.delete(strategyMetrics).run();
+		db.delete(newsEvents).run();
+		db.delete(paperTrades).run();
+		db.delete(tradeInsights).run();
 	});
 
 	test("returns valid DashboardData shape with empty tables", async () => {
@@ -152,5 +158,90 @@ describe("getDashboardData", () => {
 				new Date(data.cronJobs[i - 1]!.nextRun).getTime(),
 			);
 		}
+	});
+});
+
+describe("getNewsPipelineData", () => {
+	beforeEach(async () => {
+		const { resetConfigForTesting } = await import("../../src/config.ts");
+		resetConfigForTesting();
+		const { closeDb, getDb } = await import("../../src/db/client.ts");
+		closeDb();
+		const db = getDb();
+		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
+		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+		db.delete(newsEvents).run();
+		db.delete(paperTrades).run();
+		db.delete(tradeInsights).run();
+	});
+
+	test("returns zeroed stats with empty table", async () => {
+		const { getNewsPipelineData } = await import("../../src/monitoring/dashboard-data.ts");
+		const data = await getNewsPipelineData();
+
+		expect(data.totalArticles24h).toBe(0);
+		expect(data.classifiedCount).toBe(0);
+		expect(data.tradeableHighUrgency).toBe(0);
+		expect(data.avgSentiment).toBe(0);
+		expect(Array.isArray(data.recentArticles)).toBe(true);
+		expect(data.recentArticles.length).toBe(0);
+	});
+
+	test("returns correct stats with populated data", async () => {
+		const { getDb } = await import("../../src/db/client.ts");
+		const { getNewsPipelineData } = await import("../../src/monitoring/dashboard-data.ts");
+		const db = getDb();
+
+		// Article 1: classified, tradeable, high urgency
+		db.insert(newsEvents)
+			.values({
+				source: "finnhub",
+				headline: "AAPL beats earnings",
+				symbols: '["AAPL"]',
+				sentiment: 0.8,
+				confidence: 0.9,
+				tradeable: true,
+				urgency: "high",
+				eventType: "earnings",
+			})
+			.run();
+
+		// Article 2: classified, not tradeable, low urgency
+		db.insert(newsEvents)
+			.values({
+				source: "finnhub",
+				headline: "MSFT minor update",
+				symbols: '["MSFT"]',
+				sentiment: 0.2,
+				confidence: 0.7,
+				tradeable: false,
+				urgency: "low",
+				eventType: "general",
+			})
+			.run();
+
+		// Article 3: unclassified (no sentiment)
+		db.insert(newsEvents)
+			.values({
+				source: "finnhub",
+				headline: "Some unclassified news",
+				symbols: '["TSLA"]',
+			})
+			.run();
+
+		const data = await getNewsPipelineData();
+
+		expect(data.totalArticles24h).toBe(3);
+		expect(data.classifiedCount).toBe(2);
+		expect(data.tradeableHighUrgency).toBe(1);
+		// avg of 0.8 and 0.2 = 0.5
+		expect(data.avgSentiment).toBeCloseTo(0.5, 5);
+		expect(data.recentArticles.length).toBe(3);
+
+		// Most recent article should be first
+		const first = data.recentArticles[0]!;
+		expect(typeof first.time).toBe("string");
+		expect(Array.isArray(first.symbols)).toBe(true);
+		expect(typeof first.headline).toBe("string");
 	});
 });

@@ -1,14 +1,16 @@
-import { desc, eq, ne, sql } from "drizzle-orm";
+import { desc, eq, isNotNull, ne, sql } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import {
 	agentLogs,
 	livePositions,
 	liveTrades,
+	newsEvents,
 	paperTrades,
 	quotesCache,
 	riskState,
 	strategies,
 	strategyMetrics,
+	tradeInsights,
 } from "../db/schema.ts";
 import {
 	DAILY_LOSS_HALT_PCT,
@@ -18,6 +20,23 @@ import {
 import { getDailySpend } from "../utils/budget.ts";
 import { getNextCronOccurrences } from "./cron-schedule.ts";
 import { isPaused } from "./health.ts";
+
+export interface NewsPipelineData {
+	totalArticles24h: number;
+	classifiedCount: number;
+	tradeableHighUrgency: number;
+	avgSentiment: number;
+	recentArticles: Array<{
+		time: string;
+		symbols: string[];
+		headline: string;
+		sentiment: number | null;
+		confidence: number | null;
+		urgency: string | null;
+		eventType: string | null;
+		tradeable: boolean | null;
+	}>;
+}
 
 export interface DashboardData {
 	status: "ok" | "degraded" | "error";
@@ -291,5 +310,79 @@ export async function getDashboardData(): Promise<DashboardData> {
 		cronJobs,
 		recentLogs,
 		gitHash: getGitHash(),
+	};
+}
+
+export async function getNewsPipelineData(): Promise<NewsPipelineData> {
+	const db = getDb();
+	const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+	const totalResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(newsEvents)
+		.where(sql`${newsEvents.createdAt} >= ${since24h}`)
+		.get();
+	const totalArticles24h = totalResult?.count ?? 0;
+
+	const classifiedResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(newsEvents)
+		.where(sql`${newsEvents.createdAt} >= ${since24h} AND ${newsEvents.sentiment} IS NOT NULL`)
+		.get();
+	const classifiedCount = classifiedResult?.count ?? 0;
+
+	const tradeableResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(newsEvents)
+		.where(
+			sql`${newsEvents.createdAt} >= ${since24h} AND ${newsEvents.tradeable} = 1 AND ${newsEvents.urgency} = 'high'`,
+		)
+		.get();
+	const tradeableHighUrgency = tradeableResult?.count ?? 0;
+
+	const avgResult = db
+		.select({ avg: sql<number | null>`avg(${newsEvents.sentiment})` })
+		.from(newsEvents)
+		.where(sql`${newsEvents.createdAt} >= ${since24h} AND ${newsEvents.sentiment} IS NOT NULL`)
+		.get();
+	const avgSentiment = avgResult?.avg ?? 0;
+
+	const rows = db
+		.select({
+			createdAt: newsEvents.createdAt,
+			symbols: newsEvents.symbols,
+			headline: newsEvents.headline,
+			sentiment: newsEvents.sentiment,
+			confidence: newsEvents.confidence,
+			urgency: newsEvents.urgency,
+			eventType: newsEvents.eventType,
+			tradeable: newsEvents.tradeable,
+		})
+		.from(newsEvents)
+		.orderBy(desc(newsEvents.createdAt))
+		.limit(50)
+		.all();
+
+	const recentArticles = rows.map((r) => ({
+		time: new Date(r.createdAt).toLocaleTimeString("en-GB", {
+			hour: "2-digit",
+			minute: "2-digit",
+			timeZone: "UTC",
+		}),
+		symbols: r.symbols ? (JSON.parse(r.symbols) as string[]) : [],
+		headline: r.headline,
+		sentiment: r.sentiment,
+		confidence: r.confidence,
+		urgency: r.urgency ?? null,
+		eventType: r.eventType ?? null,
+		tradeable: r.tradeable ?? null,
+	}));
+
+	return {
+		totalArticles24h,
+		classifiedCount,
+		tradeableHighUrgency,
+		avgSentiment,
+		recentArticles,
 	};
 }
