@@ -1,4 +1,5 @@
-import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt } from "drizzle-orm";
+import type { Exchange } from "../broker/contracts.ts";
 import { refreshQuote } from "../data/quotes.ts";
 import { getDb } from "../db/client.ts";
 import { newsEvents, quotesCache } from "../db/schema.ts";
@@ -6,12 +7,25 @@ import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "quote-refresh" });
 
-/** Refresh quotes for all symbols currently in the cache */
-export async function refreshQuotesForAllCached(): Promise<void> {
+/** Return symbols from the cache, optionally scoped to specific exchanges */
+export async function getSymbolsToRefresh(
+	exchanges?: Exchange[],
+): Promise<Array<{ symbol: string; exchange: string }>> {
 	const db = getDb();
-	const cached = await db
+	if (exchanges && exchanges.length > 0) {
+		return db
+			.select({ symbol: quotesCache.symbol, exchange: quotesCache.exchange })
+			.from(quotesCache)
+			.where(inArray(quotesCache.exchange, exchanges));
+	}
+	return db
 		.select({ symbol: quotesCache.symbol, exchange: quotesCache.exchange })
 		.from(quotesCache);
+}
+
+/** Refresh quotes for all symbols currently in the cache */
+export async function refreshQuotesForAllCached(exchanges?: Exchange[]): Promise<void> {
+	const cached = await getSymbolsToRefresh(exchanges);
 
 	if (cached.length === 0) {
 		log.info("No symbols in quotes cache — nothing to refresh");
