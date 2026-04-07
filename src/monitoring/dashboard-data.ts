@@ -388,6 +388,85 @@ export async function getNewsPipelineData(): Promise<NewsPipelineData> {
 	};
 }
 
+export interface LearningLoopData {
+	insightsCount7d: number;
+	ledToImprovement: number;
+	patternsFound: number;
+	recentInsights: Array<{
+		time: string;
+		insightType: string;
+		observation: string;
+		suggestedAction: string | null;
+		confidence: number | null;
+		tags: string[];
+		ledToImprovement: boolean | null;
+	}>;
+}
+
+export async function getLearningLoopData(): Promise<LearningLoopData> {
+	const db = getDb();
+	const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+	const totalResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(tradeInsights)
+		.where(sql`${tradeInsights.createdAt} >= ${cutoff}`)
+		.get();
+	const insightsCount7d = totalResult?.count ?? 0;
+
+	const improvementResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(tradeInsights)
+		.where(sql`${tradeInsights.createdAt} >= ${cutoff} AND ${tradeInsights.ledToImprovement} = 1`)
+		.get();
+	const ledToImprovement = improvementResult?.count ?? 0;
+
+	const patternsResult = db
+		.select({ count: sql<number>`count(*)` })
+		.from(tradeInsights)
+		.where(
+			sql`${tradeInsights.createdAt} >= ${cutoff} AND ${tradeInsights.insightType} = 'pattern_analysis'`,
+		)
+		.get();
+	const patternsFound = patternsResult?.count ?? 0;
+
+	const rows = db
+		.select({
+			createdAt: tradeInsights.createdAt,
+			insightType: tradeInsights.insightType,
+			observation: tradeInsights.observation,
+			suggestedAction: tradeInsights.suggestedAction,
+			confidence: tradeInsights.confidence,
+			tags: tradeInsights.tags,
+			ledToImprovement: tradeInsights.ledToImprovement,
+		})
+		.from(tradeInsights)
+		.orderBy(desc(tradeInsights.createdAt))
+		.limit(30)
+		.all();
+
+	const recentInsights = rows.map((r) => ({
+		time: new Date(r.createdAt).toLocaleTimeString("en-GB", {
+			hour: "2-digit",
+			minute: "2-digit",
+			timeZone: "UTC",
+		}),
+		insightType: r.insightType,
+		observation: r.observation,
+		suggestedAction: r.suggestedAction ?? null,
+		confidence: r.confidence ?? null,
+		tags: r.tags ? (JSON.parse(r.tags) as string[]) : [],
+		ledToImprovement: r.ledToImprovement ?? null,
+	}));
+
+	return {
+		insightsCount7d,
+		ledToImprovement,
+		patternsFound,
+		recentInsights,
+	};
+}
+
 export interface GuardianData {
 	circuitBreaker: { active: boolean; drawdownPct: number; limitPct: number };
 	dailyHalt: { active: boolean; lossPct: number; limitPct: number };

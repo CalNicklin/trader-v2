@@ -259,6 +259,88 @@ describe("getNewsPipelineData", () => {
 	});
 });
 
+describe("getLearningLoopData", () => {
+	beforeEach(async () => {
+		const { resetConfigForTesting } = await import("../../src/config.ts");
+		resetConfigForTesting();
+		const { closeDb, getDb } = await import("../../src/db/client.ts");
+		closeDb();
+		const db = getDb();
+		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
+		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+		db.delete(tradeInsights).run();
+	});
+
+	test("returns zeroed stats and empty recentInsights with empty table", async () => {
+		const { getLearningLoopData } = await import("../../src/monitoring/dashboard-data.ts");
+		const data = await getLearningLoopData();
+
+		expect(data.insightsCount7d).toBe(0);
+		expect(data.ledToImprovement).toBe(0);
+		expect(data.patternsFound).toBe(0);
+		expect(Array.isArray(data.recentInsights)).toBe(true);
+		expect(data.recentInsights.length).toBe(0);
+	});
+
+	test("returns correct counts with populated data", async () => {
+		const { getDb } = await import("../../src/db/client.ts");
+		const { getLearningLoopData } = await import("../../src/monitoring/dashboard-data.ts");
+		const db = getDb();
+
+		// Insight 1: trade_review, led_to_improvement = true
+		db.insert(tradeInsights)
+			.values({
+				strategyId: 1,
+				insightType: "trade_review",
+				tags: '["momentum","breakout"]',
+				observation: "Strong uptrend observed",
+				suggestedAction: null,
+				confidence: 0.85,
+				ledToImprovement: true,
+			})
+			.run();
+
+		// Insight 2: pattern_analysis
+		db.insert(tradeInsights)
+			.values({
+				strategyId: 1,
+				insightType: "pattern_analysis",
+				tags: '["pattern"]',
+				observation: "Double bottom detected",
+				suggestedAction: null,
+				confidence: 0.7,
+				ledToImprovement: null,
+			})
+			.run();
+
+		// Insight 3: trade_review, led_to_improvement = null
+		db.insert(tradeInsights)
+			.values({
+				strategyId: 2,
+				insightType: "trade_review",
+				tags: "[]",
+				observation: "Sideways chop",
+				suggestedAction: null,
+				confidence: null,
+				ledToImprovement: null,
+			})
+			.run();
+
+		const data = await getLearningLoopData();
+
+		expect(data.insightsCount7d).toBe(3);
+		expect(data.ledToImprovement).toBe(1);
+		expect(data.patternsFound).toBe(1);
+		expect(data.recentInsights.length).toBe(3);
+
+		const first = data.recentInsights[0]!;
+		expect(typeof first.time).toBe("string");
+		expect(typeof first.insightType).toBe("string");
+		expect(typeof first.observation).toBe("string");
+		expect(Array.isArray(first.tags)).toBe(true);
+	});
+});
+
 describe("getGuardianData", () => {
 	beforeEach(async () => {
 		await setupDb();
