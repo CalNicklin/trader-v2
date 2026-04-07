@@ -12,10 +12,11 @@ describe("evolution analyzer", () => {
 		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
 		migrate(db, { migrationsFolder: "./drizzle/migrations" });
 
-		const { paperTrades, strategyMetrics, strategies } = await import("../../src/db/schema.ts");
+		const { paperTrades, strategyMetrics, strategies, tradeInsights } = await import("../../src/db/schema.ts");
 		await db.delete(paperTrades);
 		await db.delete(strategyMetrics);
 		await db.delete(strategies);
+		await db.delete(tradeInsights);
 	});
 
 	test("getStrategyPerformance returns null for missing strategy", async () => {
@@ -234,5 +235,62 @@ describe("evolution analyzer", () => {
 
 		expect(landscape.activePaperCount).toBe(2);
 		expect(landscape.strategies).toHaveLength(3);
+	});
+
+	test("getStrategyPerformance includes suggestedActions from high-confidence insights", async () => {
+		const { strategies, tradeInsights } = await import("../../src/db/schema.ts");
+		const { getStrategyPerformance } = await import("../../src/evolution/analyzer.ts");
+
+		const [strategy] = await db
+			.insert(strategies)
+			.values({
+				name: "insight-test",
+				description: "Test",
+				parameters: "{}",
+				status: "paper" as const,
+				virtualBalance: 10000,
+				generation: 1,
+			})
+			.returning();
+
+		await db.insert(tradeInsights).values([
+			{
+				strategyId: strategy!.id,
+				insightType: "trade_review" as const,
+				observation: "Stop too tight",
+				suggestedAction: JSON.stringify({
+					parameter: "stop_loss_pct",
+					direction: "increase",
+					reasoning: "Stops triggered on normal volatility",
+				}),
+				confidence: 0.8,
+			},
+			{
+				strategyId: strategy!.id,
+				insightType: "pattern_analysis" as const,
+				observation: "Low confidence insight",
+				suggestedAction: JSON.stringify({
+					parameter: "hold_days",
+					direction: "decrease",
+					reasoning: "Too slow",
+				}),
+				confidence: 0.3,
+			},
+			{
+				strategyId: strategy!.id,
+				insightType: "trade_review" as const,
+				observation: "No action needed",
+				suggestedAction: null,
+				confidence: 0.9,
+			},
+		]);
+
+		const result = await getStrategyPerformance(strategy!.id);
+
+		expect(result).not.toBeNull();
+		expect(result!.suggestedActions).toHaveLength(1);
+		expect(result!.suggestedActions[0]!.parameter).toBe("stop_loss_pct");
+		expect(result!.suggestedActions[0]!.direction).toBe("increase");
+		expect(result!.suggestedActions[0]!.reasoning).toBe("Stops triggered on normal volatility");
 	});
 });

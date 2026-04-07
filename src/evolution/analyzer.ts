@@ -7,6 +7,7 @@ import type {
 	PerformanceLandscape,
 	SignalDef,
 	StrategyPerformance,
+	SuggestedAction,
 	TradeSummary,
 } from "./types";
 
@@ -68,15 +69,40 @@ export async function getStrategyPerformance(
 	}));
 
 	const insights = await db
-		.select({ observation: tradeInsights.observation, confidence: tradeInsights.confidence })
+		.select({
+			observation: tradeInsights.observation,
+			confidence: tradeInsights.confidence,
+			suggestedAction: tradeInsights.suggestedAction,
+		})
 		.from(tradeInsights)
 		.where(eq(tradeInsights.strategyId, strategyId))
 		.orderBy(desc(tradeInsights.createdAt))
 		.limit(10);
 
-	const insightSummary = insights
-		.filter((i) => (i.confidence ?? 0) >= 0.5)
-		.map((i) => i.observation);
+	const highConfidence = insights.filter((i) => (i.confidence ?? 0) >= 0.5);
+
+	const insightSummary = highConfidence.map((i) => i.observation);
+
+	const suggestedActions: SuggestedAction[] = [];
+	for (const insight of highConfidence) {
+		if (!insight.suggestedAction) continue;
+		try {
+			const parsed = JSON.parse(insight.suggestedAction);
+			if (
+				typeof parsed.parameter === "string" &&
+				typeof parsed.direction === "string" &&
+				typeof parsed.reasoning === "string"
+			) {
+				suggestedActions.push({
+					parameter: parsed.parameter,
+					direction: parsed.direction,
+					reasoning: parsed.reasoning,
+				});
+		}
+		} catch {
+			// Skip malformed JSON
+		}
+	}
 
 	return {
 		id: strategy.id,
@@ -92,6 +118,7 @@ export async function getStrategyPerformance(
 		recentTrades,
 		virtualBalance: strategy.virtualBalance,
 		insightSummary,
+		suggestedActions,
 	};
 }
 
