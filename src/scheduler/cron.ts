@@ -142,6 +142,20 @@ export function startScheduler(): void {
 		);
 	}
 
+	// Missed opportunity daily review — 21:20 weekdays (after trade review at 21:15)
+	tasks.push(
+		cron.schedule("20 21 * * 1-5", () => runJob("missed_opportunity_daily"), {
+			timezone: "Europe/London",
+		}),
+	);
+
+	// Missed opportunity weekly review — Wednesdays at 21:35
+	tasks.push(
+		cron.schedule("35 21 * * 3", () => runJob("missed_opportunity_weekly"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	log.info({ jobCount: tasks.length }, "Scheduler started");
 }
 

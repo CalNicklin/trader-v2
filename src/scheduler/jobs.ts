@@ -21,7 +21,9 @@ export type JobName =
 	| "risk_daily_reset"
 	| "risk_weekly_reset"
 	| "daily_tournament"
-	| "dispatch";
+	| "dispatch"
+	| "missed_opportunity_daily"
+	| "missed_opportunity_weekly";
 
 let jobRunning = false;
 const JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -187,6 +189,18 @@ async function executeJob(name: JobName): Promise<void> {
 		case "dispatch": {
 			const { runDispatch } = await import("../strategy/dispatch.ts");
 			await runDispatch();
+			break;
+		}
+
+		case "missed_opportunity_daily": {
+			const { runDailyMissedOpportunityReview } = await import("./missed-opportunity-job.ts");
+			await runDailyMissedOpportunityReview();
+			break;
+		}
+
+		case "missed_opportunity_weekly": {
+			const { runWeeklyMissedOpportunityReview } = await import("./missed-opportunity-job.ts");
+			await runWeeklyMissedOpportunityReview();
 			break;
 		}
 	}
