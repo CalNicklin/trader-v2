@@ -155,6 +155,35 @@ describe("buildEvolutionPrompt", () => {
 		expect(user).toContain("beta");
 		expect(user).toContain("2 / 8");
 	});
+
+	test("user prompt includes suggested parameter changes when present", () => {
+		const strategy = makeStrategy({
+			suggestedActions: [
+				{
+					parameter: "stop_loss_pct",
+					direction: "increase" as const,
+					reasoning: "Stops triggered on normal volatility",
+				},
+				{
+					parameter: "hold_days",
+					direction: "decrease" as const,
+					reasoning: "Holding too long in choppy markets",
+				},
+			],
+		});
+		const landscape = makeLandscape({ strategies: [strategy] });
+		const { user } = buildEvolutionPrompt(landscape);
+		expect(user).toContain("Suggested parameter changes:");
+		expect(user).toContain("increase stop_loss_pct");
+		expect(user).toContain("decrease hold_days");
+	});
+
+	test("user prompt omits suggested parameter changes section when empty", () => {
+		const strategy = makeStrategy({ suggestedActions: [] });
+		const landscape = makeLandscape({ strategies: [strategy] });
+		const { user } = buildEvolutionPrompt(landscape);
+		expect(user).not.toContain("Suggested parameter changes:");
+	});
 });
 
 // ── parseEvolutionResponse ────────────────────────────────────────────────────

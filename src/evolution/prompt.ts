@@ -96,6 +96,12 @@ export function buildEvolutionPrompt(landscape: PerformanceLandscape): {
 					lines.push(`  - ${insight}`);
 				}
 			}
+			if (s.suggestedActions.length > 0) {
+				lines.push("Suggested parameter changes:");
+				for (const action of s.suggestedActions.slice(0, 5)) {
+					lines.push(`  → ${action.direction} ${action.parameter}: ${action.reasoning}`);
+				}
+			}
 			return lines.join("\n");
 		})
 		.join("\n\n");
