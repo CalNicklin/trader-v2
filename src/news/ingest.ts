@@ -6,6 +6,7 @@ import { createChildLogger } from "../utils/logger.ts";
 import type { ClassificationResult } from "./classifier.ts";
 import type { NewsArticle } from "./finnhub.ts";
 import { shouldClassify } from "./pre-filter.ts";
+import { runResearchAnalysis } from "./research-agent.ts";
 import { storeNewsEvent, writeSentiment, writeSignals } from "./sentiment-writer.ts";
 
 const log = createChildLogger({ module: "news-ingest" });
@@ -79,8 +80,8 @@ export async function processArticle(
 		return "failed";
 	}
 
-	// Store classified event
-	await storeNewsEvent({
+	// Store classified event and capture its ID
+	const newsEventId = await storeNewsEvent({
 		source: article.source,
 		headline: article.headline,
 		url: article.url,
@@ -119,6 +120,24 @@ export async function processArticle(
 		log.info(
 			{ symbols: article.symbols, urgency: result.urgency },
 			"High-urgency symbols injected into universes",
+		);
+	}
+
+	// Fire-and-forget research analysis for tradeable articles
+	if (result.tradeable) {
+		runResearchAnalysis(newsEventId, {
+			headline: article.headline,
+			source: article.source,
+			symbols: article.symbols,
+			classification: {
+				sentiment: result.sentiment,
+				confidence: result.confidence,
+				tradeable: result.tradeable,
+				eventType: result.eventType,
+				urgency: result.urgency,
+			},
+		}).catch((err) =>
+			log.error({ err, headline: article.headline.slice(0, 60) }, "Research agent failed"),
 		);
 	}
 
