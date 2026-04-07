@@ -1,4 +1,12 @@
-import { index, integer, real, sqliteTable, text, unique, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	real,
+	sqliteTable,
+	text,
+	unique,
+	uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 // ── Strategies ──────────────────────────────────────────────────────────────
 
@@ -233,7 +241,13 @@ export const tradeInsights = sqliteTable("trade_insights", {
 	strategyId: integer("strategy_id"),
 	tradeId: integer("trade_id"),
 	insightType: text("insight_type", {
-		enum: ["trade_review", "pattern_analysis", "graduation", "missed_opportunity", "universe_suggestion"],
+		enum: [
+			"trade_review",
+			"pattern_analysis",
+			"graduation",
+			"missed_opportunity",
+			"universe_suggestion",
+		],
 	}).notNull(),
 	tags: text("tags"), // JSON: string[]
 	observation: text("observation").notNull(),
