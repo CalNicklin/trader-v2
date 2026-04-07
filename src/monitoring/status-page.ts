@@ -457,8 +457,37 @@ export function buildGuardianTab(data: GuardianData): string {
 	${logRows}
 </div>`;
 }
-export function buildLearningLoopTab(_data: LearningLoopData): string {
-	return "";
+export function buildLearningLoopTab(data: LearningLoopData): string {
+	const insightCards =
+		data.recentInsights.length === 0
+			? `<div style="color:#333;padding:8px 0;">No insights recorded yet</div>`
+			: data.recentInsights
+					.map((i) => {
+						const typeClass = `type-${i.insightType}`;
+						const checkmark = i.ledToImprovement ? ` · Led to improvement: ✓` : "";
+						const confStr = i.confidence != null ? i.confidence.toFixed(2) : "—";
+						const tagsStr = i.tags.length > 0 ? i.tags.join(", ") : "—";
+						return `<div class="insight-card">
+	<div class="ic-header">
+		<span class="type-badge ${typeClass}">${escHtml(i.insightType)}</span>
+		<span style="color:#333;font-size:9px;">${i.time}</span>
+	</div>
+	<div class="ic-body">${escHtml(i.observation)}</div>
+	<div class="ic-meta">Confidence: ${confStr} · Tags: ${escHtml(tagsStr)}${checkmark}</div>
+</div>`;
+					})
+					.join("\n");
+
+	return `
+<div class="stat-cards" style="grid-template-columns:repeat(3,1fr);">
+	<div class="stat-card"><div class="sc-label">Insights (7d)</div><div class="sc-value" style="color:#e2e8f0;">${data.insightsCount7d}</div><div class="sc-sub">from trade reviews</div></div>
+	<div class="stat-card"><div class="sc-label">Led to Change</div><div class="sc-value" style="color:#22c55e;">${data.ledToImprovement}</div><div class="sc-sub">parameter updates</div></div>
+	<div class="stat-card"><div class="sc-label">Patterns Found</div><div class="sc-value" style="color:#a855f7;">${data.patternsFound}</div><div class="sc-sub">this week</div></div>
+</div>
+<div class="panel-header">Recent Insights<span class="count">${data.recentInsights.length}</span></div>
+<div class="scroll-panel" style="max-height:500px;">
+	${insightCards}
+</div>`;
 }
 export function buildTradeActivityTab(_data: TradeActivityData): string {
 	return "";

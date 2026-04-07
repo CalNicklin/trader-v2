@@ -179,6 +179,57 @@ describe("buildGuardianTab", () => {
 	});
 });
 
+describe("buildLearningLoopTab", () => {
+	test("renders summary and insight cards", () => {
+		const { buildLearningLoopTab } = require("../../src/monitoring/status-page");
+		const data = {
+			insightsCount7d: 8,
+			ledToImprovement: 3,
+			patternsFound: 2,
+			recentInsights: [
+				{
+					time: "21:30",
+					insightType: "pattern_analysis",
+					observation: "Monday underperformance in momentum",
+					suggestedAction: null,
+					confidence: 0.72,
+					tags: ["timing", "momentum"],
+					ledToImprovement: false,
+				},
+				{
+					time: "21:15",
+					insightType: "trade_review",
+					observation: "Tightened stop-loss on mean-reversion-v4",
+					suggestedAction: '{"parameter":"stop_loss","direction":"decrease"}',
+					confidence: 0.85,
+					tags: ["exits"],
+					ledToImprovement: true,
+				},
+			],
+		};
+		const html = buildLearningLoopTab(data);
+		expect(html).toContain("8");
+		expect(html).toContain("3");
+		expect(html).toContain("2");
+		expect(html).toContain("Monday underperformance");
+		expect(html).toContain("pattern_analysis");
+		expect(html).toContain("0.72");
+		expect(html).toContain("timing");
+	});
+
+	test("renders empty state", () => {
+		const { buildLearningLoopTab } = require("../../src/monitoring/status-page");
+		const data = {
+			insightsCount7d: 0,
+			ledToImprovement: 0,
+			patternsFound: 0,
+			recentInsights: [],
+		};
+		const html = buildLearningLoopTab(data);
+		expect(html).toContain("No insights");
+	});
+});
+
 describe("buildNewsPipelineTab", () => {
 	test("renders summary stats and article rows", () => {
 		const data = {
