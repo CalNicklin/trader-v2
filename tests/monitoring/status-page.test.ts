@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { DashboardData } from "../../src/monitoring/dashboard-data";
-import { buildConsolePage } from "../../src/monitoring/status-page";
+import { buildConsolePage, buildNewsPipelineTab } from "../../src/monitoring/status-page";
 
 const baseData: DashboardData = {
 	status: "ok",
@@ -136,5 +136,50 @@ describe("buildConsolePage", () => {
 		expect(html).toContain("HSBA:LSE");
 		expect(html).toContain("SHORT");
 		expect(html).toContain("orphan");
+	});
+});
+
+describe("buildNewsPipelineTab", () => {
+	test("renders summary stats and article rows", () => {
+		const data = {
+			totalArticles24h: 47,
+			classifiedCount: 12,
+			tradeableHighUrgency: 3,
+			avgSentiment: 0.12,
+			recentArticles: [
+				{
+					time: "14:22",
+					symbols: ["SHEL.L"],
+					headline: "Shell raises dividend 15%",
+					sentiment: 0.82,
+					confidence: 0.9,
+					urgency: "high",
+					eventType: "dividend",
+					tradeable: true,
+				},
+			],
+		};
+		const html = buildNewsPipelineTab(data);
+		expect(html).toContain("47");
+		expect(html).toContain("12");
+		expect(html).toContain("3");
+		expect(html).toContain("+0.12");
+		expect(html).toContain("Shell raises dividend 15%");
+		expect(html).toContain("SHEL.L");
+		expect(html).toContain("+0.82");
+		expect(html).toContain("HIGH");
+	});
+
+	test("renders empty state when no articles", () => {
+		const data = {
+			totalArticles24h: 0,
+			classifiedCount: 0,
+			tradeableHighUrgency: 0,
+			avgSentiment: 0,
+			recentArticles: [],
+		};
+		const html = buildNewsPipelineTab(data);
+		expect(html).toContain("0");
+		expect(html).toContain("No articles");
 	});
 });

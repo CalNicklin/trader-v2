@@ -377,9 +377,42 @@ ${mainContent}
 </html>`;
 }
 
-// Stub renderers — will be replaced in Tasks 7-10
-export function buildNewsPipelineTab(_data: NewsPipelineData): string {
-	return "";
+export function buildNewsPipelineTab(data: NewsPipelineData): string {
+	const sentimentColor = data.avgSentiment >= 0 ? "#22c55e" : "#ef4444";
+	const sentimentStr = `${data.avgSentiment >= 0 ? "+" : ""}${data.avgSentiment.toFixed(2)}`;
+
+	const articleRows =
+		data.recentArticles.length === 0
+			? `<div style="color:#333;padding:8px 0;">No articles in last 24h</div>`
+			: data.recentArticles
+					.map((a) => {
+						const sym = a.symbols.slice(0, 2).join(", ");
+						const sentColor = a.sentiment != null ? (a.sentiment >= 0 ? "#22c55e" : "#ef4444") : "#666";
+						const sentStr = a.sentiment != null ? `${a.sentiment >= 0 ? "+" : ""}${a.sentiment.toFixed(2)}` : "—";
+						const urgencyColor = a.urgency === "high" ? "#f59e0b" : a.urgency === "medium" ? "#888" : "#555";
+						const urgencyLabel = a.urgency ? a.urgency.toUpperCase() : "—";
+						return `<div class="news-row">
+	<span style="color:#333;">${a.time}</span>
+	<span style="color:#94a3b8;font-weight:500;">${escHtml(sym)}</span>
+	<span style="color:#777;">${escHtml(a.headline)}</span>
+	<span style="color:${sentColor};">${sentStr}</span>
+	<span style="color:${urgencyColor};">${urgencyLabel}</span>
+</div>`;
+					})
+					.join("\n");
+
+	return `
+<div class="stat-cards">
+	<div class="stat-card"><div class="sc-label">Articles (24h)</div><div class="sc-value" style="color:#e2e8f0;">${data.totalArticles24h}</div><div class="sc-sub">stored from Finnhub</div></div>
+	<div class="stat-card"><div class="sc-label">Classified</div><div class="sc-value" style="color:#3b82f6;">${data.classifiedCount}</div><div class="sc-sub">passed pre-filter</div></div>
+	<div class="stat-card"><div class="sc-label">Tradeable</div><div class="sc-value" style="color:#22c55e;">${data.tradeableHighUrgency}</div><div class="sc-sub">high-urgency signals</div></div>
+	<div class="stat-card"><div class="sc-label">Avg Sentiment</div><div class="sc-value" style="color:${sentimentColor};">${sentimentStr}</div><div class="sc-sub">across classified</div></div>
+</div>
+<div class="panel-header">Recent Classifications<span class="count">${data.recentArticles.length}</span></div>
+<div class="scroll-panel" style="max-height:500px;">
+	<div class="news-row header"><span>Time</span><span>Symbol</span><span>Headline</span><span>Sentiment</span><span>Urgency</span></div>
+	${articleRows}
+</div>`;
 }
 export function buildGuardianTab(_data: GuardianData): string {
 	return "";
