@@ -10,12 +10,12 @@ The current pipeline classifies headlines from the perspective of a single queri
 
 ### 1. News Research Agent
 
-New module `src/news/research-agent.ts`. Called from `ingest.ts` after Haiku classification, for every article where `tradeable === true`.
+New module `src/news/research-agent.ts`. Called from `ingest.ts` after Haiku classification, for every article where `tradeable === true`. The Sonnet call is **fire-and-forget** — `processArticle` awaits classification and signal writing, then spawns the research agent call without awaiting it (wrapped in `.catch()` for error logging). This keeps the ingest pipeline fast; research results land asynchronously.
 
-**Input:** headline, source, article symbols from Finnhub, original Haiku classification.
+**Input:** headline, source, article symbols from Finnhub, original Haiku classification, `newsEventId` (returned by modified `storeNewsEvent`).
 
 **Sonnet prompt produces:**
-- All materially affected symbols (not just the queried one) with rationale
+- All materially affected symbols (not just the queried one) with rationale. **Each symbol must include its exchange** (NASDAQ, NYSE, LSE, etc.)
 - Per-symbol assessment: sentiment (-1.0 to 1.0), urgency (low/medium/high), event type, direction (long/short/avoid), one-sentence trade thesis
 - Confidence score (0-1) per symbol
 - For confidence >= 0.8: a direct trade recommendation with entry logic
@@ -37,7 +37,13 @@ New module `src/news/research-agent.ts`. Called from `ingest.ts` after Haiku cla
 - `priceAfter1w` (real, nullable)
 - `createdAt` (text)
 
-**Signal writing:** For each symbol in the analysis, write enriched signals to `quotes_cache`, overwriting the basic Haiku signals with the deeper assessment. If `recommendTrade === true && confidence >= 0.8`, inject the symbol into all strategy universes with a 24h TTL (up from the current 4h for normal high-urgency injection).
+**Exchange validation:** The research agent validates each symbol's exchange against a known set (`NASDAQ`, `NYSE`, `LSE`). Symbols with unrecognised exchanges are dropped with a warning log.
+
+**Storage details:** `inUniverse` is set at insert time by checking whether the symbol exists in any active strategy's `universe` JSON array or in the current injected symbols list.
+
+**Price at analysis:** For each symbol, attempt to read `last` from `quotes_cache`. If no row exists (newly-discovered symbol), make a single Finnhub `/quote` call to fetch the current price (budget guard applies). If the Finnhub call succeeds, use that price as `priceAtAnalysis`. If it fails or returns no data, set `priceAtAnalysis = null`. The daily tracker will skip null rows.
+
+**Signal writing:** For each symbol in the analysis, write enriched signals to `quotes_cache` via existing `writeSignals`, which creates the row if it doesn't exist (upsert). The existing `quote_refresh` job (every 10 minutes) refreshes **all rows in `quotes_cache`** — not just strategy universes — so newly-created rows get price updates on the next cycle automatically. If `recommendTrade === true && confidence >= 0.8`, inject the symbol into all strategy universes with a 24h TTL (up from the current 4h for normal high-urgency injection).
 
 **Cost:** Sonnet call per tradeable article. At ~3-5 tradeable articles/day this is negligible. Budget guard (`canAffordCall`) still applies.
 
@@ -55,17 +61,17 @@ New scheduled job `missed_opportunity_review` with two schedules:
 - **Weekly** on Wednesdays at 21:35 — backfills +1w price movement for analyses from 7 days ago
 
 **Daily job logic:**
-1. Query `news_analyses` rows from yesterday (articles analysed 24+ hours ago that don't yet have `priceAfter1d`)
-2. For each row, fetch current price from `quotes_cache` or Finnhub quote API
+1. Query `news_analyses` rows where `createdAt` is between 24 and 48 hours ago (i.e., analysed 24+ hours ago but not older than 48 hours) that don't yet have `priceAfter1d`, **WHERE `priceAtAnalysis` IS NOT NULL** (skip symbols that had no price data at analysis time)
+2. For each row, fetch current price: try `quotes_cache` first, fall back to a Finnhub `/quote` API call if the cached price is stale (older than 24 hours) or missing
 3. Compute actual price change percentage: `(currentPrice - priceAtAnalysis) / priceAtAnalysis * 100`
 4. Update `priceAfter1d` on the `news_analyses` row
-5. For symbols that were NOT in any strategy universe at the time of analysis:
+5. For rows where **`inUniverse = false`** (symbol was not in any strategy universe at analysis time):
    - If price moved >2% in the predicted direction (positive move for `long`, negative for `short`) → classify as a missed opportunity
-   - Insert into `trade_insights` with `insightType = 'missed_opportunity'`
+   - Insert into `trade_insights` with `insightType = 'missed_opportunity'` and **`strategyId = null`**
    - Observation includes: symbol, predicted direction, actual move percentage, trade thesis from research agent
    - Tags include: `["missed_opportunity", eventType, symbol]`
 
-**Weekly job logic:** Same as daily but checks `priceAfter1w` for analyses from 7 days ago. Only logs a missed opportunity if not already logged by the daily job AND the 1-week move exceeds 5% in the predicted direction.
+**Weekly job logic:** Same as daily but checks `priceAfter1w` for analyses where `createdAt` is between 7 and 8 days ago. Also requires `priceAtAnalysis IS NOT NULL`. Uses the same price fetch strategy (cache first, Finnhub fallback for stale/missing). Only logs a missed opportunity if not already logged by the daily job AND the 1-week move exceeds 5% in the predicted direction.
 
 **Dashboard:** Add "Missed" count to Learning Loop tab summary stats. Show missed opportunity insights in the insight log with a distinct amber badge.
 
@@ -84,7 +90,7 @@ Enhancement to existing `src/learning/pattern-analysis.ts`, not a new job.
 
 **Output changes:**
 - Pattern analysis output gains optional field: `universe_suggestions` — array of `{ symbol, exchange, reason, evidenceCount }`
-- Universe suggestions logged to `trade_insights` with `insightType = 'universe_suggestion'`
+- Universe suggestions logged to `trade_insights` with `insightType = 'universe_suggestion'` and **`strategyId = null`** (cross-cutting, not strategy-specific)
 
 **Acting on suggestions:**
 - The existing weekly self-improvement job (Sundays 19:00) picks up `universe_suggestion` insights
@@ -94,7 +100,8 @@ Enhancement to existing `src/learning/pattern-analysis.ts`, not a new job.
 **Evals:**
 - 10-15 tasks with synthetic trade + missed opportunity clusters (e.g., 3 missed opportunities involving AVGO over 2 weeks)
 - LLM-as-judge: "Given these missed opportunities, did the analysis identify the underlying relationship and recommend adding the symbol?" Structured rubric
-- Code graders: `universe_suggestions` has valid shape, evidence count matches actual missed opportunity count in input data
+- Code graders: `universe_suggestions` has valid shape (`{ symbol, exchange, reason, evidenceCount }[]`), exchange is in known set, evidence count matches actual missed opportunity count in input data, no duplicate symbols in suggestions
+- Negative cases: tasks where missed opportunities are noise (uncorrelated symbols) — should produce empty `universe_suggestions`
 - 3 trials per task
 
 ## Data Flow
@@ -145,18 +152,23 @@ Sunday 19:00 (existing):
 | tradeThesis | text | one-sentence thesis |
 | confidence | real | 0 to 1 |
 | recommendTrade | integer (boolean) | true if confidence >= 0.8 |
-| priceAtAnalysis | real | price when analysed |
-| priceAfter1d | real, nullable | filled by daily tracker |
+| inUniverse | integer (boolean) | true if symbol was in any strategy universe at analysis time |
+| priceAtAnalysis | real, nullable | price when analysed (from quotes_cache or Finnhub; null if unavailable) |
+| priceAfter1d | real, nullable | filled by daily tracker (per-symbol; distinct from news_events.priceAfter1d which tracks primary symbol only) |
 | priceAfter1w | real, nullable | filled by weekly tracker |
 | createdAt | text | ISO timestamp |
 
-Index on `newsEventId`. Index on `symbol`.
+**Unique constraint** on `(newsEventId, symbol)` — prevents duplicate rows on retry/reprocessing. Use `onConflictDoUpdate` to update existing rows if the research agent re-analyses the same article.
+
+Index on `newsEventId`. Index on `symbol`. Index on `inUniverse` (for missed opportunity queries).
 
 ## Modified Tables
 
 ### trade_insights
 
-New `insightType` enum values: `missed_opportunity`, `universe_suggestion` (added to existing enum: trade_review, pattern_analysis, graduation).
+- `strategyId` column: change from `NOT NULL` to **nullable** (new migration). Missed opportunities and universe suggestions have no associated strategy.
+- New `insightType` enum values: `missed_opportunity`, `universe_suggestion` (added to existing enum: trade_review, pattern_analysis, graduation).
+- `learningLoopConfig` is NOT modified — missed opportunities are code-driven (no LLM prompt), and universe suggestions come from the existing `pattern_analysis` prompt.
 
 ## New Files
 
@@ -171,9 +183,13 @@ New `insightType` enum values: `missed_opportunity`, `universe_suggestion` (adde
 
 ## Modified Files
 
-- `src/news/ingest.ts` — call research agent after classification for tradeable articles
-- `src/learning/pattern-analysis.ts` — add missed opportunity context to prompt, parse universe_suggestions from output
+- `src/news/ingest.ts` — call research agent after classification for tradeable articles; capture `newsEventId` from `storeNewsEvent` return value
+- `src/news/sentiment-writer.ts` — modify `storeNewsEvent` to return the inserted row's `id` (use `.returning()`)
+- `src/learning/pattern-analysis.ts` — add missed opportunity context to prompt, parse universe_suggestions from output, insert universe suggestions with `strategyId = null`
+- `src/learning/types.ts` — add `universeSuggestions` optional field to pattern analysis output type
 - `src/scheduler/cron.ts` — register missed_opportunity_review jobs
-- `src/db/schema.ts` — add news_analyses table, extend insightType enum
+- `src/scheduler/jobs.ts` — add `missed_opportunity_review` to `JobName` union and `executeJob` switch
+- `src/db/schema.ts` — add news_analyses table, extend insightType enum, make `strategyId` nullable on `tradeInsights`
+- `src/db/migrations/` — new migration: (1) create `news_analyses` table, (2) alter `trade_insights` to make `strategy_id` nullable
 - `src/monitoring/dashboard-data.ts` — add missed opportunity count to learning loop stats
 - `src/monitoring/status-page.ts` — add amber badge for missed_opportunity type
