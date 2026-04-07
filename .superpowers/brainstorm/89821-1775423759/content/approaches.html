@@ -1,0 +1,117 @@
+<h2>Dashboard Design Direction</h2>
+<p class="subtitle">Three approaches for a dense operations console — pick the vibe</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a0a;padding:20px;font-family:monospace;min-height:280px;">
+      <div style="color:#f59e0b;font-size:11px;letter-spacing:2px;margin-bottom:12px;">TRADER V2 OPS CONSOLE</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+        <div style="border:1px solid #333;padding:8px;border-radius:4px;">
+          <div style="color:#666;font-size:9px;text-transform:uppercase;">IBKR</div>
+          <div style="color:#22c55e;font-size:14px;font-weight:bold;">CONNECTED</div>
+        </div>
+        <div style="border:1px solid #333;padding:8px;border-radius:4px;">
+          <div style="color:#666;font-size:9px;text-transform:uppercase;">DAILY P&L</div>
+          <div style="color:#22c55e;font-size:14px;font-weight:bold;">+12.4p</div>
+        </div>
+        <div style="border:1px solid #333;padding:8px;border-radius:4px;">
+          <div style="color:#666;font-size:9px;text-transform:uppercase;">RISK</div>
+          <div style="color:#22c55e;font-size:14px;font-weight:bold;">CLEAR</div>
+        </div>
+      </div>
+      <div style="border:1px solid #222;padding:8px;border-radius:4px;margin-bottom:8px;">
+        <div style="color:#666;font-size:9px;margin-bottom:4px;">STRATEGY PIPELINE</div>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <span style="background:#334155;color:#94a3b8;padding:2px 6px;border-radius:3px;font-size:10px;">3 paper</span>
+          <span style="color:#444;">→</span>
+          <span style="background:#422006;color:#f59e0b;padding:2px 6px;border-radius:3px;font-size:10px;">0 probation</span>
+          <span style="color:#444;">→</span>
+          <span style="background:#052e16;color:#22c55e;padding:2px 6px;border-radius:3px;font-size:10px;">0 live</span>
+        </div>
+      </div>
+      <div style="border:1px solid #222;padding:8px;border-radius:4px;">
+        <div style="color:#666;font-size:9px;margin-bottom:4px;">NEXT JOBS</div>
+        <div style="color:#94a3b8;font-size:10px;">08:00 guardian_start · 08:02 news_poll · 08:05 strategy_eval</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A: Terminal Console</h3>
+      <p>Bloomberg-terminal inspired. Monospace, amber accents on black, dense data grid. All information visible without scrolling. Feels like a trading floor.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:20px;font-family:system-ui;min-height:280px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="color:#e2e8f0;font-size:14px;font-weight:600;">Trader v2</div>
+        <div style="display:flex;gap:6px;">
+          <span style="background:#22c55e33;color:#22c55e;padding:3px 10px;border-radius:99px;font-size:11px;">IBKR ●</span>
+          <span style="background:#22c55e33;color:#22c55e;padding:3px 10px;border-radius:99px;font-size:11px;">OK</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div style="background:#1e293b;padding:12px;border-radius:8px;">
+          <div style="color:#64748b;font-size:10px;margin-bottom:4px;">Strategies</div>
+          <div style="display:flex;gap:4px;">
+            <div style="flex:3;height:6px;background:#334155;border-radius:3px;"></div>
+            <div style="flex:0;height:6px;background:#f59e0b;border-radius:3px;width:0;"></div>
+            <div style="flex:0;height:6px;background:#22c55e;border-radius:3px;width:0;"></div>
+          </div>
+          <div style="color:#94a3b8;font-size:11px;margin-top:4px;">3 paper · 0 live</div>
+        </div>
+        <div style="background:#1e293b;padding:12px;border-radius:8px;">
+          <div style="color:#64748b;font-size:10px;margin-bottom:4px;">Daily P&L</div>
+          <div style="color:#22c55e;font-size:18px;font-weight:600;">+12.4p</div>
+        </div>
+      </div>
+      <div style="background:#1e293b;padding:10px;border-radius:8px;margin-bottom:8px;">
+        <div style="color:#64748b;font-size:10px;margin-bottom:6px;">Upcoming</div>
+        <div style="display:flex;gap:6px;">
+          <span style="background:#0f172a;color:#94a3b8;padding:3px 8px;border-radius:4px;font-size:10px;">08:00 guardian</span>
+          <span style="background:#0f172a;color:#94a3b8;padding:3px 8px;border-radius:4px;font-size:10px;">08:02 news</span>
+          <span style="background:#0f172a;color:#94a3b8;padding:3px 8px;border-radius:4px;font-size:10px;">08:05 eval</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B: Modern Dashboard</h3>
+      <p>Clean card-based layout with the current dark navy theme refined. Progress bars, pills, rounded corners. Polished and familiar — an upgrade of what you have.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#111;padding:20px;font-family:'Courier New',monospace;min-height:280px;position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);"></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;">
+        <div style="color:#e2e8f0;font-size:13px;font-weight:700;letter-spacing:1px;">TRADER<span style="color:#22c55e">v2</span></div>
+        <div style="color:#555;font-size:10px;">21:15 UTC · UP 6h 12m</div>
+      </div>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:11px;margin-bottom:14px;">
+        <span style="color:#555;">IBKR</span><span style="color:#22c55e;">● connected DUP924429</span>
+        <span style="color:#555;">RISK</span><span style="color:#22c55e;">clear · daily 0/500p · weekly 0/2000p</span>
+        <span style="color:#555;">POS</span><span style="color:#94a3b8;">HSBA:LSE -3909 @ 13.91p <span style="color:#666;">(orphan)</span></span>
+      </div>
+      <div style="border-top:1px solid #222;padding-top:8px;margin-bottom:10px;">
+        <div style="display:flex;gap:12px;font-size:10px;margin-bottom:6px;">
+          <span style="color:#334155;">■■■ paper(3)</span>
+          <span style="color:#92400e;">■ probation(0)</span>
+          <span style="color:#166534;">■ active(0)</span>
+          <span style="color:#14532d;">■ core(0)</span>
+        </div>
+        <div style="color:#555;font-size:10px;">news_sentiment_mr_v1 · gap_fade_v1 · earnings_drift_v1</div>
+      </div>
+      <div style="border-top:1px solid #222;padding-top:8px;font-size:10px;">
+        <div style="color:#555;margin-bottom:4px;">CRON (next 3)</div>
+        <div style="color:#94a3b8;">
+          <div>07:50 risk_weekly_reset <span style="color:#333;">·····</span> <span style="color:#555;">in 10h 35m</span></div>
+          <div>07:55 risk_daily_reset <span style="color:#333;">······</span> <span style="color:#555;">in 10h 40m</span></div>
+          <div>08:00 guardian_start <span style="color:#333;">········</span> <span style="color:#555;">in 10h 45m</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C: Hybrid Terminal</h3>
+      <p>Monospace density meets modern layout. Key-value pairs, thin colour accents, traffic-light status bar at top. Maximum information per pixel. Scrollable sections for logs and trade history.</p>
+    </div>
+  </div>
+</div>

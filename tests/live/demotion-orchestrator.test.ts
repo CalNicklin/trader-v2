@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { eq } from "drizzle-orm";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { closeDb, getDb } from "../../src/db/client.ts";
 import { graduationEvents, liveTrades, strategies, strategyMetrics } from "../../src/db/schema.ts";
 
@@ -55,10 +55,7 @@ describe("runDemotionChecks", () => {
 		await runDemotionChecks();
 
 		// Strategy should be retired
-		const [updated] = await db
-			.select()
-			.from(strategies)
-			.where(eq(strategies.id, strategy.id));
+		const [updated] = await db.select().from(strategies).where(eq(strategies.id, strategy.id));
 		expect(updated.status).toBe("retired");
 
 		// Should have a "killed" graduation event
@@ -116,10 +113,7 @@ describe("runDemotionChecks", () => {
 		await runDemotionChecks();
 
 		// Strategy should still be on probation (not killed/retired)
-		const [updated] = await db
-			.select()
-			.from(strategies)
-			.where(eq(strategies.id, strategy.id));
+		const [updated] = await db.select().from(strategies).where(eq(strategies.id, strategy.id));
 		expect(updated.status).toBe("probation");
 
 		// Virtual balance should be halved (first strike: 50% capital reduction)
@@ -148,10 +142,7 @@ describe("runDemotionChecks", () => {
 		await runDemotionChecks();
 
 		// Strategy status and balance should be unchanged
-		const [updated] = await db
-			.select()
-			.from(strategies)
-			.where(eq(strategies.id, strategy.id));
+		const [updated] = await db.select().from(strategies).where(eq(strategies.id, strategy.id));
 		expect(updated.status).toBe("probation");
 		expect(updated.virtualBalance).toBe(10000);
 	});

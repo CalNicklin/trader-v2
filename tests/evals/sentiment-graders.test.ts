@@ -3,9 +3,7 @@ import { describe, expect, test } from "bun:test";
 describe("sentiment graders", () => {
 	describe("directionAccuracyGrader", () => {
 		test("positive sentiment + price up → score 1, pass true", async () => {
-			const { directionAccuracyGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { directionAccuracyGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			const result = await directionAccuracyGrader.grade(
 				{ sentiment: 0.7, confidence: 0.8, expectedMoveDuration: "1-3d" },
@@ -17,9 +15,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("positive sentiment + price down → score 0, pass false", async () => {
-			const { directionAccuracyGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { directionAccuracyGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			const result = await directionAccuracyGrader.grade(
 				{ sentiment: 0.6, confidence: 0.75, expectedMoveDuration: "1-3d" },
@@ -31,9 +27,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("flat actual direction → score 0.5, pass true", async () => {
-			const { directionAccuracyGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { directionAccuracyGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			const result = await directionAccuracyGrader.grade(
 				{ sentiment: 0.4, confidence: 0.6, expectedMoveDuration: "intraday" },
@@ -45,9 +39,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("negative sentiment + price down → score 1, pass true", async () => {
-			const { directionAccuracyGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { directionAccuracyGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			const result = await directionAccuracyGrader.grade(
 				{ sentiment: -0.8, confidence: 0.9, expectedMoveDuration: "1-2w" },
@@ -61,9 +53,7 @@ describe("sentiment graders", () => {
 
 	describe("magnitudeCalibrationGrader", () => {
 		test("high confidence + large move → score >0.5, pass true", async () => {
-			const { magnitudeCalibrationGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { magnitudeCalibrationGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			// confidence=0.85 (high), move=8% (>=3% threshold)
 			const result = await magnitudeCalibrationGrader.grade(
@@ -76,9 +66,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("high confidence + tiny move → score <0.5, pass false", async () => {
-			const { magnitudeCalibrationGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { magnitudeCalibrationGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			// confidence=0.9 (high), move=0.5% (<3% threshold)
 			const result = await magnitudeCalibrationGrader.grade(
@@ -91,9 +79,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("medium confidence + 1.5% move → pass true", async () => {
-			const { magnitudeCalibrationGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { magnitudeCalibrationGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			// confidence=0.65 (medium), move=1.5% (>=1% threshold)
 			const result = await magnitudeCalibrationGrader.grade(
@@ -105,9 +91,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("low confidence + any move → pass true", async () => {
-			const { magnitudeCalibrationGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { magnitudeCalibrationGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			// confidence=0.4 (low), any move size is acceptable
 			const result = await magnitudeCalibrationGrader.grade(
@@ -121,9 +105,7 @@ describe("sentiment graders", () => {
 
 	describe("durationAccuracyGrader", () => {
 		test("intraday prediction, 0-day move → pass", async () => {
-			const { durationAccuracyGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { durationAccuracyGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			const result = await durationAccuracyGrader.grade(
 				{ sentiment: 0.5, confidence: 0.7, expectedMoveDuration: "intraday" },
@@ -135,9 +117,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("1-3d prediction, 2-day move → pass", async () => {
-			const { durationAccuracyGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { durationAccuracyGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			const result = await durationAccuracyGrader.grade(
 				{ sentiment: 0.6, confidence: 0.8, expectedMoveDuration: "1-3d" },
@@ -148,9 +128,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("1-2w prediction, 10-day move → pass", async () => {
-			const { durationAccuracyGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { durationAccuracyGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			const result = await durationAccuracyGrader.grade(
 				{ sentiment: 0.7, confidence: 0.75, expectedMoveDuration: "1-2w" },
@@ -161,9 +139,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("1m+ prediction, 30-day move → pass", async () => {
-			const { durationAccuracyGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { durationAccuracyGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			const result = await durationAccuracyGrader.grade(
 				{ sentiment: 0.5, confidence: 0.6, expectedMoveDuration: "1m+" },
@@ -174,9 +150,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("intraday prediction, 5-day move → fail", async () => {
-			const { durationAccuracyGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { durationAccuracyGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			const result = await durationAccuracyGrader.grade(
 				{ sentiment: 0.5, confidence: 0.7, expectedMoveDuration: "intraday" },
@@ -188,9 +162,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("1-3d prediction, 15-day move → fail", async () => {
-			const { durationAccuracyGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { durationAccuracyGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			const result = await durationAccuracyGrader.grade(
 				{ sentiment: 0.6, confidence: 0.8, expectedMoveDuration: "1-3d" },
@@ -201,9 +173,7 @@ describe("sentiment graders", () => {
 		});
 
 		test("unknown duration → fail with reason", async () => {
-			const { durationAccuracyGrader } = await import(
-				"../../src/evals/sentiment/graders.ts"
-			);
+			const { durationAccuracyGrader } = await import("../../src/evals/sentiment/graders.ts");
 
 			const result = await durationAccuracyGrader.grade(
 				{ sentiment: 0.5, confidence: 0.7, expectedMoveDuration: "unknown-value" },

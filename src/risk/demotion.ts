@@ -138,7 +138,10 @@ const CONSECUTIVE_NEG_SHARPE_PERIODS = 2;
 export function checkTierBreach(input: TierBreachInput): TierBreachResult {
 	if (input.tier === "probation") {
 		if (input.rollingSharpe20 < 0) {
-			return { breached: true, reason: `Sharpe (${input.rollingSharpe20.toFixed(2)}) is negative on probation` };
+			return {
+				breached: true,
+				reason: `Sharpe (${input.rollingSharpe20.toFixed(2)}) is negative on probation`,
+			};
 		}
 		return { breached: false };
 	}

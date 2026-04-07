@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trader v2 — Console Mockup</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    background: #050505;
+    color: #b0b0b0;
+    min-height: 100vh;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  /* Top status bar */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: #0a0a0a;
+    border-bottom: 1px solid #1a1a1a;
+  }
+  .status-bar .left { display: flex; align-items: center; gap: 16px; }
+  .status-bar .title { color: #f59e0b; font-weight: 700; font-size: 13px; letter-spacing: 2px; }
+  .status-bar .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .status-bar .dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+  .status-bar .dot.amber { background: #f59e0b; box-shadow: 0 0 6px #f59e0b88; }
+  .status-bar .dot.red { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
+  .status-bar .meta { color: #555; font-size: 11px; }
+  .status-tag { display: inline-flex; align-items: center; gap: 5px; color: #888; font-size: 11px; }
+
+  /* Main grid */
+  .console {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto auto 1fr;
+    gap: 1px;
+    background: #1a1a1a;
+    min-height: calc(100vh - 37px);
+  }
+
+  .panel {
+    background: #0a0a0a;
+    padding: 12px 14px;
+  }
+  .panel-header {
+    color: #555;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel-header .count { color: #444; }
+
+  /* KPI strip — spans full width */
+  .kpi-strip {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1px;
+    background: #1a1a1a;
+  }
+  .kpi {
+    background: #0a0a0a;
+    padding: 10px 14px;
+  }
+  .kpi-label { color: #444; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .kpi-value { font-size: 16px; font-weight: 600; }
+  .kpi-value.green { color: #22c55e; }
+  .kpi-value.amber { color: #f59e0b; }
+  .kpi-value.red { color: #ef4444; }
+  .kpi-value.dim { color: #666; }
+  .kpi-sub { color: #333; font-size: 9px; margin-top: 2px; }
+
+  /* Strategy pipeline */
+  .pipeline {
+    grid-column: 1 / -1;
+    background: #0a0a0a;
+    padding: 12px 14px;
+  }
+  .pipeline-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .tier {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border: 1px solid #1a1a1a;
+    border-radius: 3px;
+    min-width: 120px;
+  }
+  .tier .count {
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .tier .label {
+    font-size: 10px;
+    color: #555;
+    text-transform: uppercase;
+  }
+  .tier.paper { border-color: #334155; }
+  .tier.paper .count { color: #94a3b8; }
+  .tier.probation { border-color: #92400e; }
+  .tier.probation .count { color: #f59e0b; }
+  .tier.active { border-color: #166534; }
+  .tier.active .count { color: #22c55e; }
+  .tier.core { border-color: #14532d; }
+  .tier.core .count { color: #15803d; }
+  .tier.retired { border-color: #1a1a1a; }
+  .tier.retired .count { color: #333; }
+  .arrow { color: #333; font-size: 16px; }
+
+  .strategy-list {
+    margin-top: 10px;
+    border-top: 1px solid #151515;
+    padding-top: 8px;
+  }
+  .strategy-row {
+    display: grid;
+    grid-template-columns: 200px 80px 80px 80px 80px 1fr;
+    gap: 12px;
+    padding: 4px 0;
+    color: #666;
+    font-size: 11px;
+  }
+  .strategy-row.header { color: #444; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #151515; padding-bottom: 6px; margin-bottom: 4px; }
+  .strategy-row .name { color: #94a3b8; }
+  .strategy-row .status-paper { color: #64748b; }
+  .strategy-row .status-probation { color: #f59e0b; }
+  .strategy-row .status-active { color: #22c55e; }
+
+  /* Positions panel */
+  .position-row {
+    display: grid;
+    grid-template-columns: 90px 60px 70px 70px 70px 1fr;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 11px;
+    color: #666;
+  }
+  .position-row.header { color: #444; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #151515; padding-bottom: 6px; margin-bottom: 4px; }
+  .position-row .symbol { color: #e2e8f0; font-weight: 500; }
+  .position-row .short { color: #ef4444; }
+  .position-row .long { color: #22c55e; }
+  .orphan-tag { color: #f59e0b; font-size: 9px; background: #f59e0b11; padding: 1px 5px; border-radius: 2px; }
+
+  /* Cron panel */
+  .cron-row {
+    display: grid;
+    grid-template-columns: 50px 160px 80px 1fr;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 11px;
+    color: #555;
+  }
+  .cron-row.header { color: #444; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #151515; padding-bottom: 6px; margin-bottom: 4px; }
+  .cron-row .time { color: #94a3b8; }
+  .cron-row .job { color: #888; }
+  .cron-row .countdown { color: #333; font-size: 10px; }
+  .cron-row .last-ok { color: #22c55e44; }
+  .cron-row .last-err { color: #ef4444; }
+  .cron-row .last-skip { color: #f59e0b44; }
+  .cron-row .next { color: #f59e0b; }
+  .cron-row.upcoming { color: #888; }
+  .cron-row.upcoming .time { color: #f59e0b; }
+
+  /* Activity log */
+  .log-entry {
+    padding: 3px 0;
+    font-size: 11px;
+    color: #555;
+    display: flex;
+    gap: 8px;
+  }
+  .log-entry .ts { color: #333; min-width: 55px; }
+  .log-entry .level-info { color: #3b82f6; }
+  .log-entry .level-warn { color: #f59e0b; }
+  .log-entry .level-error { color: #ef4444; }
+  .log-entry .level-action { color: #22c55e; }
+  .log-entry .level-decision { color: #a855f7; }
+  .log-entry .msg { color: #777; }
+  .log-entry .phase { color: #444; }
+
+  /* Risk panel */
+  .risk-meter {
+    margin: 6px 0;
+  }
+  .risk-bar {
+    height: 4px;
+    background: #1a1a1a;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .risk-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+  .risk-fill.green { background: #22c55e; }
+  .risk-fill.amber { background: #f59e0b; }
+  .risk-fill.red { background: #ef4444; }
+  .risk-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #555;
+  }
+
+  .pause-btn {
+    margin-top: 12px;
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid #333;
+    color: #888;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+  .pause-btn:hover { border-color: #f59e0b; color: #f59e0b; }
+
+  /* Scrollable panels */
+  .scroll-panel {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .scroll-panel::-webkit-scrollbar { width: 3px; }
+  .scroll-panel::-webkit-scrollbar-track { background: transparent; }
+  .scroll-panel::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+
+  .footer-bar {
+    grid-column: 1 / -1;
+    background: #0a0a0a;
+    padding: 6px 14px;
+    color: #333;
+    font-size: 10px;
+    display: flex;
+    justify-content: space-between;
+    border-top: 1px solid #1a1a1a;
+  }
+</style>
+</head>
+<body>
+
+<!-- Status bar -->
+<div class="status-bar">
+  <div class="left">
+    <span class="title">TRADER V2</span>
+    <span class="status-tag"><span class="dot green"></span> IBKR DUP924429</span>
+    <span class="status-tag"><span class="dot green"></span> SYSTEM OK</span>
+    <span class="status-tag"><span class="dot amber"></span> 0 LIVE</span>
+  </div>
+  <div class="meta">UP 6h 14m &middot; 05 Apr 2026 21:15 UTC</div>
+</div>
+
+<div class="console">
+
+  <!-- KPI Strip -->
+  <div class="kpi-strip">
+    <div class="kpi">
+      <div class="kpi-label">Daily P&L</div>
+      <div class="kpi-value green">+0.00p</div>
+      <div class="kpi-sub">limit: 500p</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Weekly P&L</div>
+      <div class="kpi-value dim">+0.00p</div>
+      <div class="kpi-sub">limit: 2000p</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Open Positions</div>
+      <div class="kpi-value amber">1</div>
+      <div class="kpi-sub">HSBA (orphan)</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Trades Today</div>
+      <div class="kpi-value dim">0</div>
+      <div class="kpi-sub">&mdash;</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">API Spend</div>
+      <div class="kpi-value dim">$0.00</div>
+      <div class="kpi-sub">budget: $2.00</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Last Quote</div>
+      <div class="kpi-value dim">&mdash;</div>
+      <div class="kpi-sub">weekend</div>
+    </div>
+  </div>
+
+  <!-- Strategy Pipeline -->
+  <div class="pipeline">
+    <div class="panel-header">
+      Strategy Pipeline
+      <span class="count">3 total</span>
+    </div>
+    <div class="pipeline-row">
+      <div class="tier paper">
+        <span class="count">3</span>
+        <span class="label">Paper</span>
+      </div>
+      <span class="arrow">→</span>
+      <div class="tier probation">
+        <span class="count">0</span>
+        <span class="label">Probation</span>
+      </div>
+      <span class="arrow">→</span>
+      <div class="tier active">
+        <span class="count">0</span>
+        <span class="label">Active</span>
+      </div>
+      <span class="arrow">→</span>
+      <div class="tier core">
+        <span class="count">0</span>
+        <span class="label">Core</span>
+      </div>
+      <span style="flex:1;"></span>
+      <div class="tier retired">
+        <span class="count">0</span>
+        <span class="label">Retired</span>
+      </div>
+    </div>
+    <div class="strategy-list">
+      <div class="strategy-row header">
+        <span>Name</span><span>Status</span><span>Win Rate</span><span>Sharpe</span><span>Trades</span><span>Universe</span>
+      </div>
+      <div class="strategy-row">
+        <span class="name">news_sentiment_mr_v1</span>
+        <span class="status-paper">paper</span>
+        <span>—</span><span>—</span><span>0</span>
+        <span>AAPL, MSFT, NVDA</span>
+      </div>
+      <div class="strategy-row">
+        <span class="name">gap_fade_v1</span>
+        <span class="status-paper">paper</span>
+        <span>—</span><span>—</span><span>0</span>
+        <span>AAPL, MSFT, NVDA</span>
+      </div>
+      <div class="strategy-row">
+        <span class="name">earnings_drift_v1</span>
+        <span class="status-paper">paper</span>
+        <span>—</span><span>—</span><span>0</span>
+        <span>AAPL, MSFT, NVDA</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Left: Positions -->
+  <div class="panel">
+    <div class="panel-header">
+      Live Positions
+      <span class="count">1</span>
+    </div>
+    <div class="scroll-panel">
+      <div class="position-row header">
+        <span>Symbol</span><span>Side</span><span>Qty</span><span>Avg Cost</span><span>P&L</span><span></span>
+      </div>
+      <div class="position-row">
+        <span class="symbol">HSBA:LSE</span>
+        <span class="short">SHORT</span>
+        <span>3,909</span>
+        <span>13.91p</span>
+        <span>—</span>
+        <span><span class="orphan-tag">orphan</span></span>
+      </div>
+    </div>
+    <div style="border-top:1px solid #151515;margin-top:12px;padding-top:10px;">
+      <div class="panel-header" style="margin-bottom:8px;">Risk Limits</div>
+      <div class="risk-meter">
+        <div class="risk-label"><span>Daily P&L</span><span>0 / 500p</span></div>
+        <div class="risk-bar"><div class="risk-fill green" style="width:0%;"></div></div>
+      </div>
+      <div class="risk-meter">
+        <div class="risk-label"><span>Weekly P&L</span><span>0 / 2000p</span></div>
+        <div class="risk-bar"><div class="risk-fill green" style="width:0%;"></div></div>
+      </div>
+      <div class="risk-meter">
+        <div class="risk-label"><span>Max Positions</span><span>1 / 10</span></div>
+        <div class="risk-bar"><div class="risk-fill amber" style="width:10%;"></div></div>
+      </div>
+    </div>
+    <button class="pause-btn">⏸ PAUSE TRADING</button>
+  </div>
+
+  <!-- Center: Cron Schedule -->
+  <div class="panel">
+    <div class="panel-header">
+      Cron Schedule
+      <span class="count">17 jobs</span>
+    </div>
+    <div class="scroll-panel">
+      <div class="cron-row header">
+        <span>Time</span><span>Job</span><span>Last</span><span>Next In</span>
+      </div>
+      <div class="cron-row upcoming">
+        <span class="time">07:50</span>
+        <span class="job">risk_weekly_reset</span>
+        <span class="last-ok">✓ ok</span>
+        <span class="countdown">10h 35m</span>
+      </div>
+      <div class="cron-row upcoming">
+        <span class="time">07:55</span>
+        <span class="job">risk_daily_reset</span>
+        <span class="last-ok">✓ ok</span>
+        <span class="countdown">10h 40m</span>
+      </div>
+      <div class="cron-row upcoming">
+        <span class="time">08:00</span>
+        <span class="job">guardian_start</span>
+        <span class="last-ok">✓ ok</span>
+        <span class="countdown">10h 45m</span>
+      </div>
+      <div class="cron-row">
+        <span class="time">08:00</span>
+        <span class="job">quote_refresh</span>
+        <span class="last-ok">✓ ok</span>
+        <span class="countdown">10h 45m</span>
+      </div>
+      <div class="cron-row">
+        <span class="time">08:02</span>
+        <span class="job">news_poll</span>
+        <span class="last-ok">✓ ok</span>
+        <span class="countdown">10h 47m</span>
+      </div>
+      <div class="cron-row">
+        <span class="time">08:04</span>
+        <span class="job">risk_guardian</span>
+        <span></span>
+        <span class="countdown">10h 49m</span>
+      </div>
+      <div class="cron-row">
+        <span class="time">08:05</span>
+        <span class="job">strategy_evaluation</span>
+        <span class="last-ok">✓ ok</span>
+        <span class="countdown">10h 50m</span>
+      </div>
+      <div class="cron-row">
+        <span class="time">08:07</span>
+        <span class="job">live_evaluation</span>
+        <span style="color:#666;">—</span>
+        <span class="countdown">10h 52m</span>
+      </div>
+      <div class="cron-row">
+        <span class="time">21:00</span>
+        <span class="job">guardian_stop</span>
+        <span></span>
+        <span class="countdown">23h 45m</span>
+      </div>
+      <div class="cron-row">
+        <span class="time">21:05</span>
+        <span class="job">daily_summary</span>
+        <span class="last-ok">✓ ok</span>
+        <span class="countdown">23h 50m</span>
+      </div>
+      <div class="cron-row">
+        <span class="time">21:15</span>
+        <span class="job">trade_review</span>
+        <span class="last-ok">✓ ok</span>
+        <span class="countdown">24h 0m</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Activity Log -->
+  <div class="panel">
+    <div class="panel-header">
+      Activity Log
+      <span class="count">recent</span>
+    </div>
+    <div class="scroll-panel">
+      <div class="log-entry">
+        <span class="ts">21:08</span>
+        <span class="level-warn">WARN</span>
+        <span class="phase">recon</span>
+        <span class="msg">Orphaned IBKR position: HSBA:LSE qty=-3909</span>
+      </div>
+      <div class="log-entry">
+        <span class="ts">21:08</span>
+        <span class="level-info">INFO</span>
+        <span class="phase">recon</span>
+        <span class="msg">Position reconciliation: +1 inserted, -0 deleted</span>
+      </div>
+      <div class="log-entry">
+        <span class="ts">21:08</span>
+        <span class="level-action">ACTN</span>
+        <span class="phase">boot</span>
+        <span class="msg">IBKR connected · order monitoring started</span>
+      </div>
+      <div class="log-entry">
+        <span class="ts">21:08</span>
+        <span class="level-info">INFO</span>
+        <span class="phase">boot</span>
+        <span class="msg">Scheduler started — 17 jobs registered</span>
+      </div>
+      <div class="log-entry">
+        <span class="ts">21:08</span>
+        <span class="level-info">INFO</span>
+        <span class="phase">boot</span>
+        <span class="msg">Database connected and migrated</span>
+      </div>
+      <div class="log-entry">
+        <span class="ts" style="color:#222;">—</span>
+        <span style="color:#333;">no further activity (weekend)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-bar">
+    <span>Auto-refreshes every 30s &middot; All times Europe/London</span>
+    <span>trader-v2 @ ff589da</span>
+  </div>
+
+</div>
+
+</body>
+</html>

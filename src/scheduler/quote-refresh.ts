@@ -76,6 +76,9 @@ export async function backfillSentimentPrices(): Promise<void> {
 	}
 
 	if (filled > 0) {
-		log.info({ filled, total: staleEvents.length }, "Backfilled priceAfter1d for sentiment validation");
+		log.info(
+			{ filled, total: staleEvents.length },
+			"Backfilled priceAfter1d for sentiment validation",
+		);
 	}
 }

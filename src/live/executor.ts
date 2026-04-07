@@ -6,14 +6,15 @@ import { getAvailableCash } from "../broker/settlement.ts";
 import { getConfig } from "../config.ts";
 import { getQuoteFromCache } from "../data/quotes.ts";
 import { getDb } from "../db/client.ts";
-import { agentLogs, graduationEvents, livePositions, liveTrades, paperTrades, strategies, strategyMetrics } from "../db/schema.ts";
-import { checkTradeRiskGate } from "../risk/gate.ts";
-import { isTradingHalted, isWeeklyDrawdownActive } from "../risk/guardian.ts";
-import { buildSignalContext, type PositionFields, type QuoteFields } from "../strategy/context.ts";
-import { evalExpr } from "../strategy/expr-eval.ts";
-import { getIndicators, type SymbolIndicators } from "../strategy/historical.ts";
-import { createChildLogger } from "../utils/logger.ts";
-import { computeAllocations, type StrategyTier } from "./capital-allocator.ts";
+import {
+	agentLogs,
+	graduationEvents,
+	livePositions,
+	liveTrades,
+	paperTrades,
+	strategies,
+	strategyMetrics,
+} from "../db/schema.ts";
 import {
 	type BehavioralComparison,
 	checkBehavioralDivergence as checkDivergenceAgg,
@@ -23,6 +24,13 @@ import {
 	type DemotionEvent,
 	type StrategyLiveStats,
 } from "../risk/demotion.ts";
+import { checkTradeRiskGate } from "../risk/gate.ts";
+import { isTradingHalted, isWeeklyDrawdownActive } from "../risk/guardian.ts";
+import { buildSignalContext, type PositionFields, type QuoteFields } from "../strategy/context.ts";
+import { evalExpr } from "../strategy/expr-eval.ts";
+import { getIndicators, type SymbolIndicators } from "../strategy/historical.ts";
+import { createChildLogger } from "../utils/logger.ts";
+import { computeAllocations, type StrategyTier } from "./capital-allocator.ts";
 
 const log = createChildLogger({ module: "live-executor" });
 
@@ -544,18 +552,14 @@ export async function runDemotionChecks(): Promise<void> {
 			const lossRate = trades.length > 0 ? (trades.length - winCount) / trades.length : 0.5;
 			const p = lossRate;
 			const expectedLossStreakMean = p > 0 && p < 1 ? 1 / (1 - p) : 1;
-			const expectedLossStreakStdDev =
-				p > 0 && p < 1 ? Math.sqrt(p / ((1 - p) * (1 - p))) : 0.5;
+			const expectedLossStreakStdDev = p > 0 && p < 1 ? Math.sqrt(p / ((1 - p) * (1 - p))) : 0.5;
 
 			// Fetch demotion history from graduationEvents
 			const demotionHistory = await db
 				.select()
 				.from(graduationEvents)
 				.where(
-					and(
-						eq(graduationEvents.strategyId, strategy.id),
-						eq(graduationEvents.event, "demoted"),
-					),
+					and(eq(graduationEvents.strategyId, strategy.id), eq(graduationEvents.event, "demoted")),
 				);
 			const demotionDates = demotionHistory.map((e) => new Date(e.createdAt));
 
@@ -590,8 +594,7 @@ export async function runDemotionChecks(): Promise<void> {
 			if (recent20.length > 1) {
 				const pnls = recent20.map((t) => t.pnl ?? 0);
 				const mean = pnls.reduce((s, v) => s + v, 0) / pnls.length;
-				const variance =
-					pnls.reduce((s, v) => s + (v - mean) ** 2, 0) / (pnls.length - 1);
+				const variance = pnls.reduce((s, v) => s + (v - mean) ** 2, 0) / (pnls.length - 1);
 				const stdDev = Math.sqrt(variance);
 				if (stdDev > 0) {
 					rollingSharpe20 = mean / stdDev;
@@ -641,10 +644,7 @@ export async function runDemotionChecks(): Promise<void> {
 					.filter((e) => e.fromTier != null && e.toTier == null)
 					.map((e) => ({ date: new Date(e.createdAt), type: "strike" as const }));
 
-				const twoStrikeResult = checkTwoStrikeDemotion(
-					[...demotionEvents, ...strikeEvents],
-					now,
-				);
+				const twoStrikeResult = checkTwoStrikeDemotion([...demotionEvents, ...strikeEvents], now);
 
 				if (twoStrikeResult.action === "kill") {
 					await retireStrategy(db, strategy.id, strategy.status, twoStrikeResult.reason);
@@ -723,8 +723,7 @@ export async function runDemotionChecks(): Promise<void> {
 
 			if (paperTradesFull.length > 0 && trades.length > 0) {
 				const paperAvgSlippage =
-					paperTradesFull.reduce((s, t) => s + Math.abs(t.friction), 0) /
-					paperTradesFull.length;
+					paperTradesFull.reduce((s, t) => s + Math.abs(t.friction), 0) / paperTradesFull.length;
 				const liveAvgSlippage =
 					trades.reduce((s, t) => {
 						const slip =
@@ -736,19 +735,12 @@ export async function runDemotionChecks(): Promise<void> {
 
 				const paperFilledCount = paperTradesFull.length;
 				const liveFilledCount = trades.length;
-				const paperFillRate =
-					paperFilledCount > 0
-						? paperFilledCount / (paperFilledCount + 1)
-						: 0;
-				const liveFillRate =
-					liveFilledCount > 0
-						? liveFilledCount / (liveFilledCount + 1)
-						: 0;
+				const paperFillRate = paperFilledCount > 0 ? paperFilledCount / (paperFilledCount + 1) : 0;
+				const liveFillRate = liveFilledCount > 0 ? liveFilledCount / (liveFilledCount + 1) : 0;
 
 				const paperAvgFriction =
 					paperTradesFull.reduce((s, t) => s + t.friction, 0) / paperTradesFull.length;
-				const liveAvgFriction =
-					trades.reduce((s, t) => s + t.friction, 0) / trades.length;
+				const liveAvgFriction = trades.reduce((s, t) => s + t.friction, 0) / trades.length;
 
 				const comparison: BehavioralComparison = {
 					paperAvgSlippage,

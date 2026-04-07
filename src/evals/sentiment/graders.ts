@@ -91,7 +91,8 @@ export const durationAccuracyGrader: SG = {
 		}
 
 		const [min, max] = window;
-		const within = reference.actualMoveDurationDays >= min && reference.actualMoveDurationDays <= max;
+		const within =
+			reference.actualMoveDurationDays >= min && reference.actualMoveDurationDays <= max;
 
 		return {
 			score: within ? 1 : 0,
