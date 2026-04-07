@@ -1,9 +1,21 @@
 import type { Server } from "bun";
 import { getConfig } from "../config";
 import { createChildLogger } from "../utils/logger";
-import { getDashboardData } from "./dashboard-data";
+import {
+	getDashboardData,
+	getGuardianData,
+	getLearningLoopData,
+	getNewsPipelineData,
+	getTradeActivityData,
+} from "./dashboard-data";
 import { getHealthData, setPaused } from "./health";
-import { buildConsolePage } from "./status-page";
+import {
+	buildConsolePage,
+	buildGuardianTab,
+	buildLearningLoopTab,
+	buildNewsPipelineTab,
+	buildTradeActivityTab,
+} from "./status-page";
 
 const log = createChildLogger({ module: "http-server" });
 
@@ -67,8 +79,28 @@ async function handleRequest(req: Request): Promise<Response> {
 	// Dashboard console
 	if (req.method === "GET" && url.pathname === "/") {
 		try {
+			const validTabs = ["overview", "news", "guardian", "learning", "trades"];
+			const tab = validTabs.includes(url.searchParams.get("tab") ?? "")
+				? (url.searchParams.get("tab") as string)
+				: "overview";
+
+			let tabHtml = "";
+			if (tab === "news") {
+				const tabData = await getNewsPipelineData();
+				tabHtml = buildNewsPipelineTab(tabData);
+			} else if (tab === "guardian") {
+				const tabData = await getGuardianData();
+				tabHtml = buildGuardianTab(tabData);
+			} else if (tab === "learning") {
+				const tabData = await getLearningLoopData();
+				tabHtml = buildLearningLoopTab(tabData);
+			} else if (tab === "trades") {
+				const tabData = await getTradeActivityData();
+				tabHtml = buildTradeActivityTab(tabData);
+			}
+
 			const data = await getDashboardData();
-			const html = buildConsolePage(data);
+			const html = buildConsolePage(data, tab, tabHtml);
 			return new Response(html, {
 				headers: { "content-type": "text/html; charset=utf-8" },
 			});
@@ -93,9 +125,11 @@ async function handleRequest(req: Request): Promise<Response> {
 	if (req.method === "POST" && url.pathname === "/pause") {
 		setPaused(true);
 		log.warn("Trading paused via HTTP");
+		const pauseTab = url.searchParams.get("tab");
+		const pauseRedirect = pauseTab ? `/?tab=${pauseTab}` : "/";
 		return new Response(null, {
 			status: 303,
-			headers: { location: "/" },
+			headers: { location: pauseRedirect },
 		});
 	}
 
@@ -103,9 +137,11 @@ async function handleRequest(req: Request): Promise<Response> {
 	if (req.method === "POST" && url.pathname === "/resume") {
 		setPaused(false);
 		log.info("Trading resumed via HTTP");
+		const resumeTab = url.searchParams.get("tab");
+		const resumeRedirect = resumeTab ? `/?tab=${resumeTab}` : "/";
 		return new Response(null, {
 			status: 303,
-			headers: { location: "/" },
+			headers: { location: resumeRedirect },
 		});
 	}
 

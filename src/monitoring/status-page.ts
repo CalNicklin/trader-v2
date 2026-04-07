@@ -1,4 +1,4 @@
-import type { DashboardData } from "./dashboard-data.ts";
+import type { DashboardData, GuardianData, LearningLoopData, NewsPipelineData, TradeActivityData } from "./dashboard-data.ts";
 
 function formatUptime(seconds: number): string {
 	const h = Math.floor(seconds / 3600);
@@ -375,4 +375,18 @@ ${buildTabBar(tab)}
 ${mainContent}
 </body>
 </html>`;
+}
+
+// Stub renderers — will be replaced in Tasks 7-10
+export function buildNewsPipelineTab(_data: NewsPipelineData): string {
+	return "";
+}
+export function buildGuardianTab(_data: GuardianData): string {
+	return "";
+}
+export function buildLearningLoopTab(_data: LearningLoopData): string {
+	return "";
+}
+export function buildTradeActivityTab(_data: TradeActivityData): string {
+	return "";
 }

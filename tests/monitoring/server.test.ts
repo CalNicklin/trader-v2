@@ -88,6 +88,38 @@ describe("HTTP server", () => {
 		expect(data.paused).toBe(false);
 	});
 
+	test("GET /?tab=news returns HTML with news tab active", async () => {
+		const port = 39853;
+		startServer(port);
+		const res = await fetch(`http://localhost:${port}/?tab=news`);
+		expect(res.status).toBe(200);
+		expect(res.headers.get("content-type")).toContain("text/html");
+		const html = await res.text();
+		expect(html).toContain("News Pipeline");
+	});
+
+	test("POST /pause redirects back to current tab", async () => {
+		const port = 39854;
+		startServer(port);
+		const res = await fetch(`http://localhost:${port}/pause?tab=guardian`, {
+			method: "POST",
+			redirect: "manual",
+		});
+		expect(res.status).toBe(303);
+		expect(res.headers.get("location")).toBe("/?tab=guardian");
+		// Clean up paused state so subsequent tests are not affected
+		await fetch(`http://localhost:${port}/resume`, { method: "POST", redirect: "manual" });
+	});
+
+	test("GET /?tab=invalid falls back to overview", async () => {
+		const port = 39855;
+		startServer(port);
+		const res = await fetch(`http://localhost:${port}/?tab=invalid`);
+		expect(res.status).toBe(200);
+		const html = await res.text();
+		expect(html).toContain("Strategy Pipeline");
+	});
+
 	test("returns 401 when ADMIN_PASSWORD is set and no credentials given", async () => {
 		const port = 39852;
 		// Temporarily set password in env
