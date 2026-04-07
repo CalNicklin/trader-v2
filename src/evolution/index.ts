@@ -1,5 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { and, eq, gte, isNotNull, isNull } from "drizzle-orm";
 import { getConfig } from "../config";
+import { getDb } from "../db/client";
+import { tradeInsights } from "../db/schema";
 import { canAffordCall } from "../utils/budget";
 import { createChildLogger } from "../utils/logger";
 import { withRetry } from "../utils/retry";
@@ -14,6 +17,62 @@ import { validateMutation } from "./validator";
 const log = createChildLogger({ module: "evolution" });
 
 const EVOLUTION_ESTIMATED_COST_USD = 0.05;
+
+export async function markMatchedInsights(
+	parentStrategyId: number,
+	parameterDiff: Record<string, { from: number; to: number }>,
+): Promise<void> {
+	const db = getDb();
+	const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+	const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+	const insights = await db
+		.select()
+		.from(tradeInsights)
+		.where(
+			and(
+				eq(tradeInsights.strategyId, parentStrategyId),
+				isNotNull(tradeInsights.suggestedAction),
+				isNull(tradeInsights.ledToImprovement),
+				gte(tradeInsights.createdAt, thirtyDaysAgo),
+			),
+		);
+
+	for (const insight of insights) {
+		if (!insight.suggestedAction) continue;
+
+		let action: { parameter: string; direction: string };
+		try {
+			action = JSON.parse(insight.suggestedAction);
+		} catch {
+			continue;
+		}
+
+		const diff = parameterDiff[action.parameter];
+		if (!diff) {
+			if (insight.createdAt < sevenDaysAgo) {
+				await db
+					.update(tradeInsights)
+					.set({ ledToImprovement: false })
+					.where(eq(tradeInsights.id, insight.id));
+			}
+			continue;
+		}
+
+		const wentUp = diff.to > diff.from;
+		const wentDown = diff.to < diff.from;
+		const matched =
+			(action.direction === "increase" && wentUp) ||
+			(action.direction === "decrease" && wentDown);
+
+		if (matched) {
+			await db
+				.update(tradeInsights)
+				.set({ ledToImprovement: true })
+				.where(eq(tradeInsights.id, insight.id));
+		}
+	}
+}
 
 export async function runEvolutionCycle(): Promise<{
 	drawdownKills: number[];
@@ -134,6 +193,7 @@ export async function runEvolutionCycle(): Promise<{
 			const childId = await spawnChild(validation.mutation);
 			spawned.push(childId);
 			slotsUsed++;
+			await markMatchedInsights(proposal.parentId, validation.mutation.parameterDiff);
 			log.info(
 				{ childId, parentId: proposal.parentId, name: proposal.name },
 				"Spawned child strategy",
