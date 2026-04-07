@@ -1,6 +1,6 @@
 // tests/db/news-analyses-schema.test.ts
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { closeDb, getDb } from "../../src/db/client.ts";
 import { newsAnalyses, tradeInsights } from "../../src/db/schema.ts";

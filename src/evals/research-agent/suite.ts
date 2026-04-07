@@ -22,7 +22,7 @@ export async function runResearchAgentEvals(
 		async (input) => {
 			const prompt = buildResearchPrompt(input);
 			const response = await client.messages.create({
-				model: config.CLAUDE_MODEL_STANDARD,
+				model: config.CLAUDE_MODEL,
 				max_tokens: 1500,
 				messages: [{ role: "user", content: prompt }],
 			});
