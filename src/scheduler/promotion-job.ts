@@ -91,7 +91,9 @@ export async function runPromotionCheck(): Promise<{
 				),
 			);
 
-		// Behavioral divergence check (use zeros for paper since we don't track slippage in paper)
+		// Behavioral divergence check — paper trading doesn't track slippage/friction,
+		// so paper values default to zero. This means the gate is effectively inactive
+		// until live trading produces meaningful friction data to compare against.
 		const comparison: BehavioralComparison = {
 			paperAvgSlippage: 0,
 			liveAvgSlippage: 0,
