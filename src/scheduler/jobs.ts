@@ -1,5 +1,5 @@
 import { createChildLogger } from "../utils/logger.ts";
-import { acquireLock, releaseLock, type LockCategory } from "./locks.ts";
+import { acquireLock, type LockCategory, releaseLock } from "./locks.ts";
 
 const log = createChildLogger({ module: "scheduler-jobs" });
 

@@ -44,9 +44,7 @@ export function startScheduler(): void {
 	);
 
 	// ── Dispatch at session boundaries ──────────────────────────────────
-	tasks.push(
-		cron.schedule("5 8 * * 1-5", () => runJob("dispatch"), { timezone: "Europe/London" }),
-	);
+	tasks.push(cron.schedule("5 8 * * 1-5", () => runJob("dispatch"), { timezone: "Europe/London" }));
 	tasks.push(
 		cron.schedule("35 14 * * 1-5", () => runJob("dispatch"), { timezone: "Europe/London" }),
 	);
