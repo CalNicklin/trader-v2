@@ -284,6 +284,8 @@ export const newsEvents = sqliteTable(
 		catalystType: text("catalyst_type"),
 		expectedMoveDuration: text("expected_move_duration"),
 		classifiedAt: text("classified_at"),
+		priceAtClassification: real("price_at_classification"),
+		priceAfter1d: real("price_after_1d"),
 		createdAt: text("created_at")
 			.notNull()
 			.$defaultFn(() => new Date().toISOString()),
