@@ -98,7 +98,7 @@ export async function getStrategyPerformance(
 					direction: parsed.direction,
 					reasoning: parsed.reasoning,
 				});
-		}
+			}
 		} catch {
 			// Skip malformed JSON
 		}

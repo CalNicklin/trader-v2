@@ -44,10 +44,7 @@ export function generateBranchName(title: string): string {
 	return `self-improve/${slug}-${date}`;
 }
 
-function buildProposerPrompt(
-	landscapeJson: string,
-	landscape: PerformanceLandscape,
-): string {
+function buildProposerPrompt(landscapeJson: string, landscape: PerformanceLandscape): string {
 	const actionLines: string[] = [];
 	for (const strategy of landscape.strategies) {
 		if (strategy.suggestedActions.length > 0) {
@@ -214,10 +211,7 @@ export async function runSelfImprovementCycle(): Promise<ProposalResult> {
 			}
 		} else {
 			result.skipped++;
-			log.debug(
-				{ title: idea.title, classification },
-				"Proposal skipped (unclassified path)",
-			);
+			log.debug({ title: idea.title, classification }, "Proposal skipped (unclassified path)");
 		}
 	}
 

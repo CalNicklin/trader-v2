@@ -62,8 +62,7 @@ export async function markMatchedInsights(
 		const wentUp = diff.to > diff.from;
 		const wentDown = diff.to < diff.from;
 		const matched =
-			(action.direction === "increase" && wentUp) ||
-			(action.direction === "decrease" && wentDown);
+			(action.direction === "increase" && wentUp) || (action.direction === "decrease" && wentDown);
 
 		if (matched) {
 			await db
