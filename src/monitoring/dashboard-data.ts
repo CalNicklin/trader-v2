@@ -534,7 +534,7 @@ export async function getTradeActivityData(): Promise<TradeActivityData> {
 
 	if (todayWithPnl.length > 0) {
 		const winners = todayWithPnl.filter((r) => (r.pnl as number) > 0);
-		const losers = todayWithPnl.filter((r) => (r.pnl as number) <= 0);
+		const losers = todayWithPnl.filter((r) => (r.pnl as number) < 0);
 		winRateToday = winners.length / todayWithPnl.length;
 		avgWinner =
 			winners.length > 0
