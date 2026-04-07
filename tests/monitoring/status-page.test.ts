@@ -92,6 +92,32 @@ describe("buildConsolePage", () => {
 		expect(html).toContain("abc1234");
 	});
 
+	test("renders tab bar with overview active by default", () => {
+		const html = buildConsolePage(baseData, "overview", "");
+		expect(html).toContain("tab-bar");
+		expect(html).toContain('href="/"');
+		expect(html).toContain('href="/?tab=news"');
+		expect(html).toContain('href="/?tab=guardian"');
+		expect(html).toContain('href="/?tab=learning"');
+		expect(html).toContain('href="/?tab=trades"');
+	});
+
+	test("preserves tab in meta refresh tag", () => {
+		const html = buildConsolePage(baseData, "news", "<div>news content</div>");
+		expect(html).toContain('content="30;url=/?tab=news"');
+	});
+
+	test("renders tab content instead of overview when tab is not overview", () => {
+		const html = buildConsolePage(baseData, "news", "<div>NEWS_TAB_CONTENT</div>");
+		expect(html).toContain("NEWS_TAB_CONTENT");
+		expect(html).not.toContain("Strategy Pipeline");
+	});
+
+	test("preserves tab in pause/resume form action", () => {
+		const html = buildConsolePage(baseData, "guardian", "<div>guardian</div>");
+		expect(html).toContain('action="/pause?tab=guardian"');
+	});
+
 	test("renders positions with orphan tag", () => {
 		const html = buildConsolePage({
 			...baseData,

@@ -43,7 +43,24 @@ function statusDot(connected: boolean): string {
 	return `<span style="width:7px;height:7px;border-radius:50%;display:inline-block;background:${color};box-shadow:0 0 6px ${color}88;"></span>`;
 }
 
-export function buildConsolePage(data: DashboardData): string {
+function buildTabBar(activeTab: string): string {
+	const tabs = [
+		{ id: "overview", label: "Overview", href: "/" },
+		{ id: "news", label: "News Pipeline", href: "/?tab=news" },
+		{ id: "guardian", label: "Guardian", href: "/?tab=guardian" },
+		{ id: "learning", label: "Learning Loop", href: "/?tab=learning" },
+		{ id: "trades", label: "Trades", href: "/?tab=trades" },
+	];
+	const links = tabs
+		.map((t) => {
+			const cls = t.id === activeTab ? "tab-link active" : "tab-link";
+			return `<a href="${t.href}" class="${cls}">${t.label}</a>`;
+		})
+		.join("\n");
+	return `<div class="tab-bar">${links}</div>`;
+}
+
+export function buildConsolePage(data: DashboardData, tab = "overview", tabHtml = ""): string {
 	const utcTime = new Date(data.timestamp).toLocaleString("en-GB", {
 		day: "2-digit",
 		month: "short",
@@ -78,9 +95,11 @@ export function buildConsolePage(data: DashboardData): string {
 	})();
 
 	// Pause button
+	const pauseAction = tab !== "overview" ? `/pause?tab=${tab}` : "/pause";
+	const resumeAction = tab !== "overview" ? `/resume?tab=${tab}` : "/resume";
 	const pauseBtn = data.paused
-		? `<form method="POST" action="/resume" style="display:inline"><button type="submit" class="pause-btn" style="border-color:#22c55e;color:#22c55e;">▶ RESUME</button></form>`
-		: `<form method="POST" action="/pause" style="display:inline"><button type="submit" class="pause-btn">⏸ PAUSE</button></form>`;
+		? `<form method="POST" action="${resumeAction}" style="display:inline"><button type="submit" class="pause-btn" style="border-color:#22c55e;color:#22c55e;">▶ RESUME</button></form>`
+		: `<form method="POST" action="${pauseAction}" style="display:inline"><button type="submit" class="pause-btn">⏸ PAUSE</button></form>`;
 
 	// Positions HTML
 	const positionsHtml =
@@ -173,88 +192,10 @@ export function buildConsolePage(data: DashboardData): string {
 	const weeklyPct = riskBarPct(data.weeklyPnl, data.weeklyPnlLimit);
 	const posPct = riskBarPct(data.openPositionCount, data.maxPositions);
 
-	return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta http-equiv="refresh" content="30" />
-<title>Trader v2 — Console</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'JetBrains Mono','Courier New',monospace;background:#050505;color:#b0b0b0;min-height:100vh;font-size:12px;line-height:1.5}
-.status-bar{display:flex;justify-content:space-between;align-items:center;padding:8px 16px;background:#0a0a0a;border-bottom:1px solid #1a1a1a}
-.status-bar .left{display:flex;align-items:center;gap:16px}
-.status-bar .title{color:#f59e0b;font-weight:700;font-size:13px;letter-spacing:2px}
-.status-tag{display:inline-flex;align-items:center;gap:5px;color:#888;font-size:11px}
-.meta{color:#555;font-size:11px}
-.console{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#1a1a1a;min-height:calc(100vh - 37px)}
-.panel{background:#0a0a0a;padding:12px 14px}
-.panel-header{color:#555;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
-.panel-header .count{color:#444}
-.kpi-strip{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:#1a1a1a}
-.kpi{background:#0a0a0a;padding:10px 14px}
-.kpi-label{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
-.kpi-value{font-size:16px;font-weight:600}
-.kpi-sub{color:#333;font-size:9px;margin-top:2px}
-.pipeline{grid-column:1/-1;background:#0a0a0a;padding:12px 14px}
-.pipeline-row{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
-.tier{display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid #1a1a1a;border-radius:3px;min-width:110px}
-.tier .tc{font-size:14px;font-weight:700}
-.tier .tl{font-size:10px;color:#555;text-transform:uppercase}
-.tier.paper{border-color:#334155}.tier.paper .tc{color:#94a3b8}
-.tier.probation{border-color:#92400e}.tier.probation .tc{color:#f59e0b}
-.tier.active{border-color:#166534}.tier.active .tc{color:#22c55e}
-.tier.core{border-color:#14532d}.tier.core .tc{color:#15803d}
-.tier.retired{border-color:#1a1a1a}.tier.retired .tc{color:#333}
-.arrow{color:#333;font-size:16px}
-.strategy-list{margin-top:10px;border-top:1px solid #151515;padding-top:8px}
-.strategy-row{display:grid;grid-template-columns:200px 80px 70px 70px 60px 1fr;gap:12px;padding:4px 0;color:#666;font-size:11px}
-.strategy-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
-.strategy-row .name{color:#94a3b8}
-.status-paper{color:#64748b}.status-probation{color:#f59e0b}.status-active{color:#22c55e}.status-core{color:#15803d}
-.position-row{display:grid;grid-template-columns:100px 55px 65px 65px 65px 1fr;gap:8px;padding:4px 0;font-size:11px;color:#666}
-.position-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
-.position-row .symbol{color:#e2e8f0;font-weight:500}
-.short{color:#ef4444}.long{color:#22c55e}
-.orphan-tag{color:#f59e0b;font-size:9px;background:#f59e0b11;padding:1px 5px;border-radius:2px}
-.risk-meter{margin:6px 0}
-.risk-bar{height:4px;background:#1a1a1a;border-radius:2px;overflow:hidden;margin-top:4px}
-.risk-fill{height:100%;border-radius:2px}
-.risk-label{display:flex;justify-content:space-between;font-size:10px;color:#555}
-.cron-row{display:grid;grid-template-columns:50px 170px 55px 1fr;gap:8px;padding:4px 0;font-size:11px;color:#555}
-.cron-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
-.cron-row .time{color:#94a3b8}.cron-row .job{color:#888}
-.cron-row .countdown{color:#333;font-size:10px}
-.cron-row.upcoming{color:#888}.cron-row.upcoming .time{color:#f59e0b}
-.last-ok{color:#22c55e88}.last-err{color:#ef4444}
-.log-entry{padding:3px 0;font-size:11px;color:#555;display:flex;gap:8px}
-.log-entry .ts{color:#333;min-width:45px}
-.log-entry .phase{color:#444;min-width:50px}
-.log-entry .msg{color:#777}
-.level-info{color:#3b82f6}.level-warn{color:#f59e0b}.level-error{color:#ef4444}.level-action{color:#22c55e}.level-decision{color:#a855f7}
-.scroll-panel{max-height:300px;overflow-y:auto}
-.scroll-panel::-webkit-scrollbar{width:3px}.scroll-panel::-webkit-scrollbar-track{background:transparent}.scroll-panel::-webkit-scrollbar-thumb{background:#222;border-radius:2px}
-.pause-btn{margin-top:12px;padding:6px 14px;background:transparent;border:1px solid #333;color:#888;font-family:inherit;font-size:11px;cursor:pointer;border-radius:3px}
-.pause-btn:hover{border-color:#f59e0b;color:#f59e0b}
-.footer-bar{grid-column:1/-1;background:#0a0a0a;padding:6px 14px;color:#333;font-size:10px;display:flex;justify-content:space-between;border-top:1px solid #1a1a1a}
-</style>
-</head>
-<body>
-<div class="status-bar">
-<div class="left">
-<span class="title">TRADER V2</span>
-<span class="status-tag">${statusDot(data.ibkrConnected)} ${data.ibkrConnected ? `IBKR ${escHtml(data.ibkrAccount ?? "")}` : "IBKR OFF"}</span>
-<span class="status-tag">${statusDot(data.status === "ok")} ${data.status.toUpperCase()}</span>
-<span class="status-tag">${statusDot(liveCount > 0)} ${liveCount} LIVE</span>
-${data.paused ? `<span class="status-tag" style="color:#f59e0b;">⏸ PAUSED</span>` : ""}
-</div>
-<div class="meta">UP ${formatUptime(data.uptime)} &middot; ${utcTime} UTC</div>
-</div>
-
-<div class="console">
+	// Main content area: overview grid or tab-specific content
+	const mainContent =
+		tab === "overview"
+			? `<div class="console">
 <div class="kpi-strip">
 <div class="kpi"><div class="kpi-label">Daily P&amp;L</div><div class="kpi-value" style="color:${kpiColor(data.dailyPnl, data.dailyPnlLimit)}">${data.dailyPnl >= 0 ? "+" : ""}${data.dailyPnl.toFixed(2)}p</div><div class="kpi-sub">limit: ${data.dailyPnlLimit.toFixed(0)}%</div></div>
 <div class="kpi"><div class="kpi-label">Weekly P&amp;L</div><div class="kpi-value" style="color:${kpiColor(data.weeklyPnl, data.weeklyPnlLimit)}">${data.weeklyPnl >= 0 ? "+" : ""}${data.weeklyPnl.toFixed(2)}p</div><div class="kpi-sub">limit: ${data.weeklyPnlLimit.toFixed(0)}%</div></div>
@@ -317,7 +258,121 @@ ${logEntries}
 <span>Auto-refreshes every 30s &middot; All times Europe/London</span>
 <span>trader-v2 @ ${escHtml(data.gitHash)}</span>
 </div>
+</div>`
+			: `<div class="tab-content">${tabHtml}</div>
+<div class="footer-bar" style="background:#0a0a0a;padding:6px 14px;color:#333;font-size:10px;display:flex;justify-content:space-between;border-top:1px solid #1a1a1a">
+<span>Auto-refreshes every 30s &middot; All times Europe/London</span>
+<span>${pauseBtn} &nbsp; trader-v2 @ ${escHtml(data.gitHash)}</span>
+</div>`;
+
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="refresh" content="30${tab !== "overview" ? `;url=/?tab=${tab}` : ""}" />
+<title>Trader v2 — Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'JetBrains Mono','Courier New',monospace;background:#050505;color:#b0b0b0;min-height:100vh;font-size:12px;line-height:1.5}
+.status-bar{display:flex;justify-content:space-between;align-items:center;padding:8px 16px;background:#0a0a0a;border-bottom:1px solid #1a1a1a}
+.status-bar .left{display:flex;align-items:center;gap:16px}
+.status-bar .title{color:#f59e0b;font-weight:700;font-size:13px;letter-spacing:2px}
+.status-tag{display:inline-flex;align-items:center;gap:5px;color:#888;font-size:11px}
+.meta{color:#555;font-size:11px}
+.console{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#1a1a1a;min-height:calc(100vh - 37px)}
+.panel{background:#0a0a0a;padding:12px 14px}
+.panel-header{color:#555;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.panel-header .count{color:#444}
+.kpi-strip{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:#1a1a1a}
+.kpi{background:#0a0a0a;padding:10px 14px}
+.kpi-label{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.kpi-value{font-size:16px;font-weight:600}
+.kpi-sub{color:#333;font-size:9px;margin-top:2px}
+.pipeline{grid-column:1/-1;background:#0a0a0a;padding:12px 14px}
+.pipeline-row{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tier{display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid #1a1a1a;border-radius:3px;min-width:110px}
+.tier .tc{font-size:14px;font-weight:700}
+.tier .tl{font-size:10px;color:#555;text-transform:uppercase}
+.tier.paper{border-color:#334155}.tier.paper .tc{color:#94a3b8}
+.tier.probation{border-color:#92400e}.tier.probation .tc{color:#f59e0b}
+.tier.active{border-color:#166534}.tier.active .tc{color:#22c55e}
+.tier.core{border-color:#14532d}.tier.core .tc{color:#15803d}
+.tier.retired{border-color:#1a1a1a}.tier.retired .tc{color:#333}
+.arrow{color:#333;font-size:16px}
+.strategy-list{margin-top:10px;border-top:1px solid #151515;padding-top:8px}
+.strategy-row{display:grid;grid-template-columns:200px 80px 70px 70px 60px 1fr;gap:12px;padding:4px 0;color:#666;font-size:11px}
+.strategy-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
+.strategy-row .name{color:#94a3b8}
+.status-paper{color:#64748b}.status-probation{color:#f59e0b}.status-active{color:#22c55e}.status-core{color:#15803d}
+.position-row{display:grid;grid-template-columns:100px 55px 65px 65px 65px 1fr;gap:8px;padding:4px 0;font-size:11px;color:#666}
+.position-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
+.position-row .symbol{color:#e2e8f0;font-weight:500}
+.short{color:#ef4444}.long{color:#22c55e}
+.orphan-tag{color:#f59e0b;font-size:9px;background:#f59e0b11;padding:1px 5px;border-radius:2px}
+.risk-meter{margin:6px 0}
+.risk-bar{height:4px;background:#1a1a1a;border-radius:2px;overflow:hidden;margin-top:4px}
+.risk-fill{height:100%;border-radius:2px}
+.risk-label{display:flex;justify-content:space-between;font-size:10px;color:#555}
+.cron-row{display:grid;grid-template-columns:50px 170px 55px 1fr;gap:8px;padding:4px 0;font-size:11px;color:#555}
+.cron-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
+.cron-row .time{color:#94a3b8}.cron-row .job{color:#888}
+.cron-row .countdown{color:#333;font-size:10px}
+.cron-row.upcoming{color:#888}.cron-row.upcoming .time{color:#f59e0b}
+.last-ok{color:#22c55e88}.last-err{color:#ef4444}
+.log-entry{padding:3px 0;font-size:11px;color:#555;display:flex;gap:8px}
+.log-entry .ts{color:#333;min-width:45px}
+.log-entry .phase{color:#444;min-width:50px}
+.log-entry .msg{color:#777}
+.level-info{color:#3b82f6}.level-warn{color:#f59e0b}.level-error{color:#ef4444}.level-action{color:#22c55e}.level-decision{color:#a855f7}
+.scroll-panel{max-height:300px;overflow-y:auto}
+.scroll-panel::-webkit-scrollbar{width:3px}.scroll-panel::-webkit-scrollbar-track{background:transparent}.scroll-panel::-webkit-scrollbar-thumb{background:#222;border-radius:2px}
+.pause-btn{margin-top:12px;padding:6px 14px;background:transparent;border:1px solid #333;color:#888;font-family:inherit;font-size:11px;cursor:pointer;border-radius:3px}
+.pause-btn:hover{border-color:#f59e0b;color:#f59e0b}
+.footer-bar{grid-column:1/-1;background:#0a0a0a;padding:6px 14px;color:#333;font-size:10px;display:flex;justify-content:space-between;border-top:1px solid #1a1a1a}
+.tab-bar{display:flex;gap:0;background:#0a0a0a;border-bottom:1px solid #1a1a1a;padding:0 16px}
+.tab-link{padding:10px 20px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#555;border-bottom:2px solid transparent;text-decoration:none;font-family:inherit}
+.tab-link:hover{color:#888}
+.tab-link.active{color:#f59e0b;border-bottom-color:#f59e0b}
+.stat-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#1a1a1a;margin-bottom:16px}
+.stat-card{background:#0a0a0a;padding:10px 14px}
+.stat-card .sc-label{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.stat-card .sc-value{font-size:16px;font-weight:600}
+.stat-card .sc-sub{color:#333;font-size:9px;margin-top:2px}
+.insight-card{padding:10px;background:#0a0a0a;border:1px solid #1a1a1a;border-radius:3px;margin-bottom:6px}
+.insight-card .ic-header{display:flex;justify-content:space-between;margin-bottom:4px}
+.insight-card .ic-body{color:#888;font-size:11px}
+.insight-card .ic-meta{color:#444;font-size:9px;margin-top:4px}
+.type-badge{font-size:9px;text-transform:uppercase;padding:1px 6px;border-radius:2px}
+.type-trade_review{color:#3b82f6;background:#3b82f611}
+.type-pattern_analysis{color:#a855f7;background:#a855f711}
+.type-graduation{color:#22c55e;background:#22c55e11}
+.tab-content{padding:16px 14px;background:#0a0a0a;min-height:calc(100vh - 120px)}
+.news-row{display:grid;grid-template-columns:45px 65px 1fr 60px 50px;gap:8px;padding:5px 0;font-size:11px;color:#666;border-bottom:1px solid #0f0f0f}
+.news-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
+.guardian-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.guardian-card{background:#0a0a0a;padding:12px;border:1px solid #166534;border-radius:3px}
+.guardian-card.tripped{border-color:#ef4444}
+.guardian-log-row{display:grid;grid-template-columns:45px 1fr;gap:8px;padding:5px 0;font-size:11px;color:#666;border-bottom:1px solid #0f0f0f}
+.trade-row{display:grid;grid-template-columns:45px 65px 42px 60px 60px 80px 70px 1fr;gap:6px;padding:5px 0;font-size:11px;color:#666;border-bottom:1px solid #0f0f0f}
+.trade-row.header{color:#444;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #151515;padding-bottom:6px;margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="status-bar">
+<div class="left">
+<span class="title">TRADER V2</span>
+<span class="status-tag">${statusDot(data.ibkrConnected)} ${data.ibkrConnected ? `IBKR ${escHtml(data.ibkrAccount ?? "")}` : "IBKR OFF"}</span>
+<span class="status-tag">${statusDot(data.status === "ok")} ${data.status.toUpperCase()}</span>
+<span class="status-tag">${statusDot(liveCount > 0)} ${liveCount} LIVE</span>
+${data.paused ? `<span class="status-tag" style="color:#f59e0b;">⏸ PAUSED</span>` : ""}
 </div>
+<div class="meta">UP ${formatUptime(data.uptime)} &middot; ${utcTime} UTC</div>
+</div>
+${buildTabBar(tab)}
+${mainContent}
 </body>
 </html>`;
 }
