@@ -1,12 +1,10 @@
 import { and, eq } from "drizzle-orm";
-import YahooFinance from "yahoo-finance2";
 import { getDb } from "../db/client.ts";
 import { quotesCache } from "../db/schema.ts";
 import { createChildLogger } from "../utils/logger.ts";
+import { fmpQuote } from "./fmp.ts";
 
 const log = createChildLogger({ module: "quotes" });
-
-const yf = new YahooFinance();
 
 export interface QuoteData {
 	symbol: string;
@@ -69,41 +67,30 @@ export async function getQuoteFromCache(
 	return rows[0] ?? null;
 }
 
-/** Map exchange to Yahoo Finance suffix */
-function yahooSymbol(symbol: string, exchange: string): string {
-	if (exchange === "LSE" || exchange === "AIM") return `${symbol}.L`;
-	return symbol; // NASDAQ/NYSE — no suffix
-}
-
-/** Fetch a fresh quote from Yahoo Finance and update the cache */
+/** Fetch a fresh quote from FMP and update the cache */
 export async function refreshQuote(symbol: string, exchange: string): Promise<QuoteData | null> {
 	try {
-		const yahooSym = yahooSymbol(symbol, exchange);
-		const quote = await yf.quote(yahooSym);
-
-		if (!quote || !("regularMarketPrice" in quote)) {
-			log.warn({ symbol, exchange }, "No quote data from Yahoo");
+		const quote = await fmpQuote(symbol, exchange);
+		if (!quote || quote.last == null) {
+			log.warn({ symbol, exchange }, "No quote data from FMP");
 			return null;
 		}
 
 		const data: QuoteData = {
 			symbol,
 			exchange,
-			last: quote.regularMarketPrice ?? null,
-			bid: "bid" in quote ? ((quote.bid as number | undefined) ?? null) : null,
-			ask: "ask" in quote ? ((quote.ask as number | undefined) ?? null) : null,
-			volume: quote.regularMarketVolume ?? null,
-			avgVolume:
-				"averageDailyVolume3Month" in quote
-					? ((quote.averageDailyVolume3Month as number | undefined) ?? null)
-					: null,
-			changePercent: quote.regularMarketChangePercent ?? null,
+			last: quote.last,
+			bid: null,
+			ask: null,
+			volume: quote.volume,
+			avgVolume: quote.avgVolume,
+			changePercent: quote.changePercent,
 		};
 
 		await upsertQuote(data);
 		return data;
 	} catch (error) {
-		log.error({ symbol, exchange, error }, "Failed to refresh quote from Yahoo");
+		log.error({ symbol, exchange, error }, "Failed to refresh quote from FMP");
 		return null;
 	}
 }
@@ -117,8 +104,6 @@ export async function refreshQuotes(
 	for (const { symbol, exchange } of symbols) {
 		const data = await refreshQuote(symbol, exchange);
 		if (data) results.set(symbol, data);
-		// Small delay to avoid Yahoo rate limiting
-		await Bun.sleep(200);
 	}
 
 	log.info({ requested: symbols.length, fetched: results.size }, "Quote refresh complete");

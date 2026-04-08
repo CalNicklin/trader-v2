@@ -32,6 +32,9 @@ const envSchema = z.object({
 	// Finnhub
 	FINNHUB_API_KEY: z.string().optional(),
 
+	// FMP (Financial Modeling Prep)
+	FMP_API_KEY: z.string(),
+
 	// IBKR
 	IBKR_HOST: z.string().default("127.0.0.1"),
 	IBKR_PORT: z.coerce.number().default(4002), // 4001=live TWS, 4002=paper TWS, 7497=live gateway

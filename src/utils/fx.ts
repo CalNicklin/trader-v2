@@ -1,9 +1,7 @@
-import YahooFinance from "yahoo-finance2";
+import { fmpFxRate } from "../data/fmp.ts";
 import { createChildLogger } from "./logger.ts";
 
 const log = createChildLogger({ module: "fx" });
-
-const yf = new YahooFinance();
 
 interface FxCache {
 	rate: number;
@@ -23,10 +21,8 @@ export async function getExchangeRate(from: string, to: string): Promise<number>
 	}
 
 	try {
-		const symbol = `${from}${to}=X`;
-		const quote = await yf.quote(symbol);
-		if (quote.quoteType === "CURRENCY" && quote.regularMarketPrice) {
-			const rate = quote.regularMarketPrice;
+		const rate = await fmpFxRate(from, to);
+		if (rate != null && rate > 0) {
 			cache.set(key, { rate, timestamp: Date.now() });
 			return rate;
 		}
@@ -51,14 +47,11 @@ export async function convertCurrency(amount: number, from: string, to: string):
 export function getTradeFriction(exchange: string, side: "BUY" | "SELL"): number {
 	switch (exchange) {
 		case "LSE":
-			// 0.5% stamp duty on buys only, ~0.1% spread
 			return side === "BUY" ? 0.006 : 0.001;
 		case "AIM":
-			// 0% stamp duty, ~0.1% spread
 			return 0.001;
 		case "NASDAQ":
 		case "NYSE":
-			// ~0.2% FX spread each way
 			return 0.002;
 		default:
 			return 0.002;

@@ -1,10 +1,8 @@
-import YahooFinance from "yahoo-finance2";
+import { fmpHistorical } from "../data/fmp.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { type Candle, calcATR, calcRSI, calcVolumeRatio } from "./indicators.ts";
 
 const log = createChildLogger({ module: "historical" });
-
-const yf = new YahooFinance();
 
 export interface SymbolIndicators {
 	rsi14: number | null;
@@ -20,12 +18,6 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
-/** Map exchange to Yahoo Finance suffix */
-function yahooSymbol(symbol: string, exchange: string): string {
-	if (exchange === "LSE" || exchange === "AIM") return `${symbol}.L`;
-	return symbol;
-}
-
 /**
  * Fetch historical OHLCV data and compute indicators for a symbol.
  * Results are cached for 30 minutes.
@@ -38,21 +30,19 @@ export async function getIndicators(symbol: string, exchange: string): Promise<S
 	}
 
 	try {
-		const ninetyDaysAgo = new Date();
-		ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+		const data = await fmpHistorical(symbol, exchange, 90);
+		if (!data || data.length === 0) {
+			log.warn({ symbol, exchange }, "No historical data from FMP");
+			return { rsi14: null, atr14: null, volume_ratio: null };
+		}
 
-		const result = await yf.chart(yahooSymbol(symbol, exchange), {
-			period1: ninetyDaysAgo,
-			interval: "1d",
-		});
-
-		const candles: Candle[] = result.quotes.map((q) => ({
-			date: q.date,
-			open: q.open ?? null,
-			high: q.high ?? null,
-			low: q.low ?? null,
-			close: q.close ?? null,
-			volume: q.volume ?? null,
+		const candles: Candle[] = data.map((d) => ({
+			date: new Date(d.date),
+			open: d.open ?? null,
+			high: d.high ?? null,
+			low: d.low ?? null,
+			close: d.close ?? null,
+			volume: d.volume ?? null,
 		}));
 
 		const indicators: SymbolIndicators = {

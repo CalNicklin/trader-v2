@@ -118,6 +118,96 @@ export const recommendTradeGrader: RG = {
 	},
 };
 
+/** Known-valid US/LSE exchange tickers for eval purposes (no live API calls) */
+const KNOWN_VALID_TICKERS = new Set([
+	// US mega-caps & common
+	"AAPL",
+	"MSFT",
+	"GOOGL",
+	"GOOG",
+	"AMZN",
+	"NVDA",
+	"TSLA",
+	"META",
+	"JPM",
+	"V",
+	"JNJ",
+	"WMT",
+	"PG",
+	"MA",
+	"HD",
+	"XOM",
+	"AVGO",
+	"COST",
+	"ABBV",
+	"MRK",
+	"PEP",
+	"KO",
+	"LLY",
+	"NVO",
+	"CRM",
+	"AMD",
+	"NFLX",
+	"INTC",
+	"CSCO",
+	"ADBE",
+	"PYPL",
+	"QCOM",
+	"TXN",
+	"AMAT",
+	"MU",
+	"CRWD",
+	"HPE",
+	"LMT",
+	"BA",
+	"RTX",
+	"GD",
+	"NOC",
+	"MBLY",
+	"TSM",
+	"BRK-B",
+	"BRK-A",
+	// LSE
+	"SHEL",
+	"BP.",
+	"HSBA",
+	"AZN",
+	"ULVR",
+	"VOD",
+	"RIO",
+	"GLEN",
+	"GAW",
+	"FDEV",
+	"TET",
+	"JET2",
+	"BOWL",
+	"FEVR",
+]);
+
+export const tickerValidityGrader: RG = {
+	name: "ticker-validity",
+	type: "code",
+	grade: async (output) => {
+		if (output.length === 0) return { score: 1, pass: true, reason: "No symbols to validate" };
+
+		const invalid: string[] = [];
+		for (const a of output) {
+			if (!KNOWN_VALID_TICKERS.has(a.symbol)) {
+				invalid.push(a.symbol);
+			}
+		}
+		const score = (output.length - invalid.length) / output.length;
+		return {
+			score,
+			pass: invalid.length === 0,
+			reason:
+				invalid.length === 0
+					? "All symbols are valid tickers"
+					: `Invalid tickers: ${invalid.join(", ")}`,
+		};
+	},
+};
+
 export const allResearchGraders: RG[] = [
 	jsonShapeGrader,
 	minSymbolsGrader,
@@ -125,4 +215,5 @@ export const allResearchGraders: RG[] = [
 	directionGrader,
 	sentimentRangeGrader,
 	recommendTradeGrader,
+	tickerValidityGrader,
 ];
