@@ -48,11 +48,6 @@ if (suite === "all" || suite === "learning") {
 	await runLearningEvalSuite({ trials, suiteName: "learning" });
 }
 
-if (suite === "all" || suite === "self-improve") {
-	const { runSelfImproveEvalSuite } = await import("./self-improve/suite.ts");
-	await runSelfImproveEvalSuite({ trials, suiteName: "self-improve" });
-}
-
 if (suite === "all" || suite === "sentiment") {
 	const { runSentimentEvalSuite } = await import("./sentiment/suite.ts");
 	await runSentimentEvalSuite({ trials, suiteName: "sentiment" });
