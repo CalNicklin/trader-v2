@@ -75,7 +75,7 @@ jobs:
             If you determine the system is performing well and no improvements are needed,
             commit a short summary to docs/self-improvement-log.md explaining your analysis
             and why no changes were warranted.
-          claude_args: "--model claude-opus-4-6 --max-turns 30"
+          claude_args: "--model claude-opus-4-6 --max-turns 50"
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
