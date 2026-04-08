@@ -3,9 +3,9 @@ import { z } from "zod";
 const envSchema = z.object({
 	// Claude
 	ANTHROPIC_API_KEY: z.string(),
-	CLAUDE_MODEL: z.string().default("claude-sonnet-4-5-20250929"),
+	CLAUDE_MODEL: z.string().default("claude-sonnet-4-6"),
 	CLAUDE_MODEL_FAST: z.string().default("claude-haiku-4-5-20251001"),
-	CLAUDE_MODEL_HEAVY: z.string().default("claude-opus-4-6-20250918"),
+	CLAUDE_MODEL_HEAVY: z.string().default("claude-opus-4-6"),
 
 	// Resend
 	RESEND_API_KEY: z.string(),
