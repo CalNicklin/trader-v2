@@ -221,7 +221,11 @@ export async function evaluateAllStrategies(
 		// Per-strategy circuit breaker: skip if balance is too depleted to trade meaningfully
 		if (strategy.virtualBalance < STRATEGY_MIN_VIABLE_BALANCE) {
 			log.warn(
-				{ strategy: strategy.name, balance: strategy.virtualBalance, min: STRATEGY_MIN_VIABLE_BALANCE },
+				{
+					strategy: strategy.name,
+					balance: strategy.virtualBalance,
+					min: STRATEGY_MIN_VIABLE_BALANCE,
+				},
 				"Strategy balance below minimum viable — skipping evaluation",
 			);
 			continue;
@@ -264,7 +268,10 @@ export async function evaluateAllStrategies(
 			}
 
 			// Skip symbols on cooldown after a recent losing exit (unless we have an open position to manage)
-			if (cooldownSymbols.has(`${symbol}:${exchange}`) && !openSymbols.has(`${symbol}:${exchange}`)) {
+			if (
+				cooldownSymbols.has(`${symbol}:${exchange}`) &&
+				!openSymbols.has(`${symbol}:${exchange}`)
+			) {
 				log.debug({ strategy: strategy.name, symbol }, "Symbol on loss cooldown — skipping entry");
 				continue;
 			}
@@ -273,7 +280,13 @@ export async function evaluateAllStrategies(
 			if (!data) continue;
 
 			try {
-				const opened = await evaluateStrategyForSymbol(strategy, symbol!, exchange!, data, riskState);
+				const opened = await evaluateStrategyForSymbol(
+					strategy,
+					symbol!,
+					exchange!,
+					data,
+					riskState,
+				);
 				if (opened) riskState.openPositionCount++;
 			} catch (error) {
 				log.error({ strategy: strategy.name, symbol, error }, "Error evaluating strategy");
@@ -352,7 +365,10 @@ export async function evaluateAllStrategies(
 			}
 
 			// Skip symbols on cooldown after a recent losing exit
-			if (cooldownSymbolsGrad.has(`${symbol}:${exchange}`) && !openSymbolsGrad.has(`${symbol}:${exchange}`)) {
+			if (
+				cooldownSymbolsGrad.has(`${symbol}:${exchange}`) &&
+				!openSymbolsGrad.has(`${symbol}:${exchange}`)
+			) {
 				log.debug({ strategy: strategy.name, symbol }, "Symbol on loss cooldown — skipping entry");
 				continue;
 			}
@@ -377,7 +393,13 @@ export async function evaluateAllStrategies(
 			if (!data) continue;
 
 			try {
-				const opened = await evaluateStrategyForSymbol(strategy, symbol!, exchange!, data, riskState);
+				const opened = await evaluateStrategyForSymbol(
+					strategy,
+					symbol!,
+					exchange!,
+					data,
+					riskState,
+				);
 				if (opened) riskState.openPositionCount++;
 			} catch (error) {
 				log.error(
