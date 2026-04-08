@@ -32,6 +32,10 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugin_marketplaces: |
+            https://github.com/obra/superpowers.git
+          plugins: |
+            superpowers@superpowers
           prompt: |
             You are the self-improvement agent for a live autonomous trading system.
             Your job is to review production performance data and make code improvements
