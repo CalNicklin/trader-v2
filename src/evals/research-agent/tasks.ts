@@ -400,8 +400,7 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 		id: "ra-017",
 		name: "Juniper/HPE merger — should return HPE not JNPR",
 		input: {
-			headline:
-				"HPE completes $14B Juniper Networks acquisition, expanding networking portfolio",
+			headline: "HPE completes $14B Juniper Networks acquisition, expanding networking portfolio",
 			source: "finnhub",
 			symbols: ["HPE"],
 			classification: {

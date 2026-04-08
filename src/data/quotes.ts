@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
-import { fmpQuote, type FmpQuoteData } from "./fmp.ts";
 import { getDb } from "../db/client.ts";
 import { quotesCache } from "../db/schema.ts";
 import { createChildLogger } from "../utils/logger.ts";
+import { fmpQuote } from "./fmp.ts";
 
 const log = createChildLogger({ module: "quotes" });
 

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { resetConfigForTesting } from "../../src/config.ts";
 import { closeDb, getDb } from "../../src/db/client.ts";
 import { quotesCache, strategies } from "../../src/db/schema.ts";
-import { resetConfigForTesting } from "../../src/config.ts";
 
 describe("pruneDeadSymbols", () => {
 	beforeEach(() => {
