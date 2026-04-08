@@ -73,8 +73,14 @@ jobs:
             ## Step 3: Make Changes
 
             Explore the codebase to understand how modules connect before editing.
-            Make targeted improvements. Run `bun test --preload ./tests/preload.ts`
-            before committing to verify your changes pass all tests.
+            Make targeted improvements.
+
+            Before committing, you MUST run all three checks and fix any errors:
+            1. `bunx tsc --noEmit` — TypeScript type check (fix unused imports, type errors)
+            2. `bunx biome check src/ tests/` — Linter (fix formatting, lint issues)
+            3. `bun test --preload ./tests/preload.ts` — Full test suite
+
+            Do NOT commit or create a PR until all three pass cleanly.
 
             If you determine the system is performing well and no improvements are needed,
             commit a short summary to docs/self-improvement-log.md explaining your analysis
