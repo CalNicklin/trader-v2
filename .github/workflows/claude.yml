@@ -1,0 +1,80 @@
+name: Claude Code
+
+on:
+  workflow_dispatch:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  claude:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are the self-improvement agent for a live autonomous trading system.
+            Your job is to review production performance data and make code improvements
+            that will improve trading outcomes. You have full access to the codebase and
+            can change any file. All changes go through PR review.
+
+            ## Step 1: Gather Production Data
+
+            SSH into the production VPS to get the current performance landscape:
+
+            ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "cd /opt/trader-v2 && /home/deploy/.bun/bin/bun src/scripts/dump-landscape.ts"
+
+            This returns JSON with:
+            - Strategy definitions, parameters, signals, and universes
+            - Performance metrics (Sharpe, win rate, expectancy, drawdown)
+            - Recent trades with P&L and reasoning
+            - Trade insights with suggested actions and confidence scores
+            - Learning loop hit rate (which suggestions led to actual improvements)
+            - Recent evolution mutations and their outcomes
+            - Past improvement proposals
+
+            ## Step 2: Analyze and Identify Improvements
+
+            Read CLAUDE.md for project conventions. Read relevant specs in docs/specs/
+            for design context on why things are built the way they are.
+
+            Focus areas:
+            - Strategies with low Sharpe or high drawdown — investigate their signal logic
+            - High-confidence insights where ledToImprovement is null — unacted-on opportunities
+            - Patterns in missed opportunities — what signals could catch them
+            - Evolution proposals rejected by the validator — are constraints too tight?
+            - Prompt quality — are LLM prompts for trade review, evolution, dispatch producing good outputs?
+            - Cost efficiency — are we spending tokens wisely?
+
+            ## Step 3: Make Changes
+
+            Explore the codebase to understand how modules connect before editing.
+            Make targeted improvements. Run `bun test --preload ./tests/preload.ts`
+            before committing to verify your changes pass all tests.
+
+            If you determine the system is performing well and no improvements are needed,
+            commit a short summary to docs/self-improvement-log.md explaining your analysis
+            and why no changes were warranted.
+          claude_args: "--model claude-opus-4-6 --max-turns 30"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
