@@ -1,6 +1,4 @@
 import { getConfig } from "../config";
-import { sendEmail } from "../reporting/email";
-import { runSelfImprovementCycle } from "../self-improve/proposer";
 import { createChildLogger } from "../utils/logger";
 
 const log = createChildLogger({ module: "self-improve-job" });
@@ -8,36 +6,35 @@ const log = createChildLogger({ module: "self-improve-job" });
 export async function runSelfImproveJob(): Promise<void> {
 	const config = getConfig();
 
-	if (!config.GITHUB_TOKEN || !config.GITHUB_REPO_OWNER) {
-		log.info("GitHub not configured, skipping self-improvement");
+	if (!config.GITHUB_TOKEN) {
+		log.info("GITHUB_TOKEN not set, skipping self-improvement dispatch");
+		return;
+	}
+
+	if (!config.GITHUB_REPO_OWNER || !config.GITHUB_REPO_NAME) {
+		log.info("GitHub repo not configured, skipping self-improvement dispatch");
 		return;
 	}
 
 	try {
-		const result = await runSelfImprovementCycle();
+		const repo = `${config.GITHUB_REPO_OWNER}/${config.GITHUB_REPO_NAME}`;
+		const proc = Bun.spawn(["gh", "workflow", "run", "claude.yml", "--repo", repo], {
+			env: { ...process.env, GH_TOKEN: config.GITHUB_TOKEN },
+			stdout: "pipe",
+			stderr: "pipe",
+		});
 
-		log.info(
-			{
-				prsCreated: result.prsCreated,
-				errors: result.errors.length,
-			},
-			"Self-improvement cycle complete",
-		);
+		const exitCode = await proc.exited;
+		const stderr = await new Response(proc.stderr).text();
 
-		if (result.prsCreated > 0 || result.errors.length > 0) {
-			await sendEmail({
-				subject: `Trader v2 Self-Improve: ${result.prsCreated} PRs`,
-				html: `
-                    <h2>Self-Improvement Cycle Results</h2>
-                    <ul>
-                        <li><strong>PRs created:</strong> ${result.prsCreated}</li>
-                        ${result.errors.length > 0 ? `<li><strong>Errors:</strong><ul>${result.errors.map((e) => `<li>${e}</li>`).join("")}</ul></li>` : ""}
-                    </ul>
-                `,
-			});
+		if (exitCode !== 0) {
+			log.error({ exitCode, stderr }, "Failed to dispatch self-improvement workflow");
+			return;
 		}
+
+		log.info({ repo }, "Self-improvement workflow dispatched");
 	} catch (error) {
-		log.error({ error }, "Self-improvement cycle failed");
+		log.error({ error }, "Self-improvement dispatch failed");
 		throw error;
 	}
 }
