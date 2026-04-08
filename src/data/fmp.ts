@@ -174,48 +174,12 @@ export async function fmpBatchQuotes(
 	const results = new Map<string, FmpQuoteData>();
 	if (symbols.length === 0) return results;
 
-	// Build mapping: fmpSymbol -> original {symbol, exchange}
-	const fmpToOriginal = new Map<string, { symbol: string; exchange: string }>();
+	// Starter tier doesn't have /batch-quote — use individual /quote calls
+	// The rate limiter handles throttling (300 req/min)
 	for (const s of symbols) {
-		const fmpSym = toFmpSymbol(s.symbol, s.exchange);
-		fmpToOriginal.set(fmpSym, s);
-	}
-
-	const allFmpSymbols = [...fmpToOriginal.keys()];
-
-	// Process in chunks of 100
-	for (let i = 0; i < allFmpSymbols.length; i += 100) {
-		const chunk = allFmpSymbols.slice(i, i + 100);
-		const symbolList = chunk.join(",");
-
-		const data = await fmpFetch<
-			Array<{
-				symbol: string;
-				price: number;
-				volume: number;
-				avgVolume: number;
-				changesPercentage: number;
-			}>
-		>(`/batch-quote`, { symbol: symbolList });
-
-		if (!data) continue;
-
-		for (const q of data) {
-			const original = fmpToOriginal.get(q.symbol);
-			if (!original) {
-				log.warn({ fmpSymbol: q.symbol }, "FMP returned unknown symbol in batch");
-				continue;
-			}
-			results.set(original.symbol, {
-				symbol: original.symbol,
-				exchange: original.exchange,
-				last: q.price ?? null,
-				bid: null,
-				ask: null,
-				volume: q.volume ?? null,
-				avgVolume: q.avgVolume ?? null,
-				changePercent: q.changesPercentage ?? null,
-			});
+		const quote = await fmpQuote(s.symbol, s.exchange);
+		if (quote) {
+			results.set(s.symbol, quote);
 		}
 	}
 
@@ -238,7 +202,7 @@ export async function fmpHistorical(
 
 	const data = await fmpFetch<
 		Array<{ date: string; open: number; high: number; low: number; close: number; volume: number }>
-	>(`/historical-price-eod`, { symbol: fmpSym, from, to });
+	>(`/historical-price-eod/full`, { symbol: fmpSym, from, to });
 
 	if (!data || data.length === 0) {
 		log.warn({ symbol, exchange }, "No historical data from FMP");
@@ -263,8 +227,9 @@ export async function fmpHistorical(
 // ---------------------------------------------------------------------------
 
 export async function fmpFxRate(from: string, to: string): Promise<number | null> {
-	const data = await fmpFetch<Array<{ ticker: string; bid: number; ask: number }>>(`/fx`, {
-		symbol: `${from}/${to}`,
+	// FMP serves FX rates via the regular /quote endpoint with symbol like "GBPUSD"
+	const data = await fmpFetch<Array<{ symbol: string; price: number }>>(`/quote`, {
+		symbol: `${from}${to}`,
 	});
 
 	if (!data || data.length === 0) {
@@ -272,9 +237,8 @@ export async function fmpFxRate(from: string, to: string): Promise<number | null
 		return null;
 	}
 
-	const fx = data[0]!;
-	if (fx.bid == null || fx.ask == null) return null;
-	return (fx.bid + fx.ask) / 2;
+	const rate = data[0]!.price;
+	return rate != null && rate > 0 ? rate : null;
 }
 
 // ---------------------------------------------------------------------------
