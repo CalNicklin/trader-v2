@@ -66,7 +66,12 @@ function buildTabBar(activeTab: string): string {
 	return `<div class="tab-bar">${links}</div>`;
 }
 
-export function buildConsolePage(data: DashboardData, tab = "overview", tabHtml = ""): string {
+export function buildConsolePage(
+	data: DashboardData,
+	tab = "overview",
+	tabHtml = "",
+	extraQuery = "",
+): string {
 	const utcTime = new Date(data.timestamp).toLocaleString("en-GB", {
 		day: "2-digit",
 		month: "short",
@@ -276,7 +281,7 @@ ${logEntries}
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta http-equiv="refresh" content="30${tab !== "overview" ? `;url=/?tab=${tab}` : ""}" />
+<meta http-equiv="refresh" content="30${tab !== "overview" ? `;url=/?tab=${tab}${extraQuery}` : ""}" />
 <title>Trader v2 — Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -357,6 +362,15 @@ body{font-family:'JetBrains Mono','Courier New',monospace;background:#050505;col
 .type-graduation{color:#22c55e;background:#22c55e11}
 .type-badge.type-missed_opportunity{background:#78350f;color:#fbbf24}
 .type-badge.type-universe_suggestion{background:#1e3a5f;color:#60a5fa}
+.insight-filters{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
+.filter-btn{font-family:inherit;font-size:9px;text-transform:uppercase;letter-spacing:.5px;padding:4px 10px;border:1px solid #1a1a1a;border-radius:2px;background:transparent;color:#555;cursor:pointer;text-decoration:none;transition:border-color .15s,color .15s}
+.filter-btn:hover{border-color:#333;color:#888}
+.filter-btn.active{border-color:#f59e0b;color:#f59e0b}
+.filter-btn.type-trade_review.active{border-color:#3b82f6;color:#3b82f6}
+.filter-btn.type-pattern_analysis.active{border-color:#a855f7;color:#a855f7}
+.filter-btn.type-graduation.active{border-color:#22c55e;color:#22c55e}
+.filter-btn.type-missed_opportunity.active{border-color:#fbbf24;color:#fbbf24}
+.filter-btn.type-universe_suggestion.active{border-color:#60a5fa;color:#60a5fa}
 .tab-content{padding:16px 14px;background:#0a0a0a;min-height:calc(100vh - 120px)}
 .section-divider{display:flex;align-items:center;gap:10px;margin:18px 0 12px}
 .section-label{color:#555;font-size:9px;text-transform:uppercase;letter-spacing:2px;white-space:nowrap}
@@ -595,7 +609,7 @@ export function buildGuardianTab(data: GuardianData): string {
 	${logRows}
 </div>`;
 }
-export function buildLearningLoopTab(data: LearningLoopData): string {
+export function buildLearningLoopTab(data: LearningLoopData, activeFilter?: string): string {
 	const insightCards =
 		data.recentInsights.length === 0
 			? `<div style="color:#333;padding:8px 0;">No insights recorded yet</div>`
@@ -616,6 +630,26 @@ export function buildLearningLoopTab(data: LearningLoopData): string {
 					})
 					.join("\n");
 
+	const filterTypes = [
+		{ id: "trade_review", label: "Trade Review" },
+		{ id: "pattern_analysis", label: "Pattern Analysis" },
+		{ id: "graduation", label: "Graduation" },
+		{ id: "missed_opportunity", label: "Missed Opp." },
+		{ id: "universe_suggestion", label: "Universe Sug." },
+	];
+
+	const allClass = !activeFilter ? "filter-btn active" : "filter-btn";
+	const filterBar = `<div class="insight-filters">
+	<a href="/?tab=learning" class="${allClass}">All</a>
+	${filterTypes
+		.map((f) => {
+			const cls =
+				activeFilter === f.id ? `filter-btn type-${f.id} active` : `filter-btn type-${f.id}`;
+			return `<a href="/?tab=learning&type=${f.id}" class="${cls}">${f.label}</a>`;
+		})
+		.join("\n\t")}
+</div>`;
+
 	return `
 <div class="stat-cards" style="grid-template-columns:repeat(4,1fr);">
 	<div class="stat-card"><div class="sc-label">Insights (7d)</div><div class="sc-value" style="color:#e2e8f0;">${data.insightsCount7d}</div><div class="sc-sub">from trade reviews</div></div>
@@ -623,6 +657,7 @@ export function buildLearningLoopTab(data: LearningLoopData): string {
 	<div class="stat-card"><div class="sc-label">Patterns Found</div><div class="sc-value" style="color:#a855f7;">${data.patternsFound}</div><div class="sc-sub">this week</div></div>
 	<div class="stat-card"><div class="sc-label">Missed</div><div class="sc-value" style="color:#f59e0b;">${data.missedOpportunities}</div><div class="sc-sub">opportunities</div></div>
 </div>
+${filterBar}
 <div class="panel-header">Recent Insights<span class="count">${data.recentInsights.length}</span></div>
 <div class="scroll-panel" style="max-height:500px;">
 	${insightCards}

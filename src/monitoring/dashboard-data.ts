@@ -544,7 +544,20 @@ export interface LearningLoopData {
 	}>;
 }
 
-export async function getLearningLoopData(): Promise<LearningLoopData> {
+const VALID_INSIGHT_TYPES = [
+	"trade_review",
+	"pattern_analysis",
+	"graduation",
+	"missed_opportunity",
+	"universe_suggestion",
+] as const;
+export type InsightType = (typeof VALID_INSIGHT_TYPES)[number];
+
+export function isValidInsightType(s: string): s is InsightType {
+	return (VALID_INSIGHT_TYPES as readonly string[]).includes(s);
+}
+
+export async function getLearningLoopData(filterType?: InsightType): Promise<LearningLoopData> {
 	const db = getDb();
 	const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -580,6 +593,8 @@ export async function getLearningLoopData(): Promise<LearningLoopData> {
 		.get();
 	const missedOpportunities = missedResult?.count ?? 0;
 
+	const insightWhere = filterType ? sql`${tradeInsights.insightType} = ${filterType}` : undefined;
+
 	const rows = db
 		.select({
 			createdAt: tradeInsights.createdAt,
@@ -591,6 +606,7 @@ export async function getLearningLoopData(): Promise<LearningLoopData> {
 			ledToImprovement: tradeInsights.ledToImprovement,
 		})
 		.from(tradeInsights)
+		.where(insightWhere)
 		.orderBy(desc(tradeInsights.createdAt))
 		.limit(30)
 		.all();

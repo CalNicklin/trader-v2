@@ -7,6 +7,7 @@ import {
 	getLearningLoopData,
 	getNewsPipelineData,
 	getTradeActivityData,
+	isValidInsightType,
 } from "./dashboard-data";
 import { getHealthData, setPaused } from "./health";
 import {
@@ -85,6 +86,7 @@ async function handleRequest(req: Request): Promise<Response> {
 				: "overview";
 
 			let tabHtml = "";
+			let extraQuery = "";
 			if (tab === "news") {
 				const tabData = await getNewsPipelineData();
 				tabHtml = buildNewsPipelineTab(tabData);
@@ -92,15 +94,18 @@ async function handleRequest(req: Request): Promise<Response> {
 				const tabData = await getGuardianData();
 				tabHtml = buildGuardianTab(tabData);
 			} else if (tab === "learning") {
-				const tabData = await getLearningLoopData();
-				tabHtml = buildLearningLoopTab(tabData);
+				const typeParam = url.searchParams.get("type") ?? "";
+				const filterType = isValidInsightType(typeParam) ? typeParam : undefined;
+				const tabData = await getLearningLoopData(filterType);
+				tabHtml = buildLearningLoopTab(tabData, filterType);
+				extraQuery = filterType ? `&type=${filterType}` : "";
 			} else if (tab === "trades") {
 				const tabData = await getTradeActivityData();
 				tabHtml = buildTradeActivityTab(tabData);
 			}
 
 			const data = await getDashboardData();
-			const html = buildConsolePage(data, tab, tabHtml);
+			const html = buildConsolePage(data, tab, tabHtml, extraQuery);
 			return new Response(html, {
 				headers: { "content-type": "text/html; charset=utf-8" },
 			});
