@@ -18,7 +18,6 @@ async function getCurrentPrice(symbol: string, exchange: string): Promise<number
 		.limit(1);
 
 	if (cached?.last != null) {
-		// Check if price is stale (older than 24h)
 		if (cached.updatedAt) {
 			const ageMs = Date.now() - new Date(cached.updatedAt).getTime();
 			if (ageMs < 24 * 60 * 60 * 1000) return cached.last;
@@ -27,18 +26,11 @@ async function getCurrentPrice(symbol: string, exchange: string): Promise<number
 		}
 	}
 
-	// Fallback: Finnhub /quote
+	// Fallback: FMP single quote
 	try {
-		const { getConfig } = await import("../config.ts");
-		const config = getConfig();
-		if (!config.FINNHUB_API_KEY) return cached?.last ?? null;
-
-		const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${config.FINNHUB_API_KEY}`;
-		const res = await fetch(url);
-		if (!res.ok) return cached?.last ?? null;
-		const data = (await res.json()) as Record<string, unknown>;
-		const price = data.c;
-		return typeof price === "number" && price > 0 ? price : (cached?.last ?? null);
+		const { fmpQuote } = await import("../data/fmp.ts");
+		const quote = await fmpQuote(symbol, exchange);
+		return quote?.last ?? null;
 	} catch {
 		return cached?.last ?? null;
 	}

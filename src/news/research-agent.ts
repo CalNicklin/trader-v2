@@ -159,17 +159,11 @@ async function getPriceForSymbol(symbol: string, exchange: string): Promise<numb
 
 	if (cached?.last != null) return cached.last;
 
-	// Fallback: Finnhub /quote for newly-discovered symbols
-	const config = getConfig();
-	if (!config.FINNHUB_API_KEY) return null;
-
+	// Fallback: FMP single quote for newly-discovered symbols
 	try {
-		const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${config.FINNHUB_API_KEY}`;
-		const res = await fetch(url);
-		if (!res.ok) return null;
-		const data = (await res.json()) as Record<string, unknown>;
-		const price = data.c; // current price
-		return typeof price === "number" && price > 0 ? price : null;
+		const { fmpQuote } = await import("../data/fmp.ts");
+		const quote = await fmpQuote(symbol, exchange);
+		return quote?.last ?? null;
 	} catch {
 		return null;
 	}
