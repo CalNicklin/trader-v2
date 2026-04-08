@@ -109,7 +109,7 @@ export const recommendTradeGrader: RG = {
 	name: "recommend-trade-threshold",
 	type: "code",
 	grade: async (output) => {
-		const valid = output.every((a) => a.recommendTrade === a.confidence >= 0.8);
+		const valid = output.every((a) => a.recommendTrade === a.confidence >= 0.7);
 		return {
 			score: valid ? 1 : 0,
 			pass: valid,

@@ -15,7 +15,7 @@ import { writeSignals } from "./sentiment-writer.ts";
 const log = createChildLogger({ module: "research-agent" });
 
 const RESEARCH_COST_USD = 0.003; // Sonnet: ~500 input + 400 output tokens
-const CONFIDENCE_THRESHOLD = 0.8;
+const CONFIDENCE_THRESHOLD = 0.7;
 const INJECTION_TTL_24H = 24 * 60 * 60 * 1000;
 const VALID_EXCHANGES = new Set(["NASDAQ", "NYSE", "LSE"]);
 const VALID_URGENCIES = new Set(["low", "medium", "high"]);
