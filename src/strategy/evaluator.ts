@@ -4,6 +4,7 @@ import { getDb } from "../db/client.ts";
 import { strategies } from "../db/schema.ts";
 import {
 	closePaperPosition,
+	getLastClosedTime,
 	getOpenPositionForSymbol,
 	getOpenPositions,
 	openPaperPosition,
@@ -18,6 +19,9 @@ import type { SymbolIndicators } from "./historical.ts";
 import { buildEffectiveUniverse, filterByLiquidity } from "./universe.ts";
 
 const log = createChildLogger({ module: "evaluator" });
+
+/** Minimum hours after closing a position before re-entering the same symbol. */
+const REENTRY_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 interface StrategyRow {
 	id: number;
@@ -84,6 +88,19 @@ export async function evaluateStrategyForSymbol(
 			}
 		}
 	} else {
+		// Re-entry cooldown: skip if we recently closed a position on this symbol
+		const lastClosed = await getLastClosedTime(strategy.id, symbol, exchange);
+		if (lastClosed) {
+			const elapsed = Date.now() - new Date(lastClosed).getTime();
+			if (elapsed < REENTRY_COOLDOWN_MS) {
+				log.debug(
+					{ strategy: strategy.name, symbol, hoursAgo: (elapsed / 3_600_000).toFixed(1) },
+					"Skipping entry — re-entry cooldown active",
+				);
+				return;
+			}
+		}
+
 		const ctx = buildSignalContext({
 			quote: input.quote,
 			indicators: input.indicators,
@@ -92,6 +109,15 @@ export async function evaluateStrategyForSymbol(
 
 		if (input.quote.last == null || input.quote.last <= 0) return;
 		const price = input.quote.last;
+
+		// Diagnostic: log null variables that prevent signals from firing
+		const nullVars = Object.entries(ctx).filter(([, v]) => v === null || v === undefined);
+		if (nullVars.length > 0) {
+			log.debug(
+				{ strategy: strategy.name, symbol, nullVars: nullVars.map(([k]) => k) },
+				"Signal context has null variables",
+			);
+		}
 
 		if (signals.entry_long && evalExpr(signals.entry_long, ctx)) {
 			const gateResult = checkTradeRiskGate({

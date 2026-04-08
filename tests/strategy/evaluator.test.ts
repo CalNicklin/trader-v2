@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 describe("strategy evaluator", () => {
 	let db: ReturnType<typeof import("../../src/db/client.ts").getDb>;
@@ -166,5 +166,78 @@ describe("strategy evaluator", () => {
 
 		const positions = await db.select().from(paperPositions);
 		expect(positions).toHaveLength(0);
+	});
+
+	test("evaluateStrategy blocks re-entry during cooldown period", async () => {
+		const { evaluateStrategyForSymbol } = await import("../../src/strategy/evaluator.ts");
+		const { strategies, paperPositions, paperTrades } = await import("../../src/db/schema.ts");
+		const { openPaperPosition, closePaperPosition } = await import("../../src/paper/manager.ts");
+
+		const [strat] = await db
+			.insert(strategies)
+			.values({
+				name: "test_cooldown",
+				description: "test",
+				parameters: JSON.stringify({ position_size_pct: 10 }),
+				signals: JSON.stringify({
+					entry_long: "last > 0",
+					exit: "hold_days >= 0",
+				}),
+				universe: JSON.stringify(["AAPL"]),
+				status: "paper" as const,
+				virtualBalance: 10000,
+				generation: 1,
+			})
+			.returning();
+
+		// Open and immediately close a position
+		await openPaperPosition({
+			strategyId: strat!.id,
+			symbol: "AAPL",
+			exchange: "NASDAQ",
+			side: "BUY",
+			price: 150,
+			quantity: 6,
+			signalType: "entry_long",
+			reasoning: "test",
+		});
+
+		const positions = await db.select().from(paperPositions);
+		await closePaperPosition({
+			positionId: positions[0]!.id,
+			strategyId: strat!.id,
+			exitPrice: 155,
+			signalType: "exit",
+			reasoning: "test exit",
+		});
+
+		// Refresh strategy row (balance changed)
+		const [updatedStrat] = await db.select().from(strategies);
+
+		// Now try to re-enter — should be blocked by cooldown
+		await evaluateStrategyForSymbol(updatedStrat!, "AAPL", "NASDAQ", {
+			quote: {
+				last: 150,
+				bid: 149.5,
+				ask: 150.5,
+				volume: 5000000,
+				avgVolume: 3000000,
+				changePercent: 1.0,
+				newsSentiment: null,
+				newsEarningsSurprise: null,
+				newsGuidanceChange: null,
+				newsManagementTone: null,
+				newsRegulatoryRisk: null,
+				newsAcquisitionLikelihood: null,
+				newsCatalystType: null,
+				newsExpectedMoveDuration: null,
+			},
+			indicators: { rsi14: 45, atr14: 3.0, volume_ratio: 1.5 },
+		});
+
+		// Should still only have the 1 closed position, no new entry
+		const allPositions = await db.select().from(paperPositions);
+		const openPositions = allPositions.filter((p) => !p.closedAt);
+		expect(openPositions).toHaveLength(0);
 	});
 });

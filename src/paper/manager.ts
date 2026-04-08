@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { paperPositions, paperTrades, strategies } from "../db/schema.ts";
 import { getTradeFriction } from "../utils/fx.ts";
@@ -141,4 +141,27 @@ export async function getOpenPositionForSymbol(
 		)
 		.limit(1);
 	return position ?? null;
+}
+
+/** Returns the closedAt timestamp of the most recently closed position for this strategy+symbol, or null. */
+export async function getLastClosedTime(
+	strategyId: number,
+	symbol: string,
+	exchange: string,
+): Promise<string | null> {
+	const db = getDb();
+	const [row] = await db
+		.select({ closedAt: paperPositions.closedAt })
+		.from(paperPositions)
+		.where(
+			and(
+				eq(paperPositions.strategyId, strategyId),
+				eq(paperPositions.symbol, symbol),
+				eq(paperPositions.exchange, exchange),
+				isNotNull(paperPositions.closedAt),
+			),
+		)
+		.orderBy(desc(paperPositions.closedAt))
+		.limit(1);
+	return row?.closedAt ?? null;
 }
