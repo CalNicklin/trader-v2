@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 
 describe("strategy evaluator", () => {
 	let db: ReturnType<typeof import("../../src/db/client.ts").getDb>;
@@ -170,7 +170,7 @@ describe("strategy evaluator", () => {
 
 	test("evaluateStrategy blocks re-entry during cooldown period", async () => {
 		const { evaluateStrategyForSymbol } = await import("../../src/strategy/evaluator.ts");
-		const { strategies, paperPositions, paperTrades } = await import("../../src/db/schema.ts");
+		const { strategies, paperPositions } = await import("../../src/db/schema.ts");
 		const { openPaperPosition, closePaperPosition } = await import("../../src/paper/manager.ts");
 
 		const [strat] = await db
