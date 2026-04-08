@@ -2,6 +2,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { and, eq } from "drizzle-orm";
 import { getConfig } from "../config.ts";
+import { fmpValidateSymbol } from "../data/fmp.ts";
 import { getDb } from "../db/client.ts";
 import { newsAnalyses, quotesCache, strategies } from "../db/schema.ts";
 import { getInjectedSymbols, injectSymbol } from "../strategy/universe.ts";
@@ -79,6 +80,8 @@ Include the originally-classified symbol with your independent assessment. Look 
 - Supply chain effects (suppliers, customers)
 - Sector peers affected by competitive dynamics
 - M&A targets or acquirers
+
+Return only valid exchange tickers as traded on NASDAQ, NYSE, or LSE. Use the ticker symbol, not the company name (e.g. TSM not TSMC, MBLY not MOBILEYE, BRK-B not BRK.B). If unsure of the exact ticker, omit the symbol rather than guess.
 
 Respond with JSON only, no markdown:
 {"affected_symbols": [...]}`;
@@ -206,9 +209,12 @@ export async function runResearchAnalysis(
 		const db = getDb();
 		for (const analysis of analyses) {
 			const inUniverse = await isSymbolInUniverse(analysis.symbol, analysis.exchange);
-			const priceAtAnalysis = await getPriceForSymbol(analysis.symbol, analysis.exchange);
+			const isValidTicker = await fmpValidateSymbol(analysis.symbol, analysis.exchange);
+			const priceAtAnalysis = isValidTicker
+				? await getPriceForSymbol(analysis.symbol, analysis.exchange)
+				: null;
 
-			// Store analysis row (upsert on newsEventId + symbol)
+			// Always store analysis (for debugging/eval flywheel)
 			await db
 				.insert(newsAnalyses)
 				.values({
@@ -224,6 +230,7 @@ export async function runResearchAnalysis(
 					recommendTrade: analysis.recommendTrade,
 					inUniverse,
 					priceAtAnalysis,
+					validatedTicker: isValidTicker,
 				})
 				.onConflictDoUpdate({
 					target: [newsAnalyses.newsEventId, newsAnalyses.symbol],
@@ -237,27 +244,34 @@ export async function runResearchAnalysis(
 						recommendTrade: analysis.recommendTrade,
 						inUniverse,
 						priceAtAnalysis,
+						validatedTicker: isValidTicker,
 					},
 				});
 
-			// Write enriched signals to quotes_cache (upsert creates row if missing)
-			await writeSignals(analysis.symbol, analysis.exchange, {
-				sentiment: analysis.sentiment,
-				earningsSurprise: 0,
-				guidanceChange: 0,
-				managementTone: 0,
-				regulatoryRisk: 0,
-				acquisitionLikelihood: 0,
-				catalystType: analysis.eventType,
-				expectedMoveDuration: analysis.urgency === "high" ? "1-3d" : "1-2w",
-			});
+			// Only write to quotesCache if ticker is real
+			if (isValidTicker) {
+				await writeSignals(analysis.symbol, analysis.exchange, {
+					sentiment: analysis.sentiment,
+					earningsSurprise: 0,
+					guidanceChange: 0,
+					managementTone: 0,
+					regulatoryRisk: 0,
+					acquisitionLikelihood: 0,
+					catalystType: analysis.eventType,
+					expectedMoveDuration: analysis.urgency === "high" ? "1-3d" : "1-2w",
+				});
 
-			// Inject high-confidence symbols with 24h TTL
-			if (analysis.recommendTrade) {
-				injectSymbol(analysis.symbol, analysis.exchange, INJECTION_TTL_24H);
-				log.info(
-					{ symbol: analysis.symbol, confidence: analysis.confidence },
-					"High-confidence symbol injected with 24h TTL",
+				if (analysis.recommendTrade) {
+					injectSymbol(analysis.symbol, analysis.exchange, INJECTION_TTL_24H);
+					log.info(
+						{ symbol: analysis.symbol, confidence: analysis.confidence },
+						"High-confidence symbol injected with 24h TTL",
+					);
+				}
+			} else {
+				log.warn(
+					{ symbol: analysis.symbol, exchange: analysis.exchange },
+					"Research agent returned invalid ticker — skipped signal write",
 				);
 			}
 		}
