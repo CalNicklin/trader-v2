@@ -328,6 +328,9 @@ export const newsAnalyses = sqliteTable(
 		priceAtAnalysis: real("price_at_analysis"),
 		priceAfter1d: real("price_after_1d"),
 		priceAfter1w: real("price_after_1w"),
+		validatedTicker: integer("validated_ticker", { mode: "boolean" })
+			.notNull()
+			.$defaultFn(() => true),
 		createdAt: text("created_at")
 			.notNull()
 			.$defaultFn(() => new Date().toISOString()),
