@@ -1,6 +1,7 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { paperPositions, paperTrades, strategies } from "../db/schema.ts";
+import { LOSS_COOLDOWN_HOURS } from "../risk/constants.ts";
 import { getTradeFriction } from "../utils/fx.ts";
 import { calcPnl } from "./pnl.ts";
 
@@ -141,4 +142,22 @@ export async function getOpenPositionForSymbol(
 		)
 		.limit(1);
 	return position ?? null;
+}
+
+/** Returns a Set of "symbol:exchange" keys that had a losing exit within the cooldown window. */
+export async function getSymbolsOnCooldown(strategyId: number): Promise<Set<string>> {
+	const db = getDb();
+	const cutoff = new Date(Date.now() - LOSS_COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
+	const recentLosers = await db
+		.select({ symbol: paperTrades.symbol, exchange: paperTrades.exchange })
+		.from(paperTrades)
+		.where(
+			and(
+				eq(paperTrades.strategyId, strategyId),
+				eq(paperTrades.signalType, "exit"),
+				lt(paperTrades.pnl, 0),
+				gt(paperTrades.createdAt, cutoff),
+			),
+		);
+	return new Set(recentLosers.map((t) => `${t.symbol}:${t.exchange}`));
 }

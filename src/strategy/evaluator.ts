@@ -6,8 +6,10 @@ import {
 	closePaperPosition,
 	getOpenPositionForSymbol,
 	getOpenPositions,
+	getSymbolsOnCooldown,
 	openPaperPosition,
 } from "../paper/manager.ts";
+import { STRATEGY_MIN_VIABLE_BALANCE } from "../risk/constants.ts";
 import { checkTradeRiskGate } from "../risk/gate.ts";
 import { isTradingHalted, isWeeklyDrawdownActive } from "../risk/guardian.ts";
 import { createChildLogger } from "../utils/logger.ts";
@@ -40,6 +42,7 @@ export interface EvalInput {
 	indicators: SymbolIndicators;
 }
 
+/** Returns true if a new position was opened (caller must update riskState). */
 export async function evaluateStrategyForSymbol(
 	strategy: StrategyRow,
 	symbol: string,
@@ -50,8 +53,8 @@ export async function evaluateStrategyForSymbol(
 		openPositionSectors: (string | null)[];
 		weeklyDrawdownActive: boolean;
 	},
-): Promise<void> {
-	if (!strategy.signals) return;
+): Promise<boolean> {
+	if (!strategy.signals) return false;
 
 	const signals: SignalDef = JSON.parse(strategy.signals);
 
@@ -83,6 +86,7 @@ export async function evaluateStrategyForSymbol(
 				}
 			}
 		}
+		return false;
 	} else {
 		const ctx = buildSignalContext({
 			quote: input.quote,
@@ -90,7 +94,7 @@ export async function evaluateStrategyForSymbol(
 			position: null,
 		});
 
-		if (input.quote.last == null || input.quote.last <= 0) return;
+		if (input.quote.last == null || input.quote.last <= 0) return false;
 		const price = input.quote.last;
 
 		if (signals.entry_long && evalExpr(signals.entry_long, ctx)) {
@@ -112,7 +116,7 @@ export async function evaluateStrategyForSymbol(
 					{ strategy: strategy.name, symbol, reason: gateResult.reason },
 					"Trade rejected by risk gate",
 				);
-				return;
+				return false;
 			}
 
 			const { quantity, stopLossPrice } = gateResult.sizing!;
@@ -131,6 +135,7 @@ export async function evaluateStrategyForSymbol(
 					signalType: "entry_long",
 					reasoning: `Entry signal: ${signals.entry_long}`,
 				});
+				return true;
 			}
 		} else if (signals.entry_short && evalExpr(signals.entry_short, ctx)) {
 			const gateResult = checkTradeRiskGate({
@@ -151,7 +156,7 @@ export async function evaluateStrategyForSymbol(
 					{ strategy: strategy.name, symbol, reason: gateResult.reason },
 					"Trade rejected by risk gate",
 				);
-				return;
+				return false;
 			}
 
 			const { quantity, stopLossPrice } = gateResult.sizing!;
@@ -177,8 +182,10 @@ export async function evaluateStrategyForSymbol(
 					signalType: "entry_short",
 					reasoning: `Entry signal: ${signals.entry_short}`,
 				});
+				return true;
 			}
 		}
+		return false;
 	}
 }
 
@@ -210,6 +217,16 @@ export async function evaluateAllStrategies(
 
 	for (const strategy of activeStrategies) {
 		if (!strategy.universe) continue;
+
+		// Per-strategy circuit breaker: skip if balance is too depleted to trade meaningfully
+		if (strategy.virtualBalance < STRATEGY_MIN_VIABLE_BALANCE) {
+			log.warn(
+				{ strategy: strategy.name, balance: strategy.virtualBalance, min: STRATEGY_MIN_VIABLE_BALANCE },
+				"Strategy balance below minimum viable — skipping evaluation",
+			);
+			continue;
+		}
+
 		const rawUniverse: string[] = JSON.parse(strategy.universe);
 
 		// Apply universe management: merge injections, cap at 50, filter liquidity
@@ -234,6 +251,7 @@ export async function evaluateAllStrategies(
 		};
 
 		const openSymbols = new Set(openPositions.map((p) => `${p.symbol}:${p.exchange}`));
+		const cooldownSymbols = await getSymbolsOnCooldown(strategy.id);
 
 		for (const symbolSpec of exchangeFiltered) {
 			const [symbol, exchange] = symbolSpec.includes(":")
@@ -245,11 +263,18 @@ export async function evaluateAllStrategies(
 				continue;
 			}
 
+			// Skip symbols on cooldown after a recent losing exit (unless we have an open position to manage)
+			if (cooldownSymbols.has(`${symbol}:${exchange}`) && !openSymbols.has(`${symbol}:${exchange}`)) {
+				log.debug({ strategy: strategy.name, symbol }, "Symbol on loss cooldown — skipping entry");
+				continue;
+			}
+
 			const data = await getQuoteAndIndicators(symbol!, exchange!);
 			if (!data) continue;
 
 			try {
-				await evaluateStrategyForSymbol(strategy, symbol!, exchange!, data, riskState);
+				const opened = await evaluateStrategyForSymbol(strategy, symbol!, exchange!, data, riskState);
+				if (opened) riskState.openPositionCount++;
 			} catch (error) {
 				log.error({ strategy: strategy.name, symbol, error }, "Error evaluating strategy");
 			}
@@ -314,6 +339,7 @@ export async function evaluateAllStrategies(
 		};
 
 		const openSymbolsGrad = new Set(openPositions.map((p) => `${p.symbol}:${p.exchange}`));
+		const cooldownSymbolsGrad = await getSymbolsOnCooldown(strategy.id);
 
 		for (const symbolSpec of exchangeFilteredGrad) {
 			const [symbol, exchange] = symbolSpec.includes(":")
@@ -322,6 +348,12 @@ export async function evaluateAllStrategies(
 
 			// Skip symbols with no open position when entries are disallowed (us_close)
 			if (options?.allowNewEntries === false && !openSymbolsGrad.has(`${symbol}:${exchange}`)) {
+				continue;
+			}
+
+			// Skip symbols on cooldown after a recent losing exit
+			if (cooldownSymbolsGrad.has(`${symbol}:${exchange}`) && !openSymbolsGrad.has(`${symbol}:${exchange}`)) {
+				log.debug({ strategy: strategy.name, symbol }, "Symbol on loss cooldown — skipping entry");
 				continue;
 			}
 
@@ -345,7 +377,8 @@ export async function evaluateAllStrategies(
 			if (!data) continue;
 
 			try {
-				await evaluateStrategyForSymbol(strategy, symbol!, exchange!, data, riskState);
+				const opened = await evaluateStrategyForSymbol(strategy, symbol!, exchange!, data, riskState);
+				if (opened) riskState.openPositionCount++;
 			} catch (error) {
 				log.error(
 					{ strategy: strategy.name, symbol, error },

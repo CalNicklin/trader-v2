@@ -6,6 +6,7 @@ export const MIN_POSITION_VALUE = 50; // USD — below this, spreads eat edge
 export const MAX_CONCURRENT_POSITIONS = 3;
 export const MAX_SHORT_SIZE_RATIO = 0.75; // 75% of max long size
 export const BORROW_FEE_CAP_ANNUAL_PCT = 0.05; // 5% annualized
+export const LOSS_COOLDOWN_HOURS = 4; // hours before re-entering a symbol after a losing exit
 
 // ── Stop Loss Multipliers ─────────────────────────────────────────────────
 export const STOP_LOSS_ATR_MULT_LONG = 2; // 2x ATR(14) for longs
@@ -17,6 +18,7 @@ export const WEEKLY_DRAWDOWN_LIMIT_PCT = 0.05; // 5% — reduce position sizes b
 export const WEEKLY_DRAWDOWN_SIZE_REDUCTION = 0.5; // multiply sizes by this
 export const MAX_DRAWDOWN_CIRCUIT_BREAKER_PCT = 0.1; // 10% — full stop
 export const MAX_CORRELATED_SECTOR_POSITIONS = 2;
+export const STRATEGY_MIN_VIABLE_BALANCE = 1000; // USD — pause strategy below this
 
 // ── Demotion / Kill ───────────────────────────────────────────────────────
 export const TWO_STRIKE_WINDOW_DAYS = 30; // second breach within N days = demotion
