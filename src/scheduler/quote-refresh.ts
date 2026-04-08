@@ -125,3 +125,54 @@ export async function backfillSentimentPrices(): Promise<void> {
 		);
 	}
 }
+
+/**
+ * One-time cleanup of dead symbols. Deletes quotesCache rows where
+ * last IS NULL and the symbol is not in any strategy universe or position.
+ */
+export async function cleanupDeadSymbols(): Promise<number> {
+	const db = getDb();
+	const { strategies, paperPositions } = await import("../db/schema.ts");
+
+	// Collect all symbols in strategy universes
+	const allStrategies = await db.select({ universe: strategies.universe }).from(strategies);
+
+	const universeSymbols = new Set<string>();
+	for (const s of allStrategies) {
+		try {
+			const universe: string[] = JSON.parse(s.universe ?? "[]");
+			for (const u of universe) {
+				const sym = u.includes(":") ? u.split(":")[0]! : u;
+				universeSymbols.add(sym);
+			}
+		} catch {}
+	}
+
+	// Collect symbols with open paper positions (no closedAt = still open)
+	const openPositions = await db
+		.select({ symbol: paperPositions.symbol })
+		.from(paperPositions)
+		.where(isNull(paperPositions.closedAt));
+
+	for (const p of openPositions) {
+		universeSymbols.add(p.symbol);
+	}
+
+	// Find dead symbols not in any universe/position
+	const deadRows = await db
+		.select({ id: quotesCache.id, symbol: quotesCache.symbol, exchange: quotesCache.exchange })
+		.from(quotesCache)
+		.where(isNull(quotesCache.last));
+
+	const toDelete = deadRows.filter((r) => !universeSymbols.has(r.symbol));
+	if (toDelete.length === 0) return 0;
+
+	const ids = toDelete.map((r) => r.id);
+	await db.delete(quotesCache).where(inArray(quotesCache.id, ids));
+
+	log.info(
+		{ count: toDelete.length, symbols: toDelete.map((s) => s.symbol) },
+		"One-time cleanup: removed dead symbols from quotes cache",
+	);
+	return toDelete.length;
+}
