@@ -3,7 +3,7 @@ import { getDb } from "../db/client";
 import { strategies, strategyMutations } from "../db/schema";
 import type { ValidatedMutation } from "./types";
 
-export async function spawnChild(mutation: ValidatedMutation): Promise<number> {
+export async function spawnChild(mutation: ValidatedMutation, createdBy = "evolution"): Promise<number> {
 	const db = getDb();
 
 	// 1. Fetch parent strategy
@@ -30,7 +30,7 @@ export async function spawnChild(mutation: ValidatedMutation): Promise<number> {
 			virtualBalance: parent.virtualBalance,
 			parentStrategyId: parent.id,
 			generation: parent.generation + 1,
-			createdBy: "evolution",
+			createdBy,
 		})
 		.returning();
 

@@ -166,4 +166,42 @@ describe("spawnChild", () => {
 
 		await expect(spawnChild(mutation)).rejects.toThrow("99999");
 	});
+
+	it("uses custom createdBy when provided", async () => {
+		const { strategies } = await import("../../src/db/schema.ts");
+		const { spawnChild } = await import("../../src/evolution/spawner.ts");
+
+		const [parent] = await db
+			.insert(strategies)
+			.values({
+				name: "parent-recovery",
+				description: "Parent for recovery test",
+				parameters: JSON.stringify({ stop_loss_pct: 3 }),
+				signals: JSON.stringify({ entry_long: "rsi < 30" }),
+				universe: JSON.stringify(["AAPL"]),
+				status: "paper" as const,
+				virtualBalance: 10000,
+				generation: 1,
+				createdBy: "seed",
+			})
+			.returning();
+
+		const mutation: ValidatedMutation = {
+			parentId: parent!.id,
+			type: "structural",
+			name: "recovery-strategy",
+			description: "Recovery spawn",
+			parameters: { stop_loss_pct: 4 },
+			signals: { entry_long: "rsi < 25", exit: "rsi > 70" },
+			universe: ["MSFT"],
+			parameterDiff: {},
+		};
+
+		const childId = await spawnChild(mutation, "evolution:recovery");
+
+		const { eq } = await import("drizzle-orm");
+		const [child] = await db.select().from(strategies).where(eq(strategies.id, childId));
+
+		expect(child!.createdBy).toBe("evolution:recovery");
+	});
 });
