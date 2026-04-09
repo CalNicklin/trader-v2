@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 
 const mockGetMarketDataSnapshot = mock();
 const mockGetHistoricalData = mock();
+const mockSetMarketDataType = mock();
 const mockApi = {
 	getMarketDataSnapshot: mockGetMarketDataSnapshot,
 	getHistoricalData: mockGetHistoricalData,
+	setMarketDataType: mockSetMarketDataType,
 };
 const mockGetApi = mock(() => mockApi);
 const mockIsConnected = mock(() => true);
@@ -66,6 +68,23 @@ describe("ibkrQuote", () => {
 		mockGetMarketDataSnapshot.mockRejectedValue(new Error("timeout"));
 		const result = await ibkrQuote("HSBA", "LSE");
 		expect(result).toBeNull();
+	});
+
+	test("falls back to delayed ticks when real-time unavailable", async () => {
+		const snapshotMap = new Map();
+		snapshotMap.set(68, { value: 1330.5 }); // DELAYED_LAST = 68
+		snapshotMap.set(66, { value: 1330.0 }); // DELAYED_BID = 66
+		snapshotMap.set(67, { value: 1331.0 }); // DELAYED_ASK = 67
+		snapshotMap.set(74, { value: 5000000 }); // DELAYED_VOLUME = 74
+		mockGetMarketDataSnapshot.mockResolvedValue(snapshotMap);
+
+		const result = await ibkrQuote("HSBA", "LSE");
+
+		expect(result).not.toBeNull();
+		expect(result!.last).toBe(1330.5);
+		expect(result!.bid).toBe(1330.0);
+		expect(result!.ask).toBe(1331.0);
+		expect(result!.volume).toBe(5000000);
 	});
 
 	test("returns quote with null fields when ticks are missing", async () => {

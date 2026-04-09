@@ -14,13 +14,28 @@ export async function ibkrQuote(symbol: string, exchange: string): Promise<FmpQu
 
 	try {
 		const api = getApi();
+		// Request delayed data (15-min) — paper accounts lack real-time LSE subscriptions
+		api.setMarketDataType(3);
 		const contract = getContract(symbol, exchange as "LSE" | "NASDAQ" | "NYSE");
 		const snapshot = await api.getMarketDataSnapshot(contract, "", false);
 
-		const last = snapshot.get(IBApiTickType.LAST)?.value ?? null;
-		const bid = snapshot.get(IBApiTickType.BID)?.value ?? null;
-		const ask = snapshot.get(IBApiTickType.ASK)?.value ?? null;
-		const volume = snapshot.get(IBApiTickType.VOLUME)?.value ?? null;
+		// Check both real-time and delayed tick types (IBKR may return either)
+		const last =
+			snapshot.get(IBApiTickType.LAST)?.value ??
+			snapshot.get(IBApiTickType.DELAYED_LAST)?.value ??
+			null;
+		const bid =
+			snapshot.get(IBApiTickType.BID)?.value ??
+			snapshot.get(IBApiTickType.DELAYED_BID)?.value ??
+			null;
+		const ask =
+			snapshot.get(IBApiTickType.ASK)?.value ??
+			snapshot.get(IBApiTickType.DELAYED_ASK)?.value ??
+			null;
+		const volume =
+			snapshot.get(IBApiTickType.VOLUME)?.value ??
+			snapshot.get(IBApiTickType.DELAYED_VOLUME)?.value ??
+			null;
 
 		if (last === null) {
 			log.warn({ symbol, exchange }, "IBKR snapshot returned no last price");
