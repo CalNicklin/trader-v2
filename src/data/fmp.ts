@@ -12,8 +12,8 @@ export interface FmpQuoteData {
 	symbol: string;
 	exchange: string;
 	last: number | null;
-	bid: null;
-	ask: null;
+	bid: number | null;
+	ask: number | null;
 	volume: number | null;
 	avgVolume: number | null;
 	changePercent: number | null;
