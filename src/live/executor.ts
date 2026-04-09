@@ -504,6 +504,13 @@ async function retireStrategy(
 		data: JSON.stringify({ strategyId, fromTier, reason }),
 	});
 
+	// Close all open paper positions at last known price
+	const { closeAllPositions } = await import("../paper/manager.ts");
+	const closed = await closeAllPositions(strategyId, `Strategy retired: ${reason}`);
+	if (closed > 0) {
+		log.info({ strategyId, closed }, "Force-closed open positions on retirement");
+	}
+
 	log.warn({ strategyId, fromTier, reason }, "Strategy killed and retired");
 }
 

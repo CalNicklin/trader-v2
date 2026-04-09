@@ -100,6 +100,13 @@ export async function runTournaments(): Promise<TournamentResult[]> {
 			evidence: JSON.stringify({ reason, parentSharpe, childSharpe }),
 		});
 
+		// 9b. Close all open paper positions for the loser
+		const { closeAllPositions } = await import("../paper/manager.ts");
+		const closed = await closeAllPositions(loserId, `Tournament loss: ${reason}`);
+		if (closed > 0) {
+			log.info({ loserId, closed }, "Force-closed open positions on tournament loss");
+		}
+
 		// 10. Update strategyMutations row with parentSharpe and childSharpe
 		await db
 			.update(strategyMutations)

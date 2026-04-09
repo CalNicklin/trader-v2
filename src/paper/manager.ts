@@ -115,6 +115,29 @@ export async function closePaperPosition(input: ClosePositionInput): Promise<voi
 		.where(eq(strategies.id, input.strategyId));
 }
 
+/**
+ * Close all open positions for a strategy at their last known price.
+ * Used when a strategy is retired/killed to avoid orphan positions.
+ */
+export async function closeAllPositions(strategyId: number, reason: string): Promise<number> {
+	const positions = await getOpenPositions(strategyId);
+	let closed = 0;
+
+	for (const pos of positions) {
+		const exitPrice = pos.currentPrice ?? pos.entryPrice;
+		await closePaperPosition({
+			positionId: pos.id,
+			strategyId,
+			exitPrice,
+			signalType: "force_close",
+			reasoning: reason,
+		});
+		closed++;
+	}
+
+	return closed;
+}
+
 export async function getOpenPositions(strategyId: number) {
 	const db = getDb();
 	return db
