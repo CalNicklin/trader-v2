@@ -69,6 +69,13 @@ jobs:
             - Evolution proposals rejected by the validator — are constraints too tight?
             - Prompt quality — are LLM prompts for trade review, evolution, dispatch producing good outputs?
             - Cost efficiency — are we spending tokens wisely?
+            - Population health — if activePaperCount is below 4, this is a CRITICAL priority.
+              Investigate why strategies are being killed faster than created. Check graduation
+              events for patterns (are kill thresholds too aggressive for current volatility?
+              Are young strategies being culled before accumulating meaningful data?). Consider:
+              adjusting DRAWDOWN_KILL_PCT, adding tournament protection for strategies with <10
+              trades, writing new seed strategies with battle-tested parameters, or tuning the
+              evolution floor's recovery spawn logic if you see repeated spawn-kill churn.
 
             ## Step 3: Make Changes
 
