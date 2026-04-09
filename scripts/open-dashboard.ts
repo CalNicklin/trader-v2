@@ -23,26 +23,20 @@ const vpsUser = getVar("VPS_USER");
 const adminPassword = getVar("ADMIN_PASSWORD", "");
 const localPort = 13847;
 
-// Extract SSH key to temp file
-const keyMatch = envContent.match(
-	/VPS_SSH_KEY="?(-----BEGIN[\s\S]*?-----END[^\n]+)"?/,
+// Use the deploy key from ~/.ssh (same key used by other VPS scripts)
+const keyFile = join(
+	process.env.HOME ?? "~",
+	".ssh",
+	"trader-v2-deploy",
 );
-if (!keyMatch?.[1]) throw new Error("Missing VPS_SSH_KEY in .env");
 
-const keyFile = join(tmpdir(), `trader-v2-dash-${process.pid}.pem`);
-Bun.write(keyFile, keyMatch[1] + "\n");
-const { chmodSync } = await import("node:fs");
-chmodSync(keyFile, 0o600);
-
-// Clean up key file on exit
-function cleanup() {
-	try {
-		const { unlinkSync } = require("node:fs");
-		unlinkSync(keyFile);
-	} catch {}
-}
-process.on("SIGINT", () => { cleanup(); process.exit(0); });
-process.on("SIGTERM", () => { cleanup(); process.exit(0); });
+function cleanup() {}
+process.on("SIGINT", () => {
+	process.exit(0);
+});
+process.on("SIGTERM", () => {
+	process.exit(0);
+});
 
 console.log(`Opening SSH tunnel to ${vpsHost}:3847 → localhost:${localPort}...`);
 
