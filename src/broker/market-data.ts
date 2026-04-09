@@ -20,22 +20,22 @@ export async function ibkrQuote(symbol: string, exchange: string): Promise<FmpQu
 		const snapshot = await api.getMarketDataSnapshot(contract, "", false);
 
 		// Check both real-time and delayed tick types (IBKR may return either)
-		const last =
+		const last = validTick(
 			snapshot.get(IBApiTickType.LAST)?.value ??
-			snapshot.get(IBApiTickType.DELAYED_LAST)?.value ??
-			null;
-		const bid =
+				snapshot.get(IBApiTickType.DELAYED_LAST)?.value,
+		);
+		const bid = validTick(
 			snapshot.get(IBApiTickType.BID)?.value ??
-			snapshot.get(IBApiTickType.DELAYED_BID)?.value ??
-			null;
-		const ask =
+				snapshot.get(IBApiTickType.DELAYED_BID)?.value,
+		);
+		const ask = validTick(
 			snapshot.get(IBApiTickType.ASK)?.value ??
-			snapshot.get(IBApiTickType.DELAYED_ASK)?.value ??
-			null;
-		const volume =
+				snapshot.get(IBApiTickType.DELAYED_ASK)?.value,
+		);
+		const volume = validTick(
 			snapshot.get(IBApiTickType.VOLUME)?.value ??
-			snapshot.get(IBApiTickType.DELAYED_VOLUME)?.value ??
-			null;
+				snapshot.get(IBApiTickType.DELAYED_VOLUME)?.value,
+		);
 
 		if (last === null) {
 			log.warn({ symbol, exchange }, "IBKR snapshot returned no last price");
@@ -104,6 +104,12 @@ export async function ibkrHistorical(
 		);
 		return null;
 	}
+}
+
+/** Filter out IBKR sentinel values (-1, -100) that indicate "not available" */
+function validTick(value: number | undefined): number | null {
+	if (value == null || value <= 0) return null;
+	return value;
 }
 
 function formatIbkrDate(raw: string): string {
