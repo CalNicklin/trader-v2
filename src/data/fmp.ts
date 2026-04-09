@@ -131,50 +131,11 @@ export async function fmpFetch<T>(
 }
 
 // ---------------------------------------------------------------------------
-// Yahoo chart fallback for LSE/AIM (FMP Starter tier doesn't cover .L symbols)
+// Exchange routing helpers
 // ---------------------------------------------------------------------------
 
 function isLseOrAim(exchange: string): boolean {
 	return exchange === "LSE" || exchange === "AIM";
-}
-
-interface YahooChartResult {
-	meta: {
-		regularMarketPrice: number;
-		currency: string;
-	};
-	timestamp: number[];
-	indicators: {
-		quote: Array<{
-			open: (number | null)[];
-			high: (number | null)[];
-			low: (number | null)[];
-			close: (number | null)[];
-			volume: (number | null)[];
-		}>;
-	};
-}
-
-async function yahooChart(symbol: string, range: string): Promise<YahooChartResult | null> {
-	const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}.L?range=${range}&interval=1d`;
-	try {
-		const res = await fetch(url, {
-			headers: { "User-Agent": "Mozilla/5.0" },
-			signal: AbortSignal.timeout(10_000),
-		});
-		if (!res.ok) {
-			log.warn({ symbol, status: res.status }, "Yahoo chart API error");
-			return null;
-		}
-		const body = (await res.json()) as { chart: { result: YahooChartResult[] | null } };
-		return body.chart.result?.[0] ?? null;
-	} catch (error) {
-		log.warn(
-			{ symbol, error: error instanceof Error ? error.message : String(error) },
-			"Yahoo chart fetch failed",
-		);
-		return null;
-	}
 }
 
 // ---------------------------------------------------------------------------
@@ -182,23 +143,10 @@ async function yahooChart(symbol: string, range: string): Promise<YahooChartResu
 // ---------------------------------------------------------------------------
 
 export async function fmpQuote(symbol: string, exchange: string): Promise<FmpQuoteData | null> {
-	// LSE/AIM: use Yahoo chart API (FMP Starter doesn't support .L quotes)
+	// LSE/AIM: route through IBKR (FMP Starter doesn't support .L quotes)
 	if (isLseOrAim(exchange)) {
-		const chart = await yahooChart(symbol, "1d");
-		if (!chart) {
-			log.warn({ symbol, exchange }, "No quote from Yahoo chart fallback");
-			return null;
-		}
-		return {
-			symbol,
-			exchange,
-			last: chart.meta.regularMarketPrice ?? null,
-			bid: null,
-			ask: null,
-			volume: chart.indicators.quote[0]?.volume?.[0] ?? null,
-			avgVolume: null,
-			changePercent: null,
-		};
+		const { ibkrQuote } = await import("../broker/market-data.ts");
+		return ibkrQuote(symbol, exchange);
 	}
 
 	const fmpSym = toFmpSymbol(symbol, exchange);
@@ -262,28 +210,10 @@ export async function fmpHistorical(
 	exchange: string,
 	days = 90,
 ): Promise<FmpHistoricalBar[] | null> {
-	// LSE/AIM: use Yahoo chart API (FMP Starter doesn't support .L historical)
+	// LSE/AIM: route through IBKR (FMP Starter doesn't support .L historical)
 	if (isLseOrAim(exchange)) {
-		const chart = await yahooChart(symbol, `${days}d`);
-		if (!chart || !chart.timestamp || chart.timestamp.length === 0) {
-			log.warn({ symbol, exchange }, "No historical data from Yahoo chart fallback");
-			return null;
-		}
-		const q = chart.indicators.quote[0]!;
-		const bars: FmpHistoricalBar[] = [];
-		for (let i = 0; i < chart.timestamp.length; i++) {
-			const close = q.close[i];
-			if (close == null) continue;
-			bars.push({
-				date: new Date(chart.timestamp[i]! * 1000).toISOString().slice(0, 10),
-				open: q.open[i] ?? close,
-				high: q.high[i] ?? close,
-				low: q.low[i] ?? close,
-				close,
-				volume: q.volume[i] ?? 0,
-			});
-		}
-		return bars; // Yahoo returns oldest-first already
+		const { ibkrHistorical } = await import("../broker/market-data.ts");
+		return ibkrHistorical(symbol, exchange, days);
 	}
 
 	const fmpSym = toFmpSymbol(symbol, exchange);

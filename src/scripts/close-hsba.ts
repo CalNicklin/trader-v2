@@ -24,7 +24,10 @@ async function main() {
 		reasoning: "Close orphan SHORT position — no associated strategy",
 	});
 
-	log.info({ tradeId: result.tradeId, ibOrderId: result.ibOrderId, status: result.status }, "Order placed");
+	log.info(
+		{ tradeId: result.tradeId, ibOrderId: result.ibOrderId, status: result.status },
+		"Order placed",
+	);
 
 	// Give the order monitor a moment to receive fill
 	await new Promise((resolve) => setTimeout(resolve, 5000));
