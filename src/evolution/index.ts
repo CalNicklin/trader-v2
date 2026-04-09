@@ -89,6 +89,17 @@ export async function runEvolutionCycle(): Promise<{
 	const landscape = await getPerformanceLandscape();
 
 	// Step 5: Determine recovery mode
+	if (landscape.strategies.length === 0) {
+		log.info("Skipping evolution: no active strategies to mutate from");
+		return {
+			drawdownKills,
+			tournaments: tournamentResults.length,
+			populationCulls,
+			spawned: [],
+			skippedReason: "no active strategies",
+		};
+	}
+
 	const recoveryMode = landscape.activePaperCount < MIN_POPULATION;
 
 	// Step 5b: Skip Sonnet call if no paper strategies with 30+ trades (bypass in recovery mode)
