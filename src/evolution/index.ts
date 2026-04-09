@@ -8,7 +8,7 @@ import { createChildLogger } from "../utils/logger";
 import { withRetry } from "../utils/retry";
 import { recordUsage } from "../utils/token-tracker";
 import { getPerformanceLandscape } from "./analyzer";
-import { MAX_POPULATION } from "./population";
+import { MAX_POPULATION, MIN_POPULATION, RECOVERY_SPAWN_CAP } from "./population";
 import { buildEvolutionPrompt, parseEvolutionResponse } from "./prompt";
 import { spawnChild } from "./spawner";
 import type { TournamentResult } from "./types";
@@ -88,20 +88,30 @@ export async function runEvolutionCycle(): Promise<{
 	// Step 4: Get current performance landscape
 	const landscape = await getPerformanceLandscape();
 
-	// Step 5: Skip Sonnet call if no paper strategies with 30+ trades
-	const strategiesWithEnoughTrades = landscape.strategies.filter(
-		(s) => s.status === "paper" && (s.metrics?.sampleSize ?? 0) >= 30,
-	);
+	// Step 5: Determine recovery mode
+	const recoveryMode = landscape.activePaperCount < MIN_POPULATION;
 
-	if (strategiesWithEnoughTrades.length === 0) {
-		log.info("Skipping evolution: no paper strategies with 30+ trades");
-		return {
-			drawdownKills,
-			tournaments: tournamentResults.length,
-			populationCulls,
-			spawned: [],
-			skippedReason: "no paper strategies with 30+ trades",
-		};
+	// Step 5b: Skip Sonnet call if no paper strategies with 30+ trades (bypass in recovery mode)
+	if (recoveryMode) {
+		log.warn(
+			{ activePaperCount: landscape.activePaperCount, minPopulation: MIN_POPULATION },
+			"Recovery mode: bypassing 30-trade gate due to low population",
+		);
+	} else {
+		const strategiesWithEnoughTrades = landscape.strategies.filter(
+			(s) => s.status === "paper" && (s.metrics?.sampleSize ?? 0) >= 30,
+		);
+
+		if (strategiesWithEnoughTrades.length === 0) {
+			log.info("Skipping evolution: no paper strategies with 30+ trades");
+			return {
+				drawdownKills,
+				tournaments: tournamentResults.length,
+				populationCulls,
+				spawned: [],
+				skippedReason: "no paper strategies with 30+ trades",
+			};
+		}
 	}
 
 	// Step 6: Skip if population is at cap
@@ -135,7 +145,7 @@ export async function runEvolutionCycle(): Promise<{
 	// Step 8 & 9: Call Sonnet with retry
 	const config = getConfig();
 	const client = new Anthropic();
-	const { system, user } = buildEvolutionPrompt(landscape);
+	const { system, user } = buildEvolutionPrompt(landscape, recoveryMode);
 
 	const response = await withRetry(
 		() =>
@@ -163,12 +173,14 @@ export async function runEvolutionCycle(): Promise<{
 	const proposals = parseEvolutionResponse(rawText);
 
 	// Step 12 & 13: Validate and spawn, respecting population slots
-	const slotsAvailable = MAX_POPULATION - landscape.activePaperCount;
+	const maxSpawns = recoveryMode
+		? Math.min(RECOVERY_SPAWN_CAP, MAX_POPULATION - landscape.activePaperCount)
+		: MAX_POPULATION - landscape.activePaperCount;
 	const spawned: number[] = [];
 	let slotsUsed = 0;
 
 	for (const proposal of proposals) {
-		if (slotsUsed >= slotsAvailable) {
+		if (slotsUsed >= maxSpawns) {
 			log.info({ proposalName: proposal.name }, "Skipping proposal: no population slots remaining");
 			break;
 		}
@@ -189,7 +201,7 @@ export async function runEvolutionCycle(): Promise<{
 		}
 
 		try {
-			const childId = await spawnChild(validation.mutation);
+			const childId = await spawnChild(validation.mutation, recoveryMode ? "evolution:recovery" : "evolution");
 			spawned.push(childId);
 			slotsUsed++;
 			await markMatchedInsights(proposal.parentId, validation.mutation.parameterDiff);
