@@ -49,8 +49,14 @@ describe("population recovery mode", () => {
 		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
 		migrate(db, { migrationsFolder: "./drizzle/migrations" });
 
-		const { strategyMutations, strategies, strategyMetrics, tokenUsage, paperTrades, tradeInsights } =
-			await import("../../src/db/schema.ts");
+		const {
+			strategyMutations,
+			strategies,
+			strategyMetrics,
+			tokenUsage,
+			paperTrades,
+			tradeInsights,
+		} = await import("../../src/db/schema.ts");
 		await db.delete(tradeInsights);
 		await db.delete(paperTrades);
 		await db.delete(strategyMutations);

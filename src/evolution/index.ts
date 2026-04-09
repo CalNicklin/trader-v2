@@ -212,7 +212,10 @@ export async function runEvolutionCycle(): Promise<{
 		}
 
 		try {
-			const childId = await spawnChild(validation.mutation, recoveryMode ? "evolution:recovery" : "evolution");
+			const childId = await spawnChild(
+				validation.mutation,
+				recoveryMode ? "evolution:recovery" : "evolution",
+			);
 			spawned.push(childId);
 			slotsUsed++;
 			await markMatchedInsights(proposal.parentId, validation.mutation.parameterDiff);

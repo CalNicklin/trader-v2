@@ -68,7 +68,10 @@ function formatMetrics(strategy: PerformanceLandscape["strategies"][number]): st
 	return lines.join("\n");
 }
 
-export function buildEvolutionPrompt(landscape: PerformanceLandscape, recoveryMode = false): {
+export function buildEvolutionPrompt(
+	landscape: PerformanceLandscape,
+	recoveryMode = false,
+): {
 	system: string;
 	user: string;
 } {
