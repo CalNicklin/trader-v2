@@ -184,6 +184,25 @@ describe("buildEvolutionPrompt", () => {
 		const { user } = buildEvolutionPrompt(landscape);
 		expect(user).not.toContain("Suggested parameter changes:");
 	});
+
+	test("includes POPULATION CRITICAL text when recoveryMode is true", () => {
+		const landscape = makeLandscape({ activePaperCount: 2 });
+		const { user } = buildEvolutionPrompt(landscape, true);
+		expect(user).toContain("POPULATION CRITICAL");
+		expect(user).toContain("structural");
+	});
+
+	test("does not include POPULATION CRITICAL text when recoveryMode is false", () => {
+		const landscape = makeLandscape({ activePaperCount: 2 });
+		const { user } = buildEvolutionPrompt(landscape, false);
+		expect(user).not.toContain("POPULATION CRITICAL");
+	});
+
+	test("does not include POPULATION CRITICAL text by default", () => {
+		const landscape = makeLandscape({ activePaperCount: 2 });
+		const { user } = buildEvolutionPrompt(landscape);
+		expect(user).not.toContain("POPULATION CRITICAL");
+	});
 });
 
 // ── parseEvolutionResponse ────────────────────────────────────────────────────

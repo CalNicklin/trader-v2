@@ -68,7 +68,7 @@ function formatMetrics(strategy: PerformanceLandscape["strategies"][number]): st
 	return lines.join("\n");
 }
 
-export function buildEvolutionPrompt(landscape: PerformanceLandscape): {
+export function buildEvolutionPrompt(landscape: PerformanceLandscape, recoveryMode = false): {
 	system: string;
 	user: string;
 } {
@@ -106,6 +106,10 @@ export function buildEvolutionPrompt(landscape: PerformanceLandscape): {
 		})
 		.join("\n\n");
 
+	const recoveryBlock = recoveryMode
+		? `\n\n**POPULATION CRITICAL:** Only ${activePaperCount}/${MAX_POPULATION} strategies active. Propose structural mutations — new signal logic, different entry/exit approaches, fresh universes. Prioritise diversity over data-driven tuning. Do NOT propose parameter_tweak — there is insufficient trade data.`
+		: "";
+
 	const user = `## Performance Landscape
 
 Population: ${slotsUsed}
@@ -120,7 +124,7 @@ Propose mutations to improve this portfolio. Guidelines:
 - Prioritise strategies with 30+ trades and Sharpe < 1.5 for parameter_tweak
 - Propose a new_variant if ${slotsAvailable} slot(s) are available and there is a promising parent
 - For \`parameter_tweak\` and \`new_variant\`, stay within parameter ranges. For \`structural\`, any parameter names are allowed, but max 5.
-- Return only a JSON array — no additional text`;
+- Return only a JSON array — no additional text${recoveryBlock}`;
 
 	return { system: SYSTEM_PROMPT, user };
 }
