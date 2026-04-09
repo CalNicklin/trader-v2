@@ -95,13 +95,23 @@ export async function getPositions(): Promise<IbkrPosition[]> {
 				for (const [accountId, positionList] of update.all) {
 					for (const pos of positionList) {
 						if (pos.pos !== 0) {
+							const exchange = pos.contract.primaryExch ?? "LSE";
+							const currency = pos.contract.currency ?? "GBP";
+							// IBKR reports avgCost in native currency (pounds for GBP)
+							// but we store LSE/AIM prices in pence — convert
+							const rawAvgCost = pos.avgCost ?? 0;
+							const avgCost =
+								currency === "GBP" && (exchange === "LSE" || exchange === "AIM")
+									? rawAvgCost * 100
+									: rawAvgCost;
+
 							positions.push({
 								accountId,
 								symbol: pos.contract.symbol ?? "UNKNOWN",
-								exchange: pos.contract.primaryExch ?? "LSE",
-								currency: pos.contract.currency ?? "GBP",
+								exchange,
+								currency,
 								quantity: pos.pos ?? 0,
-								avgCost: pos.avgCost ?? 0,
+								avgCost,
 							});
 						}
 					}
