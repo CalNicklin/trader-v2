@@ -78,28 +78,75 @@ async function fetchUkFeeds(maxPerFeed = 15): Promise<RssItem[]> {
 	return items;
 }
 
+const FINANCIAL_CONTEXT_TERMS = [
+	"plc",
+	"ltd",
+	"holdings",
+	"ftse",
+	"shares",
+	"stock",
+	"dividend",
+	"earnings",
+	"ceo",
+	"results",
+	"trading update",
+	"profit",
+	"revenue",
+	"guidance",
+	"pre-tax",
+	"interim",
+	"half-year",
+	"full-year",
+	"agm",
+	"rights issue",
+	"placing",
+];
+
+function hasFinancialContext(text: string): boolean {
+	const lower = text.toLowerCase();
+	return FINANCIAL_CONTEXT_TERMS.some((t) => lower.includes(t));
+}
+
+const COLLISION_BLACKLIST: Record<string, string[]> = {
+	SHEL: ["shell script", "shell company", "shell game", "in a shell", "seashell"],
+	"BP.": ["blood pressure", "bp oil spill"],
+};
+
+function hasCollision(symbol: string, text: string): boolean {
+	const phrases = COLLISION_BLACKLIST[symbol];
+	if (!phrases) return false;
+	const lower = text.toLowerCase();
+	return phrases.some((p) => lower.includes(p));
+}
+
+// Test-only exports (prefixed with _test_ to indicate non-public)
+export const _test_hasFinancialContext = hasFinancialContext;
+export const _test_hasCollision = hasCollision;
+
 /**
  * Match RSS items to a specific symbol using ticker + company name aliases.
  */
-function matchArticles(items: RssItem[], symbol: string): NewsArticle[] {
+function matchArticles(items: RssItem[], symbol: string, aliases: string[]): NewsArticle[] {
 	const searchTerms: string[] = [symbol.replace(".", "")];
 	if (symbol.includes(".")) searchTerms.push(symbol);
+	searchTerms.push(...aliases);
 
 	const matched: NewsArticle[] = [];
 	for (const item of items) {
-		const text = `${item.title} ${item.snippet}`.toUpperCase();
-		if (searchTerms.some((term) => text.includes(term.toUpperCase()))) {
-			matched.push({
-				headline: item.title,
-				symbols: [symbol],
-				url: item.link || null,
-				source: item.source,
-				publishedAt: item.pubDate,
-				finnhubId: null,
-			});
-		}
-	}
+		const text = `${item.title} ${item.snippet}`;
+		if (!searchTerms.some((term) => text.toUpperCase().includes(term.toUpperCase()))) continue;
+		if (!hasFinancialContext(text)) continue;
+		if (hasCollision(symbol, text)) continue;
 
+		matched.push({
+			headline: item.title,
+			symbols: [symbol],
+			url: item.link || null,
+			source: item.source,
+			publishedAt: item.pubDate,
+			finnhubId: null,
+		});
+	}
 	return matched;
 }
 
@@ -113,6 +160,7 @@ export async function fetchUkNewsForSymbols(
 	const ukSymbols = symbols.filter((s) => s.exchange !== "NASDAQ" && s.exchange !== "NYSE");
 	if (ukSymbols.length === 0) return new Map();
 
+	const aliases = await loadAliases();
 	const items = await fetchUkFeeds();
 	log.info(
 		{ feedItems: items.length, symbols: ukSymbols.length },
@@ -121,11 +169,9 @@ export async function fetchUkNewsForSymbols(
 
 	const result = new Map<string, NewsArticle[]>();
 	for (const { symbol } of ukSymbols) {
-		const articles = matchArticles(items, symbol);
-		if (articles.length > 0) {
-			result.set(symbol, articles);
-		}
+		const symAliases = aliases[symbol] ?? [];
+		const articles = matchArticles(items, symbol, symAliases);
+		if (articles.length > 0) result.set(symbol, articles);
 	}
-
 	return result;
 }
