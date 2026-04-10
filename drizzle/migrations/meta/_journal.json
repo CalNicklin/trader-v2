@@ -71,6 +71,13 @@
       "when": 1775817253941,
       "tag": "0009_wide_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1775853663012,
+      "tag": "0010_careless_outlaw_kid",
+      "breakpoints": true
     }
   ]
 }

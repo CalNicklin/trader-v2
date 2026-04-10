@@ -10,7 +10,6 @@ import { canAffordCall } from "../utils/budget.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
 import { recordUsage } from "../utils/token-tracker.ts";
-import { writeSignals } from "./sentiment-writer.ts";
 
 const log = createChildLogger({ module: "research-agent" });
 
@@ -373,17 +372,6 @@ export async function runResearchAnalysis(
 
 			// Only write to quotesCache if ticker is real
 			if (isValidTicker) {
-				await writeSignals(analysis.symbol, analysis.exchange, {
-					sentiment: analysis.sentiment,
-					earningsSurprise: 0,
-					guidanceChange: 0,
-					managementTone: 0,
-					regulatoryRisk: 0,
-					acquisitionLikelihood: 0,
-					catalystType: analysis.eventType,
-					expectedMoveDuration: analysis.urgency === "high" ? "1-3d" : "1-2w",
-				});
-
 				if (analysis.recommendTrade) {
 					injectSymbol(analysis.symbol, analysis.exchange, INJECTION_TTL_24H);
 					log.info(

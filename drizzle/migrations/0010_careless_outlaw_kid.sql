@@ -1,0 +1,2 @@
+CREATE INDEX `news_analyses_symbol_exchange_created_idx` ON `news_analyses` (`symbol`,`exchange`,`created_at`);--> statement-breakpoint
+CREATE INDEX `news_events_classified_at_idx` ON `news_events` (`classified_at`);

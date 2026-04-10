@@ -15,6 +15,7 @@ import {
 	strategies,
 	strategyMetrics,
 } from "../db/schema.ts";
+import { getAggregatedNewsSignal } from "../news/signal-aggregator.ts";
 import {
 	type BehavioralComparison,
 	checkBehavioralDivergence as checkDivergenceAgg,
@@ -199,7 +200,14 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 
 				// Evaluate entry signal (only if no existing position)
 				if (!existingPos && signals.entry_long) {
-					const shouldEnter = evaluateSignal(signals.entry_long, parameters, cached, indicators);
+					const shouldEnter = await evaluateSignal(
+						symbol,
+						exchange,
+						signals.entry_long,
+						parameters,
+						cached,
+						indicators,
+					);
 
 					if (shouldEnter) {
 						// Count existing live positions for risk gate
@@ -269,7 +277,14 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 
 				// Evaluate entry_short signal (only if no existing position)
 				if (!existingPos && signals.entry_short) {
-					const shouldShort = evaluateSignal(signals.entry_short, parameters, cached, indicators);
+					const shouldShort = await evaluateSignal(
+						symbol,
+						exchange,
+						signals.entry_short,
+						parameters,
+						cached,
+						indicators,
+					);
 
 					if (shouldShort) {
 						// Count existing live positions for risk gate
@@ -339,11 +354,19 @@ export async function runLiveExecutor(): Promise<LiveEvalResult> {
 
 				// Evaluate exit signal (only if we have a position)
 				if (existingPos && signals.exit) {
-					const shouldExit = evaluateSignal(signals.exit, parameters, cached, indicators, {
-						entryPrice: existingPos.avgCost,
-						openedAt: existingPos.updatedAt,
-						quantity: existingPos.quantity,
-					});
+					const shouldExit = await evaluateSignal(
+						symbol,
+						exchange,
+						signals.exit,
+						parameters,
+						cached,
+						indicators,
+						{
+							entryPrice: existingPos.avgCost,
+							openedAt: existingPos.updatedAt,
+							quantity: existingPos.quantity,
+						},
+					);
 
 					if (shouldExit) {
 						const isShortExit = existingPos.quantity < 0;
@@ -420,7 +443,9 @@ export function buildLiveSignalContext(
  * Evaluate a signal expression against current market data.
  * Uses the same buildSignalContext + evalExpr pipeline as paper trading.
  */
-function evaluateSignal(
+async function evaluateSignal(
+	symbol: string,
+	exchange: string,
 	signal: string,
 	_parameters: Record<string, unknown>,
 	quote: {
@@ -431,7 +456,8 @@ function evaluateSignal(
 	},
 	indicators: SymbolIndicators,
 	position?: { entryPrice: number; openedAt: string; quantity: number },
-): boolean {
+): Promise<boolean> {
+	const newsSignal = await getAggregatedNewsSignal(symbol, exchange);
 	const fullQuote: QuoteFields = {
 		last: quote.last,
 		bid: quote.bid,
@@ -439,14 +465,14 @@ function evaluateSignal(
 		volume: null,
 		avgVolume: null,
 		changePercent: quote.changePercent,
-		newsSentiment: null,
-		newsEarningsSurprise: null,
-		newsGuidanceChange: null,
-		newsManagementTone: null,
-		newsRegulatoryRisk: null,
-		newsAcquisitionLikelihood: null,
-		newsCatalystType: null,
-		newsExpectedMoveDuration: null,
+		newsSentiment: newsSignal.sentiment,
+		newsEarningsSurprise: newsSignal.earningsSurprise,
+		newsGuidanceChange: newsSignal.guidanceChange,
+		newsManagementTone: newsSignal.managementTone,
+		newsRegulatoryRisk: newsSignal.regulatoryRisk,
+		newsAcquisitionLikelihood: newsSignal.acquisitionLikelihood,
+		newsCatalystType: newsSignal.catalystType,
+		newsExpectedMoveDuration: newsSignal.expectedMoveDuration,
 	};
 	const posFields: PositionFields | null = position
 		? { entryPrice: position.entryPrice, openedAt: position.openedAt, quantity: position.quantity }
