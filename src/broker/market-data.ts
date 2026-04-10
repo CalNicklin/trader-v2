@@ -21,16 +21,13 @@ export async function ibkrQuote(symbol: string, exchange: string): Promise<FmpQu
 
 		// Check both real-time and delayed tick types (IBKR may return either)
 		const last = validTick(
-			snapshot.get(IBApiTickType.LAST)?.value ??
-				snapshot.get(IBApiTickType.DELAYED_LAST)?.value,
+			snapshot.get(IBApiTickType.LAST)?.value ?? snapshot.get(IBApiTickType.DELAYED_LAST)?.value,
 		);
 		const bid = validTick(
-			snapshot.get(IBApiTickType.BID)?.value ??
-				snapshot.get(IBApiTickType.DELAYED_BID)?.value,
+			snapshot.get(IBApiTickType.BID)?.value ?? snapshot.get(IBApiTickType.DELAYED_BID)?.value,
 		);
 		const ask = validTick(
-			snapshot.get(IBApiTickType.ASK)?.value ??
-				snapshot.get(IBApiTickType.DELAYED_ASK)?.value,
+			snapshot.get(IBApiTickType.ASK)?.value ?? snapshot.get(IBApiTickType.DELAYED_ASK)?.value,
 		);
 		const volume = validTick(
 			snapshot.get(IBApiTickType.VOLUME)?.value ??
