@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { getDb } from "../../src/db/client.ts";
 import { strategies } from "../../src/db/schema.ts";
 
 describe("runNewsPoll LSE branch (FMP)", () => {
 	beforeEach(async () => {
 		const { resetConfigForTesting } = await import("../../src/config.ts");
 		resetConfigForTesting();
-		const { closeDb, getDb } = await import("../../src/db/client.ts");
+		const { closeDb } = await import("../../src/db/client.ts");
 		closeDb();
 		const db = getDb();
 		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
@@ -20,27 +21,37 @@ describe("runNewsPoll LSE branch (FMP)", () => {
 		});
 	});
 
-	test("calls fetchFmpCompanyNews once per LSE symbol and routes to processArticle", async () => {
-		const fmpCalls: Array<{ symbol: string; exchange: string }> = [];
+	test("calls FMP once per LSE symbol and routes articles to processArticle", async () => {
+		const fmpCalls: string[] = [];
 		const processCalls: Array<{ headline: string; exchange: string }> = [];
 
-		mock.module("../../src/news/fmp-news.ts", () => ({
-			fetchFmpCompanyNews: async (symbol: string, exchange: string) => {
-				fmpCalls.push({ symbol, exchange });
-				if (symbol === "SHEL") {
+		// Mock the LOWEST level — src/data/fmp.ts — so the real
+		// fetchFmpCompanyNews code path runs inside the test.
+		// This avoids replacing src/news/fmp-news.ts in the module
+		// cache, which would break fmp-news.test.ts's parser tests
+		// when both files run in the same bun test invocation.
+		mock.module("../../src/data/fmp.ts", () => ({
+			fmpFetch: async (_path: string, params: Record<string, string>) => {
+				const symbols = params.symbols ?? "";
+				fmpCalls.push(symbols);
+				if (symbols === "SHEL.L") {
 					return [
 						{
-							headline: `Shell news ${Date.now()}-${Math.random()}`,
-							symbols: ["SHEL"],
+							symbol: "SHEL",
+							publishedDate: "2026-04-08 03:46:00",
+							publisher: "Reuters",
+							title: `Shell news ${Date.now()}-${Math.random()}`,
 							url: "https://example.com/a",
-							source: "reuters.com",
-							publishedAt: new Date(),
-							finnhubId: null,
+							site: "reuters.com",
 						},
 					];
 				}
+				// BP.L and the BP fallback both return empty —
+				// fetchFmpCompanyNews should log and return [].
 				return [];
 			},
+			toFmpSymbol: (sym: string, exch: string) =>
+				exch === "LSE" || exch === "AIM" ? `${sym}.L` : sym,
 		}));
 
 		mock.module("../../src/news/ingest.ts", () => ({
@@ -58,11 +69,11 @@ describe("runNewsPoll LSE branch (FMP)", () => {
 		const { runNewsPoll } = await import("../../src/scheduler/news-poll-job.ts");
 		await runNewsPoll();
 
-		expect(fmpCalls).toEqual([
-			{ symbol: "SHEL", exchange: "LSE" },
-			{ symbol: "BP.", exchange: "LSE" },
-		]);
+		// SHEL.L returns one article on the primary call → no fallback
+		// BP.L returns [] → fallback tries plain "BP" → also [] → skip
+		expect(fmpCalls).toEqual(["SHEL.L", "BP.L", "BP"]);
 		expect(processCalls).toHaveLength(1);
 		expect(processCalls[0]?.exchange).toBe("LSE");
+		expect(processCalls[0]?.headline).toStartWith("Shell news");
 	});
 });
