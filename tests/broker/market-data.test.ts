@@ -16,16 +16,6 @@ mock.module("../../src/broker/connection.ts", () => ({
 	isConnected: mockIsConnected,
 }));
 
-mock.module("../../src/broker/contracts.ts", () => ({
-	getContract: (symbol: string, exchange: string) => ({
-		symbol,
-		secType: "STK",
-		exchange: "SMART",
-		primaryExch: exchange,
-		currency: exchange === "LSE" ? "GBP" : "USD",
-	}),
-}));
-
 const { ibkrQuote, ibkrHistorical } = await import("../../src/broker/market-data.ts");
 
 describe("ibkrQuote", () => {
