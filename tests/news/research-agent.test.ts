@@ -4,7 +4,9 @@ import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { closeDb, getDb } from "../../src/db/client.ts";
 import { strategies } from "../../src/db/schema.ts";
+import type { ResearchAnalysis } from "../../src/news/research-agent.ts";
 import {
+	_test_filterAndPin,
 	buildResearchPrompt,
 	buildUniverseWhitelist,
 	parseResearchResponse,
@@ -248,5 +250,93 @@ describe("buildResearchPrompt whitelist", () => {
 		const prompt = buildResearchPrompt(input, { whitelist, primaryExchange: "LSE" });
 		expect(prompt).toContain("Primary attribution");
 		expect(prompt).toContain(`"SHEL:LSE"`);
+	});
+});
+
+describe("filterAndPin", () => {
+	const whitelist = [
+		{ symbol: "SHEL", exchange: "LSE" },
+		{ symbol: "BP.", exchange: "LSE" },
+		{ symbol: "AAPL", exchange: "NASDAQ" },
+	];
+
+	it("drops symbols not in the whitelist", () => {
+		const analyses: ResearchAnalysis[] = [
+			{
+				symbol: "SHEL",
+				exchange: "LSE",
+				sentiment: 0.5,
+				urgency: "medium",
+				eventType: "dividend",
+				direction: "long",
+				tradeThesis: "Dividend raised",
+				confidence: 0.8,
+				recommendTrade: true,
+			},
+			{
+				symbol: "PANASONIC",
+				exchange: "LSE",
+				sentiment: 0.1,
+				urgency: "low",
+				eventType: "mention",
+				direction: "long",
+				tradeThesis: "Mentioned",
+				confidence: 0.5,
+				recommendTrade: false,
+			},
+		];
+		const result = _test_filterAndPin(analyses, "SHEL", "LSE", whitelist);
+		expect(result.map((a) => a.symbol)).toEqual(["SHEL"]);
+	});
+
+	it("re-inserts the primary symbol with neutralised signal if the LLM drops it", () => {
+		const analyses: ResearchAnalysis[] = [
+			{
+				symbol: "BP.",
+				exchange: "LSE",
+				sentiment: 0.3,
+				urgency: "medium",
+				eventType: "dividend",
+				direction: "long",
+				tradeThesis: "Benefits from sector mood",
+				confidence: 0.7,
+				recommendTrade: true,
+			},
+		];
+		const result = _test_filterAndPin(analyses, "SHEL", "LSE", whitelist);
+		const shel = result.find((a) => a.symbol === "SHEL");
+		expect(shel).toBeDefined();
+		expect(shel?.direction).toBe("avoid");
+		expect(shel?.confidence).toBe(0.5);
+		expect(shel?.recommendTrade).toBe(false);
+	});
+
+	it("does not pin if the primary symbol is outside the whitelist", () => {
+		const analyses: ResearchAnalysis[] = [];
+		const result = _test_filterAndPin(analyses, "NOTINLIST", "LSE", whitelist);
+		expect(result).toEqual([]);
+	});
+
+	it("respects RESEARCH_WHITELIST_ENFORCE=false kill switch", () => {
+		process.env.RESEARCH_WHITELIST_ENFORCE = "false";
+		try {
+			const analyses: ResearchAnalysis[] = [
+				{
+					symbol: "PANASONIC",
+					exchange: "LSE",
+					sentiment: 0.1,
+					urgency: "low",
+					eventType: "mention",
+					direction: "long",
+					tradeThesis: "Mentioned",
+					confidence: 0.5,
+					recommendTrade: false,
+				},
+			];
+			const result = _test_filterAndPin(analyses, "PANASONIC", "LSE", whitelist);
+			expect(result.map((a) => a.symbol)).toEqual(["PANASONIC"]);
+		} finally {
+			delete process.env.RESEARCH_WHITELIST_ENFORCE;
+		}
 	});
 });

@@ -226,6 +226,61 @@ async function getPriceForSymbol(symbol: string, exchange: string): Promise<numb
 	}
 }
 
+function isWhitelistEnforced(): boolean {
+	return process.env.RESEARCH_WHITELIST_ENFORCE !== "false";
+}
+
+function filterAndPin(
+	analyses: ResearchAnalysis[],
+	primarySymbol: string,
+	primaryExchange: string,
+	whitelist: Array<{ symbol: string; exchange: string }>,
+): ResearchAnalysis[] {
+	if (!isWhitelistEnforced()) return analyses;
+
+	const whitelistSet = new Set(whitelist.map((w) => `${w.symbol}:${w.exchange}`));
+
+	const filtered: ResearchAnalysis[] = [];
+	for (const a of analyses) {
+		const key = `${a.symbol}:${a.exchange}`;
+		if (whitelistSet.has(key)) {
+			filtered.push(a);
+		} else {
+			log.warn(
+				{ symbol: a.symbol, exchange: a.exchange },
+				"Research-agent output dropped (not in whitelist)",
+			);
+		}
+	}
+
+	const primaryKey = `${primarySymbol}:${primaryExchange}`;
+	if (!whitelistSet.has(primaryKey)) return filtered;
+
+	const primaryPresent = filtered.some(
+		(a) => a.symbol === primarySymbol && a.exchange === primaryExchange,
+	);
+	if (!primaryPresent) {
+		log.warn(
+			{ primary: primaryKey },
+			"Research-agent dropped primary symbol — re-inserting with neutralised signal",
+		);
+		filtered.push({
+			symbol: primarySymbol,
+			exchange: primaryExchange,
+			sentiment: 0,
+			urgency: "low",
+			eventType: "unclassified",
+			direction: "avoid",
+			tradeThesis: "Primary symbol re-attributed after LLM omission",
+			confidence: 0.5,
+			recommendTrade: false,
+		});
+	}
+	return filtered;
+}
+
+export const _test_filterAndPin = filterAndPin;
+
 export async function runResearchAnalysis(
 	newsEventId: number,
 	input: ResearchInput,
@@ -258,7 +313,8 @@ export async function runResearchAnalysis(
 		const text = response.content[0]?.type === "text" ? response.content[0].text : "";
 		await recordUsage("news_research", response.usage.input_tokens, response.usage.output_tokens);
 
-		const analyses = parseResearchResponse(text);
+		const rawAnalyses = parseResearchResponse(text);
+		const analyses = filterAndPin(rawAnalyses, input.symbols[0] ?? "", primaryExchange, whitelist);
 		if (analyses.length === 0) {
 			log.warn({ headline: input.headline.slice(0, 60) }, "Research agent returned no analyses");
 			return { analyses: 0, skippedBudget: false };
