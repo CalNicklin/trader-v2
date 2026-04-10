@@ -54,8 +54,17 @@ function finnhubSymbol(symbol: string, exchange: string): string {
 	return symbol;
 }
 
-export async function runNewsPoll(): Promise<void> {
+export interface NewsPollDeps {
+	fetchCompanyNews?: typeof fetchCompanyNews;
+	fetchFmpCompanyNews?: typeof fetchFmpCompanyNews;
+	processArticle?: typeof processArticle;
+}
+
+export async function runNewsPoll(deps: NewsPollDeps = {}): Promise<void> {
 	const config = getConfig();
+	const fetchUs = deps.fetchCompanyNews ?? fetchCompanyNews;
+	const fetchFmp = deps.fetchFmpCompanyNews ?? fetchFmpCompanyNews;
+	const ingest = deps.processArticle ?? processArticle;
 
 	const watchlist = await getWatchlistSymbols();
 	if (watchlist.length === 0) {
@@ -76,7 +85,7 @@ export async function runNewsPoll(): Promise<void> {
 	} else {
 		for (const { symbol, exchange } of usSymbols) {
 			const fhSymbol = finnhubSymbol(symbol, exchange);
-			const articles = await fetchCompanyNews(fhSymbol, finnhubKey ?? "");
+			const articles = await fetchUs(fhSymbol, finnhubKey ?? "");
 
 			for (const article of articles) {
 				if (article.symbols.length === 0) {
@@ -84,7 +93,7 @@ export async function runNewsPoll(): Promise<void> {
 				}
 
 				totalArticles++;
-				const result = await processArticle(article, exchange, classifyHeadline);
+				const result = await ingest(article, exchange, classifyHeadline);
 				if (result === "classified") classified++;
 				else if (result === "filtered") filtered++;
 				else if (result === "duplicate") duplicates++;
@@ -101,11 +110,11 @@ export async function runNewsPoll(): Promise<void> {
 		let lseArticles = 0;
 		log.info({ symbolCount: nonUsSymbols.length }, "Polling FMP news per symbol for LSE/AIM");
 		for (const { symbol, exchange } of nonUsSymbols) {
-			const articles = await fetchFmpCompanyNews(symbol, exchange);
+			const articles = await fetchFmp(symbol, exchange);
 			for (const article of articles) {
 				totalArticles++;
 				lseArticles++;
-				const result = await processArticle(article, exchange, classifyHeadline);
+				const result = await ingest(article, exchange, classifyHeadline);
 				if (result === "classified") classified++;
 				else if (result === "filtered") filtered++;
 				else if (result === "duplicate") duplicates++;

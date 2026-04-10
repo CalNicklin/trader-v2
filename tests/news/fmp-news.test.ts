@@ -1,5 +1,8 @@
-import { describe, expect, mock, test } from "bun:test";
-import { _test_parseFmpArticle as parseFmpArticle } from "../../src/news/fmp-news.ts";
+import { describe, expect, test } from "bun:test";
+import {
+	fetchFmpCompanyNews,
+	_test_parseFmpArticle as parseFmpArticle,
+} from "../../src/news/fmp-news.ts";
 
 describe("parseFmpArticle", () => {
 	const validRaw = {
@@ -68,7 +71,7 @@ describe("parseFmpArticle", () => {
 describe("fetchFmpCompanyNews", () => {
 	test("rewrites LSE symbol to .L form before fetching", async () => {
 		const calls: Array<{ path: string; params: Record<string, string> }> = [];
-		mock.module("../../src/data/fmp.ts", () => ({
+		await fetchFmpCompanyNews("SHEL", "LSE", {
 			fmpFetch: async (path: string, params: Record<string, string>) => {
 				calls.push({ path, params });
 				// Return a non-empty result so the dual-listing fallback does not fire
@@ -84,9 +87,7 @@ describe("fetchFmpCompanyNews", () => {
 			},
 			toFmpSymbol: (sym: string, exch: string) =>
 				exch === "LSE" || exch === "AIM" ? `${sym}.L` : sym,
-		}));
-		const { fetchFmpCompanyNews } = await import("../../src/news/fmp-news.ts");
-		await fetchFmpCompanyNews("SHEL", "LSE");
+		});
 		expect(calls).toHaveLength(1);
 		expect(calls[0]?.path).toBe("/news/stock");
 		expect(calls[0]?.params.symbols).toBe("SHEL.L");
@@ -94,29 +95,25 @@ describe("fetchFmpCompanyNews", () => {
 	});
 
 	test("returns [] when fmpFetch returns non-array", async () => {
-		mock.module("../../src/data/fmp.ts", () => ({
+		const result = await fetchFmpCompanyNews("SHEL", "LSE", {
 			fmpFetch: async () => null,
 			toFmpSymbol: (sym: string) => sym,
-		}));
-		const { fetchFmpCompanyNews } = await import("../../src/news/fmp-news.ts");
-		const result = await fetchFmpCompanyNews("SHEL", "LSE");
+		});
 		expect(result).toEqual([]);
 	});
 
 	test("returns [] when fmpFetch throws", async () => {
-		mock.module("../../src/data/fmp.ts", () => ({
+		const result = await fetchFmpCompanyNews("SHEL", "LSE", {
 			fmpFetch: async () => {
 				throw new Error("boom");
 			},
 			toFmpSymbol: (sym: string) => sym,
-		}));
-		const { fetchFmpCompanyNews } = await import("../../src/news/fmp-news.ts");
-		const result = await fetchFmpCompanyNews("SHEL", "LSE");
+		});
 		expect(result).toEqual([]);
 	});
 
 	test("overrides article.symbols to the queried symbol", async () => {
-		mock.module("../../src/data/fmp.ts", () => ({
+		const result = await fetchFmpCompanyNews("SHEL", "LSE", {
 			fmpFetch: async () => [
 				{
 					symbol: "WRONG",
@@ -127,15 +124,13 @@ describe("fetchFmpCompanyNews", () => {
 				},
 			],
 			toFmpSymbol: (sym: string) => sym,
-		}));
-		const { fetchFmpCompanyNews } = await import("../../src/news/fmp-news.ts");
-		const result = await fetchFmpCompanyNews("SHEL", "LSE");
+		});
 		expect(result).toHaveLength(1);
 		expect(result[0]?.symbols).toEqual(["SHEL"]);
 	});
 
 	test("skips articles that fail to parse", async () => {
-		mock.module("../../src/data/fmp.ts", () => ({
+		const result = await fetchFmpCompanyNews("SHEL", "LSE", {
 			fmpFetch: async () => [
 				{ symbol: "SHEL", publishedDate: "", publisher: "X", title: "Valid", url: "https://a" },
 				{
@@ -147,16 +142,14 @@ describe("fetchFmpCompanyNews", () => {
 				},
 			],
 			toFmpSymbol: (sym: string) => sym,
-		}));
-		const { fetchFmpCompanyNews } = await import("../../src/news/fmp-news.ts");
-		const result = await fetchFmpCompanyNews("SHEL", "LSE");
+		});
 		expect(result).toHaveLength(1);
 		expect(result[0]?.headline).toBe("OK");
 	});
 
 	test("falls back to plain symbol when .L returns empty (dual-listing)", async () => {
 		const calls: string[] = [];
-		mock.module("../../src/data/fmp.ts", () => ({
+		const result = await fetchFmpCompanyNews("BP", "LSE", {
 			fmpFetch: async (_path: string, params: Record<string, string>) => {
 				calls.push(params.symbols as string);
 				if (params.symbols === "BP.L") return [];
@@ -175,9 +168,7 @@ describe("fetchFmpCompanyNews", () => {
 			},
 			toFmpSymbol: (sym: string, exch: string) =>
 				exch === "LSE" || exch === "AIM" ? `${sym}.L` : sym,
-		}));
-		const { fetchFmpCompanyNews } = await import("../../src/news/fmp-news.ts");
-		const result = await fetchFmpCompanyNews("BP", "LSE");
+		});
 		expect(calls).toEqual(["BP.L", "BP"]);
 		expect(result).toHaveLength(1);
 		expect(result[0]?.headline).toBe("BP Q1 earnings beat");
@@ -187,7 +178,7 @@ describe("fetchFmpCompanyNews", () => {
 
 	test("does NOT fall back when .L returns non-empty", async () => {
 		const calls: string[] = [];
-		mock.module("../../src/data/fmp.ts", () => ({
+		const result = await fetchFmpCompanyNews("SHEL", "LSE", {
 			fmpFetch: async (_path: string, params: Record<string, string>) => {
 				calls.push(params.symbols as string);
 				return [
@@ -202,41 +193,35 @@ describe("fetchFmpCompanyNews", () => {
 			},
 			toFmpSymbol: (sym: string, exch: string) =>
 				exch === "LSE" || exch === "AIM" ? `${sym}.L` : sym,
-		}));
-		const { fetchFmpCompanyNews } = await import("../../src/news/fmp-news.ts");
-		const result = await fetchFmpCompanyNews("SHEL", "LSE");
+		});
 		expect(calls).toEqual(["SHEL.L"]); // only one call — no fallback
 		expect(result).toHaveLength(1);
 	});
 
 	test("strips trailing dot from symbol before building .L ticker", async () => {
 		const calls: string[] = [];
-		mock.module("../../src/data/fmp.ts", () => ({
+		await fetchFmpCompanyNews("BP.", "LSE", {
 			fmpFetch: async (_path: string, params: Record<string, string>) => {
 				calls.push(params.symbols as string);
 				return [];
 			},
 			toFmpSymbol: (sym: string, exch: string) =>
 				exch === "LSE" || exch === "AIM" ? `${sym}.L` : sym,
-		}));
-		const { fetchFmpCompanyNews } = await import("../../src/news/fmp-news.ts");
+		});
 		// Production universe stores "BP." (with trailing dot) — must normalise
 		// to "BP" before toFmpSymbol, not produce "BP..L".
-		await fetchFmpCompanyNews("BP.", "LSE");
 		expect(calls).toEqual(["BP.L", "BP"]); // primary + fallback, no "BP..L"
 	});
 
 	test("does not fall back for US exchanges", async () => {
 		const calls: string[] = [];
-		mock.module("../../src/data/fmp.ts", () => ({
+		await fetchFmpCompanyNews("AAPL", "NASDAQ", {
 			fmpFetch: async (_path: string, params: Record<string, string>) => {
 				calls.push(params.symbols as string);
 				return [];
 			},
 			toFmpSymbol: (sym: string) => sym,
-		}));
-		const { fetchFmpCompanyNews } = await import("../../src/news/fmp-news.ts");
-		await fetchFmpCompanyNews("AAPL", "NASDAQ");
+		});
 		expect(calls).toEqual(["AAPL"]); // no fallback for NASDAQ
 	});
 });

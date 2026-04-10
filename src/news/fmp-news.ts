@@ -36,18 +36,9 @@ function parseFmpArticle(raw: FmpNewsRaw): NewsArticle | null {
 	};
 }
 
-async function fetchRaw(fmpSymbol: string): Promise<FmpNewsRaw[]> {
-	try {
-		const data = await fmpFetch<FmpNewsRaw[]>("/news/stock", {
-			symbols: fmpSymbol,
-			limit: "20",
-		});
-		if (!Array.isArray(data)) return [];
-		return data;
-	} catch (err) {
-		log.warn({ fmpSymbol, err }, "FMP news fetch failed");
-		return [];
-	}
+export interface FmpNewsDeps {
+	fmpFetch?: (path: string, params: Record<string, string>) => Promise<unknown>;
+	toFmpSymbol?: typeof toFmpSymbol;
 }
 
 /**
@@ -67,9 +58,27 @@ async function fetchRaw(fmpSymbol: string): Promise<FmpNewsRaw[]> {
 export async function fetchFmpCompanyNews(
 	symbol: string,
 	exchange: string,
+	deps: FmpNewsDeps = {},
 ): Promise<NewsArticle[]> {
+	const fetch = deps.fmpFetch ?? fmpFetch;
+	const rewrite = deps.toFmpSymbol ?? toFmpSymbol;
+
 	const cleanSymbol = symbol.replace(/\.$/, "");
-	const primary = toFmpSymbol(cleanSymbol, exchange);
+	const primary = rewrite(cleanSymbol, exchange);
+
+	async function fetchRaw(fmpSymbol: string): Promise<FmpNewsRaw[]> {
+		try {
+			const data = await fetch("/news/stock", {
+				symbols: fmpSymbol,
+				limit: "20",
+			});
+			if (!Array.isArray(data)) return [];
+			return data as FmpNewsRaw[];
+		} catch (err) {
+			log.warn({ fmpSymbol, err }, "FMP news fetch failed");
+			return [];
+		}
+	}
 
 	let raw = await fetchRaw(primary);
 
