@@ -278,6 +278,10 @@ export function _clearValidationCache(): void {
 	validationCache.clear();
 }
 
+export function _resetValidationCache(): void {
+	validationCache.clear();
+}
+
 export async function fmpValidateSymbol(symbol: string, exchange: string): Promise<boolean> {
 	const fmpSym = toFmpSymbol(symbol, exchange);
 	const cacheKey = `${fmpSym}:${exchange}`;
@@ -309,13 +313,32 @@ export async function fmpValidateSymbol(symbol: string, exchange: string): Promi
 	}
 
 	try {
-		const data = await fmpFetch<Array<{ symbol: string; companyName: string; exchange: string }>>(
-			`/profile`,
-			{ symbol: fmpSym },
-		);
-		const valid = !!data && data.length > 0;
-		validationCache.set(cacheKey, { valid, expiresAt: now + VALIDATION_TTL_MS });
-		return valid;
+		const data = await fmpFetch<
+			Array<{
+				symbol: string;
+				companyName: string;
+				exchange: string;
+				isActivelyTrading?: boolean;
+			}>
+		>(`/profile`, { symbol: fmpSym });
+
+		if (!data || data.length === 0) {
+			const valid = false;
+			validationCache.set(cacheKey, { valid, expiresAt: now + VALIDATION_TTL_MS });
+			return valid;
+		}
+
+		if (data[0]!.isActivelyTrading === false) {
+			log.info(
+				{ symbol, exchange },
+				"fmpValidateSymbol: rejecting symbol with isActivelyTrading=false",
+			);
+			validationCache.set(cacheKey, { valid: false, expiresAt: now + VALIDATION_TTL_MS });
+			return false;
+		}
+
+		validationCache.set(cacheKey, { valid: true, expiresAt: now + VALIDATION_TTL_MS });
+		return true;
 	} catch {
 		// Fail closed — treat network errors as invalid
 		validationCache.set(cacheKey, { valid: false, expiresAt: now + VALIDATION_TTL_MS });
