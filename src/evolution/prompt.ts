@@ -1,3 +1,4 @@
+import { NEWS_PIPELINE_CONTEXT } from "../agents/subsystem-context.ts";
 import { MAX_POPULATION } from "./population";
 import type { MutationProposal, PerformanceLandscape } from "./types";
 
@@ -48,7 +49,9 @@ Respond with a JSON array ONLY — no prose, no markdown outside the code block.
 ]
 \`\`\`
 
-For parameter_tweak, signals and universe may be omitted. For new_variant, both are required.`;
+For parameter_tweak, signals and universe may be omitted. For new_variant, both are required.
+
+${NEWS_PIPELINE_CONTEXT}`;
 
 function formatMetrics(strategy: PerformanceLandscape["strategies"][number]): string {
 	const m = strategy.metrics;

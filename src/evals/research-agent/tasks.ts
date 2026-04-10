@@ -2,6 +2,7 @@
 
 import type { ResearchInput } from "../../news/research-agent.ts";
 import type { EvalTask } from "../types.ts";
+import corpus from "./fixtures/lse-corpus.json" with { type: "json" };
 
 export interface ResearchReference {
 	minSymbols: number;
@@ -9,6 +10,13 @@ export interface ResearchReference {
 	expectedDirections: Record<string, "long" | "short" | "avoid">;
 	expectedSentimentRange: Record<string, [number, number]>;
 	isMultiParty: boolean;
+	// New fields (Phase 3 research-agent refactor)
+	whitelist?: Array<{ symbol: string; exchange: string }>;
+	primaryExchange?: string;
+	/** Symbols that must appear in the output (LSE attribution preservation). */
+	requiredSymbols?: string[];
+	/** Symbols that must NOT appear (deprecated-ticker rejection). */
+	forbiddenSymbols?: string[];
 }
 
 export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = [
@@ -33,8 +41,16 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { AVGO: "long", GOOGL: "long" },
 			expectedSentimentRange: { AVGO: [0.5, 1.0], GOOGL: [0.1, 0.5] },
 			isMultiParty: true,
+			whitelist: [
+				{ symbol: "AVGO", exchange: "NASDAQ" },
+				{ symbol: "GOOGL", exchange: "NASDAQ" },
+				{ symbol: "AAPL", exchange: "NASDAQ" },
+				{ symbol: "MSFT", exchange: "NASDAQ" },
+			],
+			primaryExchange: "NASDAQ",
+			requiredSymbols: ["AVGO", "GOOGL"],
 		},
-		tags: ["multi-party", "partnership", "ai-chips"],
+		tags: ["multi-party", "partnership", "ai-chips", "category-c"],
 	},
 	{
 		id: "ra-002",
@@ -57,8 +73,16 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { CRWD: "long", MSFT: "long" },
 			expectedSentimentRange: { CRWD: [0.5, 1.0], MSFT: [-0.2, 0.5] },
 			isMultiParty: true,
+			whitelist: [
+				{ symbol: "MSFT", exchange: "NASDAQ" },
+				{ symbol: "CRWD", exchange: "NASDAQ" },
+				{ symbol: "PANW", exchange: "NASDAQ" },
+				{ symbol: "ZS", exchange: "NASDAQ" },
+			],
+			primaryExchange: "NASDAQ",
+			requiredSymbols: ["MSFT", "CRWD"],
 		},
-		tags: ["multi-party", "acquisition"],
+		tags: ["multi-party", "acquisition", "category-c"],
 	},
 	{
 		id: "ra-003",
@@ -81,8 +105,16 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { TSM: "short" },
 			expectedSentimentRange: { TSM: [-1.0, -0.3] },
 			isMultiParty: true,
+			whitelist: [
+				{ symbol: "TSM", exchange: "NYSE" },
+				{ symbol: "NVDA", exchange: "NASDAQ" },
+				{ symbol: "AMD", exchange: "NASDAQ" },
+				{ symbol: "INTC", exchange: "NASDAQ" },
+			],
+			primaryExchange: "NYSE",
+			requiredSymbols: ["TSM"],
 		},
-		tags: ["multi-party", "supply-chain"],
+		tags: ["multi-party", "supply-chain", "category-c"],
 	},
 	{
 		id: "ra-004",
@@ -105,8 +137,15 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { NFLX: "long" },
 			expectedSentimentRange: { NFLX: [0.5, 1.0] },
 			isMultiParty: false,
+			whitelist: [
+				{ symbol: "NFLX", exchange: "NASDAQ" },
+				{ symbol: "DIS", exchange: "NYSE" },
+				{ symbol: "PARA", exchange: "NASDAQ" },
+			],
+			primaryExchange: "NASDAQ",
+			requiredSymbols: ["NFLX"],
 		},
-		tags: ["single-symbol", "earnings"],
+		tags: ["single-symbol", "earnings", "category-c"],
 	},
 	{
 		id: "ra-005",
@@ -129,8 +168,16 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { LLY: "long", NVO: "short" },
 			expectedSentimentRange: { LLY: [0.5, 1.0], NVO: [-0.8, -0.1] },
 			isMultiParty: true,
+			whitelist: [
+				{ symbol: "LLY", exchange: "NYSE" },
+				{ symbol: "NVO", exchange: "NYSE" },
+				{ symbol: "PFE", exchange: "NYSE" },
+				{ symbol: "MRK", exchange: "NYSE" },
+			],
+			primaryExchange: "NYSE",
+			requiredSymbols: ["LLY", "NVO"],
 		},
-		tags: ["multi-party", "fda", "competition"],
+		tags: ["multi-party", "fda", "competition", "category-c"],
 	},
 	{
 		id: "ra-006",
@@ -153,6 +200,14 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: {},
 			expectedSentimentRange: {},
 			isMultiParty: true,
+			whitelist: [
+				{ symbol: "GOOGL", exchange: "NASDAQ" },
+				{ symbol: "MSFT", exchange: "NASDAQ" },
+				{ symbol: "META", exchange: "NASDAQ" },
+				{ symbol: "AMZN", exchange: "NASDAQ" },
+			],
+			primaryExchange: "NASDAQ",
+			requiredSymbols: ["GOOGL"],
 		},
 		tags: ["multi-party", "regulation", "sector-wide"],
 	},
@@ -177,6 +232,13 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { JNJ: "long" },
 			expectedSentimentRange: { JNJ: [0.1, 0.5] },
 			isMultiParty: false,
+			whitelist: [
+				{ symbol: "JNJ", exchange: "NYSE" },
+				{ symbol: "ABT", exchange: "NYSE" },
+				{ symbol: "MDT", exchange: "NYSE" },
+			],
+			primaryExchange: "NYSE",
+			requiredSymbols: ["JNJ"],
 		},
 		tags: ["single-symbol", "dividend"],
 	},
@@ -201,6 +263,14 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { LMT: "long" },
 			expectedSentimentRange: { LMT: [0.4, 1.0] },
 			isMultiParty: false,
+			whitelist: [
+				{ symbol: "LMT", exchange: "NYSE" },
+				{ symbol: "RTX", exchange: "NYSE" },
+				{ symbol: "NOC", exchange: "NYSE" },
+				{ symbol: "GD", exchange: "NYSE" },
+			],
+			primaryExchange: "NYSE",
+			requiredSymbols: ["LMT"],
 		},
 		tags: ["single-symbol", "contract-win", "defense"],
 	},
@@ -225,6 +295,14 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { INTC: "short" },
 			expectedSentimentRange: { INTC: [-1.0, -0.4] },
 			isMultiParty: true,
+			whitelist: [
+				{ symbol: "INTC", exchange: "NASDAQ" },
+				{ symbol: "AMD", exchange: "NASDAQ" },
+				{ symbol: "NVDA", exchange: "NASDAQ" },
+				{ symbol: "MU", exchange: "NASDAQ" },
+			],
+			primaryExchange: "NASDAQ",
+			requiredSymbols: ["INTC"],
 		},
 		tags: ["multi-party", "profit-warning", "sector-contagion"],
 	},
@@ -249,6 +327,14 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { SHEL: "long", BP: "long" },
 			expectedSentimentRange: { SHEL: [0.2, 0.8], BP: [0.3, 1.0] },
 			isMultiParty: true,
+			whitelist: [
+				{ symbol: "SHEL", exchange: "LSE" },
+				{ symbol: "BP", exchange: "LSE" },
+				{ symbol: "TTE", exchange: "LSE" },
+				{ symbol: "RDSB", exchange: "LSE" },
+			],
+			primaryExchange: "LSE",
+			requiredSymbols: ["SHEL", "BP"],
 		},
 		tags: ["multi-party", "merger", "lse"],
 	},
@@ -273,6 +359,14 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { TSM: "short" },
 			expectedSentimentRange: { TSM: [-1.0, -0.3] },
 			isMultiParty: true,
+			whitelist: [
+				{ symbol: "TSM", exchange: "NYSE" },
+				{ symbol: "NVDA", exchange: "NASDAQ" },
+				{ symbol: "AMD", exchange: "NASDAQ" },
+				{ symbol: "INTC", exchange: "NASDAQ" },
+			],
+			primaryExchange: "NYSE",
+			requiredSymbols: ["TSM"],
 		},
 		tags: ["ticker-accuracy", "supply-chain"],
 	},
@@ -297,6 +391,13 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: {},
 			expectedSentimentRange: {},
 			isMultiParty: false,
+			whitelist: [
+				{ symbol: "NVDA", exchange: "NASDAQ" },
+				{ symbol: "AMD", exchange: "NASDAQ" },
+				{ symbol: "INTC", exchange: "NASDAQ" },
+			],
+			primaryExchange: "NASDAQ",
+			requiredSymbols: [],
 		},
 		tags: ["ticker-accuracy", "foreign-stock"],
 	},
@@ -321,6 +422,13 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { MBLY: "long" },
 			expectedSentimentRange: { MBLY: [0.3, 1.0] },
 			isMultiParty: false,
+			whitelist: [
+				{ symbol: "MBLY", exchange: "NASDAQ" },
+				{ symbol: "INTC", exchange: "NASDAQ" },
+				{ symbol: "APTV", exchange: "NYSE" },
+			],
+			primaryExchange: "NASDAQ",
+			requiredSymbols: ["MBLY"],
 		},
 		tags: ["ticker-accuracy", "partnership"],
 	},
@@ -345,6 +453,13 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { "BRK-B": "long" },
 			expectedSentimentRange: { "BRK-B": [0.3, 1.0] },
 			isMultiParty: false,
+			whitelist: [
+				{ symbol: "BRK-B", exchange: "NYSE" },
+				{ symbol: "JPM", exchange: "NYSE" },
+				{ symbol: "BAC", exchange: "NYSE" },
+			],
+			primaryExchange: "NYSE",
+			requiredSymbols: ["BRK-B"],
 		},
 		tags: ["ticker-accuracy", "earnings"],
 	},
@@ -369,6 +484,12 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: {},
 			expectedSentimentRange: {},
 			isMultiParty: false,
+			whitelist: [
+				{ symbol: "SPY", exchange: "NYSE" },
+				{ symbol: "QQQ", exchange: "NASDAQ" },
+			],
+			primaryExchange: "NYSE",
+			requiredSymbols: [],
 		},
 		tags: ["ticker-accuracy", "index"],
 	},
@@ -393,6 +514,14 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { AMD: "long" },
 			expectedSentimentRange: { AMD: [0.3, 1.0] },
 			isMultiParty: false,
+			whitelist: [
+				{ symbol: "AMD", exchange: "NASDAQ" },
+				{ symbol: "INTC", exchange: "NASDAQ" },
+				{ symbol: "NVDA", exchange: "NASDAQ" },
+			],
+			primaryExchange: "NASDAQ",
+			requiredSymbols: ["AMD"],
+			forbiddenSymbols: ["XLNX"],
 		},
 		tags: ["ticker-accuracy", "acquired-company"],
 	},
@@ -417,7 +546,230 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			expectedDirections: { HPE: "long" },
 			expectedSentimentRange: { HPE: [0.1, 0.8] },
 			isMultiParty: false,
+			whitelist: [
+				{ symbol: "HPE", exchange: "NYSE" },
+				{ symbol: "CSCO", exchange: "NASDAQ" },
+				{ symbol: "ANET", exchange: "NYSE" },
+			],
+			primaryExchange: "NYSE",
+			requiredSymbols: ["HPE"],
+			forbiddenSymbols: ["JNPR"],
 		},
 		tags: ["ticker-accuracy", "acquisition"],
 	},
 ];
+
+const LSE_WHITELIST: Array<{ symbol: string; exchange: string }> = [
+	{ symbol: "SHEL", exchange: "LSE" },
+	{ symbol: "BP.", exchange: "LSE" },
+	{ symbol: "HSBA", exchange: "LSE" },
+	{ symbol: "AZN", exchange: "LSE" },
+	{ symbol: "VOD", exchange: "LSE" },
+	{ symbol: "GSK", exchange: "LSE" },
+	{ symbol: "ULVR", exchange: "LSE" },
+	{ symbol: "RIO", exchange: "LSE" },
+	{ symbol: "DGE", exchange: "LSE" },
+	{ symbol: "LLOY", exchange: "LSE" },
+];
+
+// Category A: LSE attribution preservation (5 tasks from corpus)
+for (let i = 0; i < corpus.corpus.length && i < 5; i++) {
+	const entry = corpus.corpus[i]!;
+	researchAgentTasks.push({
+		id: `ra-lse-a-${String(i + 1).padStart(3, "0")}`,
+		name: `LSE attribution: ${entry.correctPrimarySymbol}`,
+		input: {
+			headline: entry.headline,
+			source: entry.source,
+			symbols: [entry.primarySymbol],
+			classification: {
+				sentiment: 0,
+				confidence: 0.75,
+				tradeable: true,
+				eventType: "generic",
+				urgency: "medium",
+			},
+		},
+		reference: {
+			minSymbols: 1,
+			expectedSymbols: [entry.correctPrimarySymbol],
+			expectedDirections: {},
+			expectedSentimentRange: {},
+			isMultiParty: false,
+			whitelist: LSE_WHITELIST,
+			primaryExchange: "LSE",
+			requiredSymbols: [entry.correctPrimarySymbol],
+		},
+		tags: ["lse", "attribution", "category-a"],
+	});
+}
+
+// Category B: whitelist compliance distractors (5 tasks)
+const categoryBTasks = [
+	{
+		id: "ra-lse-b-001",
+		name: "Distractor: Panasonic + Shell partnership",
+		headline: "Panasonic and Shell announce battery supply deal for EV charging network",
+		primary: "SHEL",
+		tags: ["lse", "whitelist", "distractor", "category-b"],
+	},
+	{
+		id: "ra-lse-b-002",
+		name: "Distractor: Samsung + HSBC mention",
+		headline: "HSBC Holdings extends credit facility to Samsung Electronics",
+		primary: "HSBA",
+		tags: ["lse", "whitelist", "distractor", "category-b"],
+	},
+	{
+		id: "ra-lse-b-003",
+		name: "Distractor: Tesla + BP charging",
+		headline: "BP plc rolls out Tesla-compatible fast chargers across UK motorways",
+		primary: "BP.",
+		tags: ["lse", "whitelist", "distractor", "category-b"],
+	},
+	{
+		id: "ra-lse-b-004",
+		name: "Distractor: Pfizer + AstraZeneca research",
+		headline: "AstraZeneca plc and Pfizer publish joint oncology trial results",
+		primary: "AZN",
+		tags: ["lse", "whitelist", "distractor", "category-b"],
+	},
+	{
+		id: "ra-lse-b-005",
+		name: "Distractor: Apple + Vodafone deal",
+		headline: "Vodafone Group plc signs distribution deal with Apple Inc for iPhone 17",
+		primary: "VOD",
+		tags: ["lse", "whitelist", "distractor", "category-b"],
+	},
+];
+
+for (const t of categoryBTasks) {
+	researchAgentTasks.push({
+		id: t.id,
+		name: t.name,
+		input: {
+			headline: t.headline,
+			source: "synthetic",
+			symbols: [t.primary],
+			classification: {
+				sentiment: 0.2,
+				confidence: 0.7,
+				tradeable: true,
+				eventType: "partnership",
+				urgency: "low",
+			},
+		},
+		reference: {
+			minSymbols: 1,
+			expectedSymbols: [t.primary],
+			expectedDirections: {},
+			expectedSentimentRange: {},
+			isMultiParty: false,
+			whitelist: LSE_WHITELIST,
+			primaryExchange: "LSE",
+			requiredSymbols: [t.primary],
+		},
+		tags: t.tags,
+	});
+}
+
+// Category D: multi-symbol LSE expansion (3 tasks)
+const categoryDTasks = [
+	{
+		id: "ra-lse-d-001",
+		headline: "Shell and BP both raise dividends as oil majors ride higher crude prices",
+		primary: "SHEL",
+		expected: ["SHEL", "BP."],
+	},
+	{
+		id: "ra-lse-d-002",
+		headline: "Lloyds and NatWest shares rise on expectations of higher BoE base rate",
+		primary: "LLOY",
+		expected: ["LLOY", "NWG"],
+	},
+	{
+		id: "ra-lse-d-003",
+		headline: "AstraZeneca and GSK face combined pricing pressure from new NHS framework",
+		primary: "AZN",
+		expected: ["AZN", "GSK"],
+	},
+];
+
+for (const t of categoryDTasks) {
+	researchAgentTasks.push({
+		id: t.id,
+		name: `Multi-symbol LSE: ${t.expected.join("+")}`,
+		input: {
+			headline: t.headline,
+			source: "synthetic",
+			symbols: [t.primary],
+			classification: {
+				sentiment: 0.3,
+				confidence: 0.75,
+				tradeable: true,
+				eventType: "sector",
+				urgency: "medium",
+			},
+		},
+		reference: {
+			minSymbols: 2,
+			expectedSymbols: t.expected,
+			expectedDirections: {},
+			expectedSentimentRange: {},
+			isMultiParty: true,
+			whitelist: LSE_WHITELIST.concat([{ symbol: "NWG", exchange: "LSE" }]),
+			primaryExchange: "LSE",
+			requiredSymbols: t.expected,
+		},
+		tags: ["lse", "multi-symbol", "category-d"],
+	});
+}
+
+// Category E: deprecated-ticker rejection (2 tasks)
+const categoryETasks = [
+	{
+		id: "ra-lse-e-001",
+		headline: "Royal Dutch Shell reports record buyback programme for 2026",
+		primary: "SHEL",
+		forbidden: ["RDSB", "RDSA"],
+		required: ["SHEL"],
+	},
+	{
+		id: "ra-lse-e-002",
+		headline: "Vodafone Group plc announces €8bn sale of Italian operations",
+		primary: "VOD",
+		forbidden: ["VOD.L"],
+		required: ["VOD"],
+	},
+];
+
+for (const t of categoryETasks) {
+	researchAgentTasks.push({
+		id: t.id,
+		name: `Deprecated rejection: ${t.required.join("+")}`,
+		input: {
+			headline: t.headline,
+			source: "synthetic",
+			symbols: [t.primary],
+			classification: {
+				sentiment: 0.4,
+				confidence: 0.8,
+				tradeable: true,
+				eventType: "corporate_action",
+				urgency: "medium",
+			},
+		},
+		reference: {
+			minSymbols: 1,
+			expectedSymbols: t.required,
+			expectedDirections: {},
+			expectedSentimentRange: {},
+			isMultiParty: false,
+			whitelist: LSE_WHITELIST,
+			primaryExchange: "LSE",
+			requiredSymbols: t.required,
+			forbiddenSymbols: t.forbidden,
+		},
+		tags: ["lse", "deprecated", "category-e"],
+	});
+}

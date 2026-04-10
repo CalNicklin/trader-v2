@@ -1,3 +1,4 @@
+import { NEWS_PIPELINE_CONTEXT } from "../agents/subsystem-context.ts";
 import type { StrategyPerformance } from "../evolution/types.ts";
 import type { RegimeSignals } from "./regime.ts";
 
@@ -56,5 +57,7 @@ Output JSON only:
   ]
 }
 
-Only include decisions for strategy-symbol pairs you have an opinion on. If a strategy should run on its full universe unchanged, you can omit it — the default is to evaluate all symbols in the strategy's universe.`;
+Only include decisions for strategy-symbol pairs you have an opinion on. If a strategy should run on its full universe unchanged, you can omit it — the default is to evaluate all symbols in the strategy's universe.
+
+${NEWS_PIPELINE_CONTEXT}`;
 }

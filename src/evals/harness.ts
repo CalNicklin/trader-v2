@@ -20,7 +20,7 @@ export async function runTrial<TInput, TOutput, TReference>(
 	if (output !== null) {
 		for (const grader of graders) {
 			try {
-				const result = await grader.grade(output, task.reference);
+				const result = await grader.grade(output, task.reference, { input: task.input });
 				grades.push({
 					graderName: grader.name,
 					score: result.score,
@@ -55,7 +55,7 @@ export interface SuiteOptions {
 
 export async function runSuite<TInput, TOutput, TReference>(
 	tasks: EvalTask<TInput, TReference>[],
-	fn: (input: TInput) => Promise<TOutput>,
+	fn: (input: TInput, reference: TReference) => Promise<TOutput>,
 	graders: Grader<TOutput, TReference>[],
 	options: SuiteOptions = { trials: 1 },
 ): Promise<SuiteResults<TOutput>> {
@@ -65,7 +65,7 @@ export async function runSuite<TInput, TOutput, TReference>(
 	for (const task of tasks) {
 		const trials: TrialResult<TOutput>[] = [];
 		for (let t = 0; t < options.trials; t++) {
-			const trial = await runTrial(task, fn, graders);
+			const trial = await runTrial(task, (input) => fn(input, task.reference), graders);
 			trials.push(trial);
 		}
 
