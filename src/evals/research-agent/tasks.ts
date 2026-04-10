@@ -2,6 +2,7 @@
 
 import type { ResearchInput } from "../../news/research-agent.ts";
 import type { EvalTask } from "../types.ts";
+import corpus from "./fixtures/lse-corpus.json" with { type: "json" };
 
 export interface ResearchReference {
 	minSymbols: number;
@@ -49,7 +50,7 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			primaryExchange: "NASDAQ",
 			requiredSymbols: ["AVGO", "GOOGL"],
 		},
-		tags: ["multi-party", "partnership", "ai-chips"],
+		tags: ["multi-party", "partnership", "ai-chips", "category-c"],
 	},
 	{
 		id: "ra-002",
@@ -81,7 +82,7 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			primaryExchange: "NASDAQ",
 			requiredSymbols: ["MSFT", "CRWD"],
 		},
-		tags: ["multi-party", "acquisition"],
+		tags: ["multi-party", "acquisition", "category-c"],
 	},
 	{
 		id: "ra-003",
@@ -113,7 +114,7 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			primaryExchange: "NYSE",
 			requiredSymbols: ["TSM"],
 		},
-		tags: ["multi-party", "supply-chain"],
+		tags: ["multi-party", "supply-chain", "category-c"],
 	},
 	{
 		id: "ra-004",
@@ -144,7 +145,7 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			primaryExchange: "NASDAQ",
 			requiredSymbols: ["NFLX"],
 		},
-		tags: ["single-symbol", "earnings"],
+		tags: ["single-symbol", "earnings", "category-c"],
 	},
 	{
 		id: "ra-005",
@@ -176,7 +177,7 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 			primaryExchange: "NYSE",
 			requiredSymbols: ["LLY", "NVO"],
 		},
-		tags: ["multi-party", "fda", "competition"],
+		tags: ["multi-party", "fda", "competition", "category-c"],
 	},
 	{
 		id: "ra-006",
@@ -557,3 +558,218 @@ export const researchAgentTasks: EvalTask<ResearchInput, ResearchReference>[] = 
 		tags: ["ticker-accuracy", "acquisition"],
 	},
 ];
+
+const LSE_WHITELIST: Array<{ symbol: string; exchange: string }> = [
+	{ symbol: "SHEL", exchange: "LSE" },
+	{ symbol: "BP.", exchange: "LSE" },
+	{ symbol: "HSBA", exchange: "LSE" },
+	{ symbol: "AZN", exchange: "LSE" },
+	{ symbol: "VOD", exchange: "LSE" },
+	{ symbol: "GSK", exchange: "LSE" },
+	{ symbol: "ULVR", exchange: "LSE" },
+	{ symbol: "RIO", exchange: "LSE" },
+	{ symbol: "DGE", exchange: "LSE" },
+	{ symbol: "LLOY", exchange: "LSE" },
+];
+
+// Category A: LSE attribution preservation (5 tasks from corpus)
+for (let i = 0; i < corpus.corpus.length && i < 5; i++) {
+	const entry = corpus.corpus[i]!;
+	researchAgentTasks.push({
+		id: `ra-lse-a-${String(i + 1).padStart(3, "0")}`,
+		name: `LSE attribution: ${entry.correctPrimarySymbol}`,
+		input: {
+			headline: entry.headline,
+			source: entry.source,
+			symbols: [entry.primarySymbol],
+			classification: {
+				sentiment: 0,
+				confidence: 0.75,
+				tradeable: true,
+				eventType: "generic",
+				urgency: "medium",
+			},
+		},
+		reference: {
+			minSymbols: 1,
+			expectedSymbols: [entry.correctPrimarySymbol],
+			expectedDirections: {},
+			expectedSentimentRange: {},
+			isMultiParty: false,
+			whitelist: LSE_WHITELIST,
+			primaryExchange: "LSE",
+			requiredSymbols: [entry.correctPrimarySymbol],
+		},
+		tags: ["lse", "attribution", "category-a"],
+	});
+}
+
+// Category B: whitelist compliance distractors (5 tasks)
+const categoryBTasks = [
+	{
+		id: "ra-lse-b-001",
+		name: "Distractor: Panasonic + Shell partnership",
+		headline: "Panasonic and Shell announce battery supply deal for EV charging network",
+		primary: "SHEL",
+		tags: ["lse", "whitelist", "distractor", "category-b"],
+	},
+	{
+		id: "ra-lse-b-002",
+		name: "Distractor: Samsung + HSBC mention",
+		headline: "HSBC Holdings extends credit facility to Samsung Electronics",
+		primary: "HSBA",
+		tags: ["lse", "whitelist", "distractor", "category-b"],
+	},
+	{
+		id: "ra-lse-b-003",
+		name: "Distractor: Tesla + BP charging",
+		headline: "BP plc rolls out Tesla-compatible fast chargers across UK motorways",
+		primary: "BP.",
+		tags: ["lse", "whitelist", "distractor", "category-b"],
+	},
+	{
+		id: "ra-lse-b-004",
+		name: "Distractor: Pfizer + AstraZeneca research",
+		headline: "AstraZeneca plc and Pfizer publish joint oncology trial results",
+		primary: "AZN",
+		tags: ["lse", "whitelist", "distractor", "category-b"],
+	},
+	{
+		id: "ra-lse-b-005",
+		name: "Distractor: Apple + Vodafone deal",
+		headline: "Vodafone Group plc signs distribution deal with Apple Inc for iPhone 17",
+		primary: "VOD",
+		tags: ["lse", "whitelist", "distractor", "category-b"],
+	},
+];
+
+for (const t of categoryBTasks) {
+	researchAgentTasks.push({
+		id: t.id,
+		name: t.name,
+		input: {
+			headline: t.headline,
+			source: "synthetic",
+			symbols: [t.primary],
+			classification: {
+				sentiment: 0.2,
+				confidence: 0.7,
+				tradeable: true,
+				eventType: "partnership",
+				urgency: "low",
+			},
+		},
+		reference: {
+			minSymbols: 1,
+			expectedSymbols: [t.primary],
+			expectedDirections: {},
+			expectedSentimentRange: {},
+			isMultiParty: false,
+			whitelist: LSE_WHITELIST,
+			primaryExchange: "LSE",
+			requiredSymbols: [t.primary],
+		},
+		tags: t.tags,
+	});
+}
+
+// Category D: multi-symbol LSE expansion (3 tasks)
+const categoryDTasks = [
+	{
+		id: "ra-lse-d-001",
+		headline: "Shell and BP both raise dividends as oil majors ride higher crude prices",
+		primary: "SHEL",
+		expected: ["SHEL", "BP."],
+	},
+	{
+		id: "ra-lse-d-002",
+		headline: "Lloyds and NatWest shares rise on expectations of higher BoE base rate",
+		primary: "LLOY",
+		expected: ["LLOY", "NWG"],
+	},
+	{
+		id: "ra-lse-d-003",
+		headline: "AstraZeneca and GSK face combined pricing pressure from new NHS framework",
+		primary: "AZN",
+		expected: ["AZN", "GSK"],
+	},
+];
+
+for (const t of categoryDTasks) {
+	researchAgentTasks.push({
+		id: t.id,
+		name: `Multi-symbol LSE: ${t.expected.join("+")}`,
+		input: {
+			headline: t.headline,
+			source: "synthetic",
+			symbols: [t.primary],
+			classification: {
+				sentiment: 0.3,
+				confidence: 0.75,
+				tradeable: true,
+				eventType: "sector",
+				urgency: "medium",
+			},
+		},
+		reference: {
+			minSymbols: 2,
+			expectedSymbols: t.expected,
+			expectedDirections: {},
+			expectedSentimentRange: {},
+			isMultiParty: true,
+			whitelist: LSE_WHITELIST.concat([{ symbol: "NWG", exchange: "LSE" }]),
+			primaryExchange: "LSE",
+			requiredSymbols: t.expected,
+		},
+		tags: ["lse", "multi-symbol", "category-d"],
+	});
+}
+
+// Category E: deprecated-ticker rejection (2 tasks)
+const categoryETasks = [
+	{
+		id: "ra-lse-e-001",
+		headline: "Royal Dutch Shell reports record buyback programme for 2026",
+		primary: "SHEL",
+		forbidden: ["RDSB", "RDSA"],
+		required: ["SHEL"],
+	},
+	{
+		id: "ra-lse-e-002",
+		headline: "Vodafone Group plc announces €8bn sale of Italian operations",
+		primary: "VOD",
+		forbidden: ["VOD.L"],
+		required: ["VOD"],
+	},
+];
+
+for (const t of categoryETasks) {
+	researchAgentTasks.push({
+		id: t.id,
+		name: `Deprecated rejection: ${t.required.join("+")}`,
+		input: {
+			headline: t.headline,
+			source: "synthetic",
+			symbols: [t.primary],
+			classification: {
+				sentiment: 0.4,
+				confidence: 0.8,
+				tradeable: true,
+				eventType: "corporate_action",
+				urgency: "medium",
+			},
+		},
+		reference: {
+			minSymbols: 1,
+			expectedSymbols: t.required,
+			expectedDirections: {},
+			expectedSentimentRange: {},
+			isMultiParty: false,
+			whitelist: LSE_WHITELIST,
+			primaryExchange: "LSE",
+			requiredSymbols: t.required,
+			forbiddenSymbols: t.forbidden,
+		},
+		tags: ["lse", "deprecated", "category-e"],
+	});
+}
