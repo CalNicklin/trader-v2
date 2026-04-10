@@ -19,8 +19,10 @@ export async function runResearchAgentEvals(
 
 	const results = await runSuite(
 		researchAgentTasks,
-		async (input) => {
-			const prompt = buildResearchPrompt(input, { whitelist: [], primaryExchange: "NASDAQ" });
+		async (input, reference) => {
+			const whitelist = reference.whitelist ?? [];
+			const primaryExchange = reference.primaryExchange ?? "NASDAQ";
+			const prompt = buildResearchPrompt(input, { whitelist, primaryExchange });
 			const response = await client.messages.create({
 				model: config.CLAUDE_MODEL,
 				max_tokens: 1500,

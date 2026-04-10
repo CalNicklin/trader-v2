@@ -41,7 +41,7 @@ export async function runMissedOpportunityEvals(options: { saveDir?: string } = 
 
 	const results = await runSuite(
 		trackerTasks,
-		async (input) => simulateTracker(input),
+		async (input, _reference) => simulateTracker(input),
 		allTrackerGraders,
 		{ trials: 1, suiteName: "missed-opportunity" },
 	);
