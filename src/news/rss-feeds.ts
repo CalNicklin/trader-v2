@@ -1,5 +1,7 @@
 import Parser from "rss-parser";
+import { getFtse100Universe } from "../data/ftse100.ts";
 import { createChildLogger } from "../utils/logger.ts";
+import { ALIAS_OVERRIDES } from "./alias-overrides.ts";
 import type { NewsArticle } from "./finnhub.ts";
 import { UK_FEEDS } from "./uk-feed-config.ts";
 
@@ -9,25 +11,31 @@ const parser = new Parser({
 	timeout: 10000,
 });
 
-/**
- * Static aliases mapping LSE/AIM symbols to company names for text matching.
- */
-const SYMBOL_ALIASES: Record<string, string[]> = {
-	SHEL: ["Shell"],
-	"BP.": ["BP"],
-	AZN: ["AstraZeneca"],
-	GSK: ["GSK"],
-	ULVR: ["Unilever"],
-	HSBA: ["HSBC"],
-	VOD: ["Vodafone"],
-	RIO: ["Rio Tinto"],
-	GAW: ["Games Workshop"],
-	FDEV: ["Frontier Developments", "Frontier"],
-	TET: ["Treatt"],
-	JET2: ["Jet2"],
-	BOWL: ["Hollywood Bowl"],
-	FEVR: ["Fevertree", "Fever-Tree", "Fever Tree"],
-};
+const ALIAS_TTL_MS = 60 * 60 * 1000;
+let aliasCache: { data: Record<string, string[]>; fetchedAt: number } | null = null;
+
+export function _resetRssAliasCache(): void {
+	aliasCache = null;
+}
+
+export async function loadAliases(
+	options: { skipFmp?: boolean } = {},
+): Promise<Record<string, string[]>> {
+	if (aliasCache && Date.now() - aliasCache.fetchedAt < ALIAS_TTL_MS) {
+		return aliasCache.data;
+	}
+
+	const constituents = await getFtse100Universe({ skipFmp: options.skipFmp });
+	const aliases: Record<string, string[]> = {};
+	for (const c of constituents) {
+		aliases[c.symbol] = [...c.aliases];
+	}
+	for (const [sym, extra] of Object.entries(ALIAS_OVERRIDES)) {
+		aliases[sym] = Array.from(new Set([...(aliases[sym] ?? []), ...extra]));
+	}
+	aliasCache = { data: aliases, fetchedAt: Date.now() };
+	return aliases;
+}
 
 interface RssItem {
 	title: string;
@@ -76,9 +84,6 @@ async function fetchUkFeeds(maxPerFeed = 15): Promise<RssItem[]> {
 function matchArticles(items: RssItem[], symbol: string): NewsArticle[] {
 	const searchTerms: string[] = [symbol.replace(".", "")];
 	if (symbol.includes(".")) searchTerms.push(symbol);
-
-	const aliases = SYMBOL_ALIASES[symbol];
-	if (aliases) searchTerms.push(...aliases);
 
 	const matched: NewsArticle[] = [];
 	for (const item of items) {
