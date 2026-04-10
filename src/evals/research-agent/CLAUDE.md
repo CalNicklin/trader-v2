@@ -4,6 +4,12 @@ This suite gates any change to `src/news/research-agent.ts`,
 `src/news/rss-feeds.ts`, or `src/data/ftse100.ts`.
 
 **Canonical spec:** `docs/specs/2026-04-10-lse-news-signal-fix.md` (Section 4)
+**Follow-up spec (ingestion layer):** `docs/specs/2026-04-10-lse-news-fmp-migration.md`
+
+This suite remains valid after the FMP migration. The corpus is
+headline-based and source-independent; the research agent logic
+under test (whitelist filter, primary-symbol pin, attribution)
+does not depend on how articles arrive.
 
 ## Task categories (20 tasks total)
 

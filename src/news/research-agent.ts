@@ -54,7 +54,9 @@ export function buildResearchPrompt(
 	},
 ): string {
 	const primarySymbol = input.symbols[0] ?? "unknown";
-	const whitelistLine = ctx.whitelist.map((w) => `${w.symbol}:${w.exchange}`).join(", ");
+	const whitelistLines = ctx.whitelist
+		.map((w) => `- ${w.symbol} (exchange: ${w.exchange})`)
+		.join("\n");
 
 	return `You are a financial research analyst. Analyse this news headline and identify ALL materially affected publicly-traded symbols — not just the one originally classified.
 
@@ -75,22 +77,25 @@ ${input.symbols.join(", ")}
 
 ## Tradeable universe
 You may ONLY return symbols from this whitelist. Any symbol not in this list
-will be dropped. Use the exchange listed.
+will be dropped. The whitelist is shown one entry per line as
+"- TICKER (exchange: VENUE)". In your output, put TICKER alone in the symbol
+field and VENUE alone in the exchange field — never join them together.
 
 <whitelist>
-${whitelistLine}
+${whitelistLines}
 </whitelist>
 
 ## Primary attribution
-This headline was matched to "${primarySymbol}:${ctx.primaryExchange}" by the
-upstream RSS matcher. Unless the headline is entirely unrelated to that company,
-you MUST include "${primarySymbol}" in your output with your independent
-sentiment assessment. If the headline IS unrelated, return an empty array.
+This headline was matched to ticker "${primarySymbol}" on exchange "${ctx.primaryExchange}"
+by the upstream news matcher. Unless the headline is entirely unrelated to that
+company, you MUST include an entry with symbol="${primarySymbol}" and
+exchange="${ctx.primaryExchange}" in your output, with your independent sentiment
+assessment. If the headline IS unrelated, return an empty array.
 
 ## Your task
 Identify every publicly-traded symbol materially affected by this news. For each, provide:
-- symbol: ticker (e.g., AVGO, GOOGL)
-- exchange: one of NASDAQ, NYSE, LSE
+- symbol: bare ticker only, e.g. "AVGO", "AZN", "BP." — NEVER "AZN:LSE" or "AZN.L"
+- exchange: one of "NASDAQ", "NYSE", "LSE" — as a separate field
 - sentiment: -1.0 to 1.0 (from this symbol's perspective)
 - urgency: low, medium, or high
 - event_type: what this event means for THIS symbol
@@ -99,15 +104,19 @@ Identify every publicly-traded symbol materially affected by this news. For each
 - confidence: 0 to 1
 
 Include the originally-classified symbol with your independent assessment. Look for:
-- Direct parties (buyer/seller, partners)
-- Supply chain effects (suppliers, customers)
-- Sector peers affected by competitive dynamics
-- M&A targets or acquirers
+- Direct parties (buyer/seller, partners) named in the headline
+- Supply chain effects when the dependency is concrete and material
+- Sector peers ONLY when the headline describes a sector-wide trigger (e.g. broad regulation, market-wide shock) or explicitly names them
+- M&A targets or acquirers named in the headline
+
+Be conservative. Do not add speculative sector-contagion symbols. If a narrow event (a single fab, a single product, a single subsidiary) does not clearly translate into a material impact on a peer, OMIT that peer rather than guess. A shorter list of high-confidence symbols is better than a longer list with weak theses.
 
 Return only valid exchange tickers as traded on NASDAQ, NYSE, or LSE. Use the ticker symbol, not the company name (e.g. TSM not TSMC, MBLY not MOBILEYE, BRK-B not BRK.B). If unsure of the exact ticker, omit the symbol rather than guess.
 
-Respond with JSON only, no markdown:
-{"affected_symbols": [...]}`;
+Respond with JSON only, no markdown. Example shape (one entry shown):
+{"affected_symbols": [
+  {"symbol": "AZN", "exchange": "LSE", "sentiment": 0.4, "urgency": "medium", "event_type": "earnings_beat", "direction": "long", "trade_thesis": "...", "confidence": 0.75}
+]}`;
 }
 
 export function parseResearchResponse(text: string): ResearchAnalysis[] {

@@ -3,11 +3,9 @@ import { getConfig } from "../config.ts";
 import { getDb } from "../db/client.ts";
 import { strategies } from "../db/schema.ts";
 import { classifyHeadline } from "../news/classifier.ts";
-import type { NewsArticle } from "../news/finnhub.ts";
 import { fetchCompanyNews } from "../news/finnhub.ts";
+import { fetchFmpCompanyNews } from "../news/fmp-news.ts";
 import { processArticle } from "../news/ingest.ts";
-import { fetchRnsNews } from "../news/rns-scraper.ts";
-import { fetchUkNewsForSymbols } from "../news/rss-feeds.ts";
 import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "news-poll-job" });
@@ -56,12 +54,17 @@ function finnhubSymbol(symbol: string, exchange: string): string {
 	return symbol;
 }
 
-export async function runNewsPoll(): Promise<void> {
+export interface NewsPollDeps {
+	fetchCompanyNews?: typeof fetchCompanyNews;
+	fetchFmpCompanyNews?: typeof fetchFmpCompanyNews;
+	processArticle?: typeof processArticle;
+}
+
+export async function runNewsPoll(deps: NewsPollDeps = {}): Promise<void> {
 	const config = getConfig();
-	if (!config.FINNHUB_API_KEY) {
-		log.warn("FINNHUB_API_KEY not set — skipping news poll");
-		return;
-	}
+	const fetchUs = deps.fetchCompanyNews ?? fetchCompanyNews;
+	const fetchFmp = deps.fetchFmpCompanyNews ?? fetchFmpCompanyNews;
+	const ingest = deps.processArticle ?? processArticle;
 
 	const watchlist = await getWatchlistSymbols();
 	if (watchlist.length === 0) {
@@ -76,55 +79,53 @@ export async function runNewsPoll(): Promise<void> {
 
 	// US stocks: Finnhub API
 	const usSymbols = watchlist.filter((s) => s.exchange === "NASDAQ" || s.exchange === "NYSE");
-	for (const { symbol, exchange } of usSymbols) {
-		const fhSymbol = finnhubSymbol(symbol, exchange);
-		const articles = await fetchCompanyNews(fhSymbol, config.FINNHUB_API_KEY);
+	const finnhubKey = config.FINNHUB_API_KEY;
+	if (usSymbols.length > 0 && !finnhubKey) {
+		log.warn("FINNHUB_API_KEY not set — skipping US news poll");
+	} else {
+		for (const { symbol, exchange } of usSymbols) {
+			const fhSymbol = finnhubSymbol(symbol, exchange);
+			const articles = await fetchUs(fhSymbol, finnhubKey ?? "");
 
-		for (const article of articles) {
-			if (article.symbols.length === 0) {
-				article.symbols = [symbol];
-			}
+			for (const article of articles) {
+				if (article.symbols.length === 0) {
+					article.symbols = [symbol];
+				}
 
-			totalArticles++;
-			const result = await processArticle(article, exchange, classifyHeadline);
-			if (result === "classified") classified++;
-			else if (result === "filtered") filtered++;
-			else if (result === "duplicate") duplicates++;
-		}
-
-		// Respect Finnhub rate limit: 60 calls/min
-		await Bun.sleep(1100);
-	}
-
-	// Non-US stocks (LSE, AIM): RSS feeds + RNS scraper
-	const nonUsSymbols = watchlist.filter((s) => s.exchange !== "NASDAQ" && s.exchange !== "NYSE");
-	if (nonUsSymbols.length > 0) {
-		const [rssResults, rnsArticles] = await Promise.all([
-			fetchUkNewsForSymbols(nonUsSymbols),
-			fetchRnsNews(nonUsSymbols.map((s) => s.symbol)),
-		]);
-
-		// Index RNS articles by symbol for lookup
-		const rnsBySymbol = new Map<string, NewsArticle[]>();
-		for (const a of rnsArticles) {
-			const sym = a.symbols[0];
-			if (!sym) continue;
-			const list = rnsBySymbol.get(sym) ?? [];
-			list.push(a);
-			rnsBySymbol.set(sym, list);
-		}
-
-		for (const { symbol, exchange } of nonUsSymbols) {
-			const rss = rssResults.get(symbol) ?? [];
-			const rns = rnsBySymbol.get(symbol) ?? [];
-			for (const article of [...rss, ...rns]) {
 				totalArticles++;
-				const result = await processArticle(article, exchange, classifyHeadline);
+				const result = await ingest(article, exchange, classifyHeadline);
 				if (result === "classified") classified++;
 				else if (result === "filtered") filtered++;
 				else if (result === "duplicate") duplicates++;
 			}
+
+			// Respect Finnhub rate limit: 60 calls/min
+			await Bun.sleep(1100);
 		}
+	}
+
+	// Non-US stocks (LSE, AIM): FMP /news/stock, per-symbol
+	const nonUsSymbols = watchlist.filter((s) => s.exchange === "LSE" || s.exchange === "AIM");
+	if (nonUsSymbols.length > 0) {
+		let lseArticles = 0;
+		log.info({ symbolCount: nonUsSymbols.length }, "Polling FMP news per symbol for LSE/AIM");
+		for (const { symbol, exchange } of nonUsSymbols) {
+			const articles = await fetchFmp(symbol, exchange);
+			for (const article of articles) {
+				totalArticles++;
+				lseArticles++;
+				const result = await ingest(article, exchange, classifyHeadline);
+				if (result === "classified") classified++;
+				else if (result === "filtered") filtered++;
+				else if (result === "duplicate") duplicates++;
+			}
+			// Soft pacing against FMP rate limit (hard limit is in fmpFetch)
+			await Bun.sleep(200);
+		}
+		log.info(
+			{ exchange: "LSE", symbols: nonUsSymbols.length, articles: lseArticles },
+			"FMP news poll complete",
+		);
 	}
 
 	log.info(

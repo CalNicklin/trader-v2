@@ -53,4 +53,9 @@ if (suite === "all" || suite === "sentiment") {
 	await runSentimentEvalSuite({ trials, suiteName: "sentiment" });
 }
 
+if (suite === "all" || suite === "research-agent") {
+	const { runResearchAgentEvals } = await import("./research-agent/suite.ts");
+	await runResearchAgentEvals({ trials, saveDir: "src/evals/research-agent/results" });
+}
+
 console.log(`\nTotal duration: ${Date.now() - start}ms`);
