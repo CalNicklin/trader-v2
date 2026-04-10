@@ -46,7 +46,16 @@ export interface ResearchAnalysis {
 	recommendTrade: boolean;
 }
 
-export function buildResearchPrompt(input: ResearchInput): string {
+export function buildResearchPrompt(
+	input: ResearchInput,
+	ctx: {
+		whitelist: Array<{ symbol: string; exchange: string }>;
+		primaryExchange: string;
+	},
+): string {
+	const primarySymbol = input.symbols[0] ?? "unknown";
+	const whitelistLine = ctx.whitelist.map((w) => `${w.symbol}:${w.exchange}`).join(", ");
+
 	return `You are a financial research analyst. Analyse this news headline and identify ALL materially affected publicly-traded symbols — not just the one originally classified.
 
 ## Headline
@@ -58,11 +67,25 @@ ${input.source}
 ## Symbols mentioned
 ${input.symbols.join(", ")}
 
-## Initial classification (for the primary symbol ${input.symbols[0] ?? "unknown"})
+## Initial classification (for the primary symbol ${primarySymbol})
 - Sentiment: ${input.classification.sentiment}
 - Confidence: ${input.classification.confidence}
 - Event type: ${input.classification.eventType}
 - Urgency: ${input.classification.urgency}
+
+## Tradeable universe
+You may ONLY return symbols from this whitelist. Any symbol not in this list
+will be dropped. Use the exchange listed.
+
+<whitelist>
+${whitelistLine}
+</whitelist>
+
+## Primary attribution
+This headline was matched to "${primarySymbol}:${ctx.primaryExchange}" by the
+upstream RSS matcher. Unless the headline is entirely unrelated to that company,
+you MUST include "${primarySymbol}" in your output with your independent
+sentiment assessment. If the headline IS unrelated, return an empty array.
 
 ## Your task
 Identify every publicly-traded symbol materially affected by this news. For each, provide:
@@ -214,7 +237,11 @@ export async function runResearchAnalysis(
 
 	const config = getConfig();
 	const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
-	const prompt = buildResearchPrompt(input);
+	const whitelist = await buildUniverseWhitelist();
+	const primaryExchange = input.symbols[0]
+		? (whitelist.find((w) => w.symbol === input.symbols[0])?.exchange ?? "NASDAQ")
+		: "NASDAQ";
+	const prompt = buildResearchPrompt(input, { whitelist, primaryExchange });
 
 	try {
 		const response = await withRetry(

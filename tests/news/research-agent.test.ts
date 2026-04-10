@@ -23,18 +23,21 @@ afterEach(() => {
 
 describe("buildResearchPrompt", () => {
 	test("includes headline, source, symbols, and classification", () => {
-		const prompt = buildResearchPrompt({
-			headline: "Broadcom and Google seal five-year AI chip partnership",
-			source: "finnhub",
-			symbols: ["GOOGL"],
-			classification: {
-				sentiment: 0.2,
-				confidence: 0.7,
-				tradeable: true,
-				eventType: "partnership",
-				urgency: "low",
+		const prompt = buildResearchPrompt(
+			{
+				headline: "Broadcom and Google seal five-year AI chip partnership",
+				source: "finnhub",
+				symbols: ["GOOGL"],
+				classification: {
+					sentiment: 0.2,
+					confidence: 0.7,
+					tradeable: true,
+					eventType: "partnership",
+					urgency: "low",
+				},
 			},
-		});
+			{ whitelist: [], primaryExchange: "NASDAQ" },
+		);
 
 		expect(prompt).toContain("Broadcom and Google seal five-year AI chip partnership");
 		expect(prompt).toContain("GOOGL");
@@ -213,5 +216,37 @@ describe("buildUniverseWhitelist", () => {
 		});
 		const whitelist = await buildUniverseWhitelist();
 		expect(whitelist.find((w) => w.symbol === "EXCLUDED")).toBeUndefined();
+	});
+});
+
+describe("buildResearchPrompt whitelist", () => {
+	const input = {
+		headline: "Shell plc raises dividend",
+		source: "Sharecast",
+		symbols: ["SHEL"],
+		classification: {
+			sentiment: 0.4,
+			confidence: 0.8,
+			tradeable: true,
+			eventType: "dividend",
+			urgency: "medium",
+		},
+	};
+	const whitelist = [
+		{ symbol: "SHEL", exchange: "LSE" },
+		{ symbol: "BP.", exchange: "LSE" },
+	];
+
+	it("includes the whitelist in the prompt", () => {
+		const prompt = buildResearchPrompt(input, { whitelist, primaryExchange: "LSE" });
+		expect(prompt).toContain("Tradeable universe");
+		expect(prompt).toContain("SHEL:LSE");
+		expect(prompt).toContain("BP.:LSE");
+	});
+
+	it("includes the primary symbol pin instruction", () => {
+		const prompt = buildResearchPrompt(input, { whitelist, primaryExchange: "LSE" });
+		expect(prompt).toContain("Primary attribution");
+		expect(prompt).toContain(`"SHEL:LSE"`);
 	});
 });
