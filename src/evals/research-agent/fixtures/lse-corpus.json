@@ -1,0 +1,44 @@
+{
+	"corpus": [
+		{
+			"headline": "Shell plc raises quarterly dividend by 4% as Q3 profit beats consensus",
+			"source": "Sharecast",
+			"primarySymbol": "SHEL",
+			"primaryExchange": "LSE",
+			"correctPrimarySymbol": "SHEL",
+			"notes": "Clean single-symbol dividend announcement"
+		},
+		{
+			"headline": "BP shares slide as trading update points to weaker refining margins",
+			"source": "London South East",
+			"primarySymbol": "BP.",
+			"primaryExchange": "LSE",
+			"correctPrimarySymbol": "BP.",
+			"notes": "Negative trading update"
+		},
+		{
+			"headline": "HSBC Holdings reports pre-tax profit of $7.7bn, beats forecast",
+			"source": "Reuters UK Business",
+			"primarySymbol": "HSBA",
+			"primaryExchange": "LSE",
+			"correctPrimarySymbol": "HSBA",
+			"notes": "Earnings beat"
+		},
+		{
+			"headline": "AstraZeneca plc receives EU approval for new oncology drug",
+			"source": "Proactive Investors UK",
+			"primarySymbol": "AZN",
+			"primaryExchange": "LSE",
+			"correctPrimarySymbol": "AZN",
+			"notes": "Regulatory approval"
+		},
+		{
+			"headline": "Vodafone Group plc announces sale of Italian unit for €8bn",
+			"source": "BBC Business",
+			"primarySymbol": "VOD",
+			"primaryExchange": "LSE",
+			"correctPrimarySymbol": "VOD",
+			"notes": "Divestiture"
+		}
+	]
+}
