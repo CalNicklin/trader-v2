@@ -422,3 +422,11 @@ export const improvementProposals = sqliteTable("improvement_proposals", {
 		.notNull()
 		.$defaultFn(() => new Date().toISOString()),
 });
+
+// ── Universe cache ──────────────────────────────────────────────────────────
+
+export const universeCache = sqliteTable("universe_cache", {
+	key: text("key").primaryKey(),
+	data: text("data").notNull(), // JSON blob
+	fetchedAt: integer("fetched_at").notNull(),
+});

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "dfa41580-cda4-436f-9d29-d549245ecc46",
-  "prevId": "3298cd8b-9fd3-42ae-9c80-9336fabe91c1",
+  "id": "2925d233-809e-460c-a418-ddbdc01d7b86",
+  "prevId": "dfa41580-cda4-436f-9d29-d549245ecc46",
   "tables": {
     "agent_logs": {
       "name": "agent_logs",
@@ -815,6 +815,15 @@
           ],
           "isUnique": false
         },
+        "news_analyses_symbol_exchange_created_idx": {
+          "name": "news_analyses_symbol_exchange_created_idx",
+          "columns": [
+            "symbol",
+            "exchange",
+            "created_at"
+          ],
+          "isUnique": false
+        },
         "news_analyses_event_symbol_uniq": {
           "name": "news_analyses_event_symbol_uniq",
           "columns": [
@@ -985,6 +994,13 @@
           "name": "news_events_headline_idx",
           "columns": [
             "headline"
+          ],
+          "isUnique": false
+        },
+        "news_events_classified_at_idx": {
+          "name": "news_events_classified_at_idx",
+          "columns": [
+            "classified_at"
           ],
           "isUnique": false
         }

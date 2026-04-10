@@ -1,10 +1,12 @@
 // src/evals/research-agent/graders.ts
 
-import type { ResearchAnalysis } from "../../news/research-agent.ts";
+import Anthropic from "@anthropic-ai/sdk";
+import { getConfig } from "../../config.ts";
+import type { ResearchAnalysis, ResearchInput } from "../../news/research-agent.ts";
 import type { Grader } from "../types.ts";
 import type { ResearchReference } from "./tasks.ts";
 
-type RG = Grader<ResearchAnalysis[], ResearchReference>;
+type RG = Grader<ResearchAnalysis[], ResearchReference, ResearchInput>;
 
 export const jsonShapeGrader: RG = {
 	name: "json-shape",
@@ -52,6 +54,9 @@ export const expectedSymbolsGrader: RG = {
 	name: "expected-symbols",
 	type: "code",
 	grade: async (output, reference) => {
+		if (reference.expectedSymbols.length === 0) {
+			return { score: 1, pass: true, reason: "No expected symbols configured" };
+		}
 		const outputSymbols = new Set(output.map((a) => a.symbol));
 		const found = reference.expectedSymbols.filter((s) => outputSymbols.has(s));
 		const score = found.length / reference.expectedSymbols.length;
@@ -187,12 +192,13 @@ const KNOWN_VALID_TICKERS = new Set([
 export const tickerValidityGrader: RG = {
 	name: "ticker-validity",
 	type: "code",
-	grade: async (output) => {
+	grade: async (output, reference) => {
 		if (output.length === 0) return { score: 1, pass: true, reason: "No symbols to validate" };
 
+		const whitelistTickers = new Set((reference.whitelist ?? []).map((w) => w.symbol));
 		const invalid: string[] = [];
 		for (const a of output) {
-			if (!KNOWN_VALID_TICKERS.has(a.symbol)) {
+			if (!KNOWN_VALID_TICKERS.has(a.symbol) && !whitelistTickers.has(a.symbol)) {
 				invalid.push(a.symbol);
 			}
 		}
@@ -208,6 +214,142 @@ export const tickerValidityGrader: RG = {
 	},
 };
 
+/**
+ * Category A grader: the primary RSS-matched symbol must be present.
+ * Requires `reference.requiredSymbols` with at least one entry (the primary).
+ */
+export const primaryPresentGrader: RG = {
+	name: "primary-present",
+	type: "code",
+	grade: async (output, reference) => {
+		const required = reference.requiredSymbols ?? [];
+		if (required.length === 0) {
+			return { score: 1, pass: true, reason: "no required symbols configured" };
+		}
+		const have = new Set(output.map((a) => a.symbol));
+		const missing = required.filter((s) => !have.has(s));
+		return {
+			score: missing.length === 0 ? 1 : 0,
+			pass: missing.length === 0,
+			reason:
+				missing.length === 0
+					? `All required symbols present (${required.join(", ")})`
+					: `Missing required: ${missing.join(", ")}`,
+		};
+	},
+};
+
+/**
+ * Category B grader: every output symbol must be in the whitelist.
+ */
+export const whitelistComplianceGrader: RG = {
+	name: "whitelist-compliance",
+	type: "code",
+	grade: async (output, reference) => {
+		const whitelist = reference.whitelist ?? [];
+		if (whitelist.length === 0) {
+			return { score: 1, pass: true, reason: "no whitelist configured" };
+		}
+		const allowed = new Set(whitelist.map((w) => `${w.symbol}:${w.exchange}`));
+		const violations = output
+			.map((a) => `${a.symbol}:${a.exchange}`)
+			.filter((key) => !allowed.has(key));
+		return {
+			score: violations.length === 0 ? 1 : 0,
+			pass: violations.length === 0,
+			reason:
+				violations.length === 0
+					? "All outputs in whitelist"
+					: `Outside whitelist: ${violations.join(", ")}`,
+		};
+	},
+};
+
+/**
+ * Category E grader: no forbidden (e.g. deprecated) symbols may appear,
+ * and all required (current replacement) symbols must.
+ */
+export const negativeRejectionGrader: RG = {
+	name: "negative-rejection",
+	type: "code",
+	grade: async (output, reference) => {
+		const forbidden = reference.forbiddenSymbols ?? [];
+		const required = reference.requiredSymbols ?? [];
+		const have = new Set(output.map((a) => a.symbol));
+		const leaked = forbidden.filter((s) => have.has(s));
+		const missing = required.filter((s) => !have.has(s));
+		const pass = leaked.length === 0 && missing.length === 0;
+		return {
+			score: pass ? 1 : 0,
+			pass,
+			reason: pass
+				? "No forbidden symbols, all required present"
+				: `Leaked: [${leaked.join(", ")}]; Missing: [${missing.join(", ")}]`,
+		};
+	},
+};
+
+export const thesisPlausibilityJudge: RG = {
+	name: "thesis-plausibility",
+	type: "llm",
+	grade: async (output, reference, context) => {
+		// Only run when there is something to judge
+		if (output.length === 0) {
+			return { score: 0, pass: false, reason: "no analyses to judge" };
+		}
+		// Skip unless this task is a multi-party case (Category D)
+		if (!reference.isMultiParty) {
+			return { score: 1, pass: true, reason: "skipped (not multi-party)" };
+		}
+
+		const config = getConfig();
+		const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
+		const headline = context?.input?.headline ?? "unknown headline";
+		const rubric = output.map((a) => `- ${a.symbol} (${a.direction}): ${a.tradeThesis}`).join("\n");
+
+		const prompt = `You are a financial analyst grading an AI-generated research output.
+
+Headline: "${headline}"
+
+The AI produced these trade theses:
+${rubric}
+
+For each symbol, judge whether the thesis is PLAUSIBLE given the headline.
+Be strict: a thesis is plausible only if the connection between the headline
+and the symbol's trade case is evident.
+
+Respond with JSON only:
+{ "judgments": [ { "symbol": "XYZ", "plausible": true|false, "reason": "..." } ] }`;
+
+		try {
+			const resp = await client.messages.create({
+				model: "claude-sonnet-4-6",
+				max_tokens: 600,
+				messages: [{ role: "user", content: prompt }],
+			});
+			const text = resp.content[0]?.type === "text" ? resp.content[0].text : "";
+			const cleaned = text
+				.replace(/```json?\n?/g, "")
+				.replace(/```/g, "")
+				.trim();
+			const parsed = JSON.parse(cleaned) as {
+				judgments: Array<{ symbol: string; plausible: boolean; reason: string }>;
+			};
+			const total = parsed.judgments.length;
+			const passed = parsed.judgments.filter((j) => j.plausible).length;
+			const ratio = total > 0 ? passed / total : 0;
+			const pass = total > 0 && ratio >= 0.75;
+			return {
+				score: ratio,
+				pass,
+				reason: `${passed}/${total} theses plausible`,
+			};
+		} catch (err) {
+			return { score: 0, pass: false, reason: `judge failed: ${String(err)}` };
+		}
+	},
+};
+
 export const allResearchGraders: RG[] = [
 	jsonShapeGrader,
 	minSymbolsGrader,
@@ -216,4 +358,8 @@ export const allResearchGraders: RG[] = [
 	sentimentRangeGrader,
 	recommendTradeGrader,
 	tickerValidityGrader,
+	primaryPresentGrader,
+	whitelistComplianceGrader,
+	negativeRejectionGrader,
+	thesisPlausibilityJudge,
 ];

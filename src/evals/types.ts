@@ -12,10 +12,18 @@ export interface GradeResult {
 	reason: string;
 }
 
-export interface Grader<TOutput, TReference> {
+export interface GraderContext<TInput = unknown> {
+	input: TInput;
+}
+
+export interface Grader<TOutput, TReference, TInput = unknown> {
 	name: string;
 	type: "code" | "llm";
-	grade: (output: TOutput, reference: TReference) => Promise<GradeResult>;
+	grade(
+		output: TOutput,
+		reference: TReference,
+		context?: GraderContext<TInput>,
+	): Promise<GradeResult>;
 }
 
 export interface TrialResult<TOutput> {
