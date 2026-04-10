@@ -7,7 +7,7 @@ import type { ClassificationResult } from "./classifier.ts";
 import type { NewsArticle } from "./finnhub.ts";
 import { shouldClassify } from "./pre-filter.ts";
 import { runResearchAnalysis } from "./research-agent.ts";
-import { storeNewsEvent, writeSentiment, writeSignals } from "./sentiment-writer.ts";
+import { storeNewsEvent } from "./sentiment-writer.ts";
 
 const log = createChildLogger({ module: "news-ingest" });
 
@@ -93,24 +93,6 @@ export async function processArticle(
 		urgency: result.urgency,
 		signals: result.signals,
 	});
-
-	// Write signals or sentiment to quote cache for each symbol
-	for (const symbol of article.symbols) {
-		if (result.signals) {
-			await writeSignals(symbol, exchange, {
-				sentiment: result.sentiment,
-				earningsSurprise: result.signals.earningsSurprise,
-				guidanceChange: result.signals.guidanceChange,
-				managementTone: result.signals.managementTone,
-				regulatoryRisk: result.signals.regulatoryRisk,
-				acquisitionLikelihood: result.signals.acquisitionLikelihood,
-				catalystType: result.signals.catalystType,
-				expectedMoveDuration: result.signals.expectedMoveDuration,
-			});
-		} else {
-			await writeSentiment(symbol, exchange, result.sentiment);
-		}
-	}
 
 	// Inject high-urgency symbols into all strategy universes temporarily
 	if (result.tradeable && result.urgency === "high") {

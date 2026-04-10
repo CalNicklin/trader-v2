@@ -15,12 +15,10 @@ describe("news ingest orchestrator", () => {
 		_clearInjections();
 	});
 
-	test("processArticle stores event and writes sentiment for classified headline", async () => {
+	test("processArticle stores classified event", async () => {
 		const { processArticle } = await import("../../src/news/ingest.ts");
-		const { newsEvents, quotesCache } = await import("../../src/db/schema.ts");
-		const { and, eq } = await import("drizzle-orm");
+		const { newsEvents } = await import("../../src/db/schema.ts");
 
-		// Mock: provide a fake classifier that returns a canned result
 		const result = await processArticle(
 			{
 				headline: "Apple beats earnings estimates",
@@ -46,12 +44,7 @@ describe("news ingest orchestrator", () => {
 		const events = await db.select().from(newsEvents);
 		expect(events).toHaveLength(1);
 		expect(events[0]!.tradeable).toBe(true);
-
-		const [quote] = await db
-			.select()
-			.from(quotesCache)
-			.where(and(eq(quotesCache.symbol, "AAPL"), eq(quotesCache.exchange, "NASDAQ")));
-		expect(quote!.newsSentiment).toBeCloseTo(0.8);
+		expect(events[0]!.sentiment).toBeCloseTo(0.8);
 	});
 
 	test("processArticle skips blocked headlines", async () => {
