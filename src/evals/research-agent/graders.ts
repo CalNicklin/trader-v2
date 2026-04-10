@@ -208,6 +208,81 @@ export const tickerValidityGrader: RG = {
 	},
 };
 
+/**
+ * Category A grader: the primary RSS-matched symbol must be present.
+ * Requires `reference.requiredSymbols` with at least one entry (the primary).
+ */
+export const primaryPresentGrader: RG = {
+	name: "primary-present",
+	type: "code",
+	grade: async (output, reference) => {
+		const required = reference.requiredSymbols ?? [];
+		if (required.length === 0) {
+			return { score: 1, pass: true, reason: "no required symbols configured" };
+		}
+		const have = new Set(output.map((a) => a.symbol));
+		const missing = required.filter((s) => !have.has(s));
+		return {
+			score: missing.length === 0 ? 1 : 0,
+			pass: missing.length === 0,
+			reason:
+				missing.length === 0
+					? `All required symbols present (${required.join(", ")})`
+					: `Missing required: ${missing.join(", ")}`,
+		};
+	},
+};
+
+/**
+ * Category B grader: every output symbol must be in the whitelist.
+ */
+export const whitelistComplianceGrader: RG = {
+	name: "whitelist-compliance",
+	type: "code",
+	grade: async (output, reference) => {
+		const whitelist = reference.whitelist ?? [];
+		if (whitelist.length === 0) {
+			return { score: 1, pass: true, reason: "no whitelist configured" };
+		}
+		const allowed = new Set(whitelist.map((w) => `${w.symbol}:${w.exchange}`));
+		const violations = output
+			.map((a) => `${a.symbol}:${a.exchange}`)
+			.filter((key) => !allowed.has(key));
+		return {
+			score: violations.length === 0 ? 1 : 0,
+			pass: violations.length === 0,
+			reason:
+				violations.length === 0
+					? "All outputs in whitelist"
+					: `Outside whitelist: ${violations.join(", ")}`,
+		};
+	},
+};
+
+/**
+ * Category E grader: no forbidden (e.g. deprecated) symbols may appear,
+ * and all required (current replacement) symbols must.
+ */
+export const negativeRejectionGrader: RG = {
+	name: "negative-rejection",
+	type: "code",
+	grade: async (output, reference) => {
+		const forbidden = reference.forbiddenSymbols ?? [];
+		const required = reference.requiredSymbols ?? [];
+		const have = new Set(output.map((a) => a.symbol));
+		const leaked = forbidden.filter((s) => have.has(s));
+		const missing = required.filter((s) => !have.has(s));
+		const pass = leaked.length === 0 && missing.length === 0;
+		return {
+			score: pass ? 1 : 0,
+			pass,
+			reason: pass
+				? "No forbidden symbols, all required present"
+				: `Leaked: [${leaked.join(", ")}]; Missing: [${missing.join(", ")}]`,
+		};
+	},
+};
+
 export const allResearchGraders: RG[] = [
 	jsonShapeGrader,
 	minSymbolsGrader,
@@ -216,4 +291,7 @@ export const allResearchGraders: RG[] = [
 	sentimentRangeGrader,
 	recommendTradeGrader,
 	tickerValidityGrader,
+	primaryPresentGrader,
+	whitelistComplianceGrader,
+	negativeRejectionGrader,
 ];
