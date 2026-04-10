@@ -307,6 +307,7 @@ export const newsEvents = sqliteTable(
 	},
 	(table) => ({
 		headlineIdx: index("news_events_headline_idx").on(table.headline),
+		classifiedAtIdx: index("news_events_classified_at_idx").on(table.classifiedAt),
 	}),
 );
 
@@ -339,6 +340,11 @@ export const newsAnalyses = sqliteTable(
 		newsEventIdx: index("news_analyses_news_event_idx").on(table.newsEventId),
 		symbolIdx: index("news_analyses_symbol_idx").on(table.symbol),
 		inUniverseIdx: index("news_analyses_in_universe_idx").on(table.inUniverse),
+		symbolExchangeCreatedIdx: index("news_analyses_symbol_exchange_created_idx").on(
+			table.symbol,
+			table.exchange,
+			table.createdAt,
+		),
 		uniqueEventSymbol: uniqueIndex("news_analyses_event_symbol_uniq").on(
 			table.newsEventId,
 			table.symbol,
