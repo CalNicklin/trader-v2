@@ -233,15 +233,17 @@ Any fixtures/fakes used by existing tests need the new field.
 
 All eval work extends `src/evals/research-agent/`. Tasks and graders added to the existing suite — no scaffolding changes.
 
-### 4.1 Task categories (40 tasks total)
+### 4.1 Task categories (20 tasks total)
 
 | ID | Category | Count | Grader type | Blocking? |
 |----|----------|------:|-------------|-----------|
-| A  | LSE attribution preservation | 10 | Code: primary symbol present | Yes |
-| B  | LSE whitelist compliance      | 10 | Code: every output ∈ whitelist | Yes |
-| C  | US regression                 | 10 | Code (reuses existing US grader) | Yes |
-| D  | Multi-symbol LSE expansion    |  5 | Code set-containment + Sonnet judge | No (tracked) |
-| E  | Deprecated-ticker rejection   |  5 | Code: blacklist ∩ output = ∅ | No (tracked) |
+| A  | LSE attribution preservation | 5 | Code: primary symbol present | Yes |
+| B  | LSE whitelist compliance      | 5 | Code: every output ∈ whitelist | Yes |
+| C  | US regression                 | 5 | Code (reuses existing US grader) | Yes |
+| D  | Multi-symbol LSE expansion    | 3 | Code set-containment + Sonnet judge | No (tracked) |
+| E  | Deprecated-ticker rejection   | 2 | Code: blacklist ∩ output = ∅ | No (tracked) |
+
+Sits at the floor of CLAUDE.md's 20–50 range. Expand over time if specific failure modes start leaking to production.
 
 **Category A** pulls from production `news_events` via a one-off script (`scripts/export-lse-eval-corpus.ts`) and is hand-labelled for the correct primary symbol. Output saved to `src/evals/research-agent/fixtures/lse-corpus.json`.
 
@@ -299,7 +301,7 @@ export async function thesisPlausibilityJudge(
 - Committed to `src/evals/research-agent/fixtures/lse-corpus.json`.
 - Run once at build time, re-run manually quarterly to refresh.
 
-**Human review step:** after the script runs, hand-label the "correct" primary symbol for each entry — 10 entries takes roughly 20 minutes. No model-labelled ground truth; that's how regressions sneak in.
+**Human review step:** after the script runs, hand-label the "correct" primary symbol for each entry — 5 entries takes roughly 10 minutes. No model-labelled ground truth; that's how regressions sneak in.
 
 ## 5. Agent context for evolution & self-improvement
 
