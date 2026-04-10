@@ -1,28 +1,13 @@
 import Parser from "rss-parser";
 import { createChildLogger } from "../utils/logger.ts";
 import type { NewsArticle } from "./finnhub.ts";
+import { UK_FEEDS } from "./uk-feed-config.ts";
 
 const log = createChildLogger({ module: "rss-feeds" });
 const parser = new Parser({
 	headers: { "User-Agent": "Mozilla/5.0 (compatible; TraderAgent/2.0)" },
 	timeout: 10000,
 });
-
-interface RssFeed {
-	name: string;
-	url: string;
-}
-
-const UK_FEEDS: readonly RssFeed[] = [
-	{ name: "BBC Business", url: "https://feeds.bbci.co.uk/news/business/rss.xml" },
-	{ name: "Yahoo Finance UK", url: "https://uk.finance.yahoo.com/rss/topstories" },
-	{
-		name: "Yahoo Finance FTSE",
-		url: "https://feeds.finance.yahoo.com/rss/2.0/headline?s=^FTSE&region=UK&lang=en-GB",
-	},
-	{ name: "Proactive Investors UK", url: "https://www.proactiveinvestors.co.uk/rss/all_news" },
-	{ name: "Investing.com UK", url: "https://www.investing.com/rss/news_301.rss" },
-];
 
 /**
  * Static aliases mapping LSE/AIM symbols to company names for text matching.
