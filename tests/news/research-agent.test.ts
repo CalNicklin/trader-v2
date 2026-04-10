@@ -239,17 +239,19 @@ describe("buildResearchPrompt whitelist", () => {
 		{ symbol: "BP.", exchange: "LSE" },
 	];
 
-	it("includes the whitelist in the prompt", () => {
+	it("includes the whitelist in the prompt with separated symbol and exchange", () => {
 		const prompt = buildResearchPrompt(input, { whitelist, primaryExchange: "LSE" });
 		expect(prompt).toContain("Tradeable universe");
-		expect(prompt).toContain("SHEL:LSE");
-		expect(prompt).toContain("BP.:LSE");
+		expect(prompt).toContain("- SHEL (exchange: LSE)");
+		expect(prompt).toContain("- BP. (exchange: LSE)");
+		expect(prompt).not.toContain("SHEL:LSE");
 	});
 
-	it("includes the primary symbol pin instruction", () => {
+	it("includes the primary symbol pin instruction with separated fields", () => {
 		const prompt = buildResearchPrompt(input, { whitelist, primaryExchange: "LSE" });
 		expect(prompt).toContain("Primary attribution");
-		expect(prompt).toContain(`"SHEL:LSE"`);
+		expect(prompt).toContain(`symbol="SHEL"`);
+		expect(prompt).toContain(`exchange="LSE"`);
 	});
 });
 

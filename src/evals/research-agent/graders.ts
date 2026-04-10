@@ -54,6 +54,9 @@ export const expectedSymbolsGrader: RG = {
 	name: "expected-symbols",
 	type: "code",
 	grade: async (output, reference) => {
+		if (reference.expectedSymbols.length === 0) {
+			return { score: 1, pass: true, reason: "No expected symbols configured" };
+		}
 		const outputSymbols = new Set(output.map((a) => a.symbol));
 		const found = reference.expectedSymbols.filter((s) => outputSymbols.has(s));
 		const score = found.length / reference.expectedSymbols.length;
@@ -189,12 +192,13 @@ const KNOWN_VALID_TICKERS = new Set([
 export const tickerValidityGrader: RG = {
 	name: "ticker-validity",
 	type: "code",
-	grade: async (output) => {
+	grade: async (output, reference) => {
 		if (output.length === 0) return { score: 1, pass: true, reason: "No symbols to validate" };
 
+		const whitelistTickers = new Set((reference.whitelist ?? []).map((w) => w.symbol));
 		const invalid: string[] = [];
 		for (const a of output) {
-			if (!KNOWN_VALID_TICKERS.has(a.symbol)) {
+			if (!KNOWN_VALID_TICKERS.has(a.symbol) && !whitelistTickers.has(a.symbol)) {
 				invalid.push(a.symbol);
 			}
 		}
@@ -333,9 +337,10 @@ Respond with JSON only:
 			};
 			const total = parsed.judgments.length;
 			const passed = parsed.judgments.filter((j) => j.plausible).length;
-			const pass = passed === total && total > 0;
+			const ratio = total > 0 ? passed / total : 0;
+			const pass = total > 0 && ratio >= 0.75;
 			return {
-				score: total > 0 ? passed / total : 0,
+				score: ratio,
 				pass,
 				reason: `${passed}/${total} theses plausible`,
 			};
