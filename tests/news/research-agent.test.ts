@@ -1,8 +1,14 @@
 // tests/news/research-agent.test.ts
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { closeDb, getDb } from "../../src/db/client.ts";
-import { buildResearchPrompt, parseResearchResponse } from "../../src/news/research-agent.ts";
+import { strategies } from "../../src/db/schema.ts";
+import {
+	buildResearchPrompt,
+	buildUniverseWhitelist,
+	parseResearchResponse,
+} from "../../src/news/research-agent.ts";
 
 beforeEach(() => {
 	closeDb();
@@ -155,5 +161,57 @@ describe("parseResearchResponse", () => {
 		const result = parseResearchResponse(json);
 		expect(result.length).toBe(1);
 		expect(result[0]!.symbol).toBe("GOOGL");
+	});
+});
+
+describe("buildUniverseWhitelist", () => {
+	beforeEach(async () => {
+		const db = getDb();
+		await db.delete(strategies).where(eq(strategies.createdBy, "test"));
+	});
+
+	it("returns deduped {symbol, exchange} pairs from all paper strategies", async () => {
+		const db = getDb();
+		await db.insert(strategies).values([
+			{
+				name: "t1",
+				description: "test",
+				parameters: "{}",
+				universe: JSON.stringify(["SHEL:LSE", "BP.:LSE", "AAPL"]),
+				status: "paper",
+				createdBy: "test",
+			},
+			{
+				name: "t2",
+				description: "test",
+				parameters: "{}",
+				universe: JSON.stringify(["SHEL:LSE", "MSFT"]),
+				status: "paper",
+				createdBy: "test",
+			},
+		]);
+
+		const whitelist = await buildUniverseWhitelist();
+		const keys = new Set(whitelist.map((w) => `${w.symbol}:${w.exchange}`));
+		expect(keys.has("SHEL:LSE")).toBe(true);
+		expect(keys.has("BP.:LSE")).toBe(true);
+		expect(keys.has("AAPL:NASDAQ")).toBe(true);
+		expect(keys.has("MSFT:NASDAQ")).toBe(true);
+		// deduped
+		expect(whitelist.filter((w) => w.symbol === "SHEL" && w.exchange === "LSE").length).toBe(1);
+	});
+
+	it("ignores non-paper strategies", async () => {
+		const db = getDb();
+		await db.insert(strategies).values({
+			name: "t3",
+			description: "test",
+			parameters: "{}",
+			universe: JSON.stringify(["EXCLUDED:LSE"]),
+			status: "retired",
+			createdBy: "test",
+		});
+		const whitelist = await buildUniverseWhitelist();
+		expect(whitelist.find((w) => w.symbol === "EXCLUDED")).toBeUndefined();
 	});
 });

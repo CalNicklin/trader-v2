@@ -152,6 +152,37 @@ async function isSymbolInUniverse(symbol: string, exchange: string): Promise<boo
 	return injected.some((i) => i.symbol === symbol && i.exchange === exchange);
 }
 
+export async function buildUniverseWhitelist(): Promise<
+	Array<{ symbol: string; exchange: string }>
+> {
+	const db = getDb();
+	const rows = await db
+		.select({ universe: strategies.universe })
+		.from(strategies)
+		.where(eq(strategies.status, "paper"));
+
+	const seen = new Set<string>();
+	const result: Array<{ symbol: string; exchange: string }> = [];
+	for (const row of rows) {
+		if (!row.universe) continue;
+		let list: string[];
+		try {
+			list = JSON.parse(row.universe);
+		} catch {
+			continue;
+		}
+		for (const spec of list) {
+			const [sym, ex] = spec.includes(":") ? spec.split(":") : [spec, "NASDAQ"];
+			if (!sym || !ex) continue;
+			const key = `${sym}:${ex}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			result.push({ symbol: sym, exchange: ex });
+		}
+	}
+	return result;
+}
+
 async function getPriceForSymbol(symbol: string, exchange: string): Promise<number | null> {
 	const db = getDb();
 	const [cached] = await db
