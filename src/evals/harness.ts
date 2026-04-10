@@ -20,7 +20,7 @@ export async function runTrial<TInput, TOutput, TReference>(
 	if (output !== null) {
 		for (const grader of graders) {
 			try {
-				const result = await grader.grade(output, task.reference);
+				const result = await grader.grade(output, task.reference, { input: task.input });
 				grades.push({
 					graderName: grader.name,
 					score: result.score,

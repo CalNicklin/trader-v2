@@ -1,10 +1,12 @@
 // src/evals/research-agent/graders.ts
 
-import type { ResearchAnalysis } from "../../news/research-agent.ts";
+import Anthropic from "@anthropic-ai/sdk";
+import { getConfig } from "../../config.ts";
+import type { ResearchAnalysis, ResearchInput } from "../../news/research-agent.ts";
 import type { Grader } from "../types.ts";
 import type { ResearchReference } from "./tasks.ts";
 
-type RG = Grader<ResearchAnalysis[], ResearchReference>;
+type RG = Grader<ResearchAnalysis[], ResearchReference, ResearchInput>;
 
 export const jsonShapeGrader: RG = {
 	name: "json-shape",
@@ -283,6 +285,66 @@ export const negativeRejectionGrader: RG = {
 	},
 };
 
+export const thesisPlausibilityJudge: RG = {
+	name: "thesis-plausibility",
+	type: "llm",
+	grade: async (output, reference, context) => {
+		// Only run when there is something to judge
+		if (output.length === 0) {
+			return { score: 0, pass: false, reason: "no analyses to judge" };
+		}
+		// Skip unless this task is a multi-party case (Category D)
+		if (!reference.isMultiParty) {
+			return { score: 1, pass: true, reason: "skipped (not multi-party)" };
+		}
+
+		const config = getConfig();
+		const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
+		const headline = context?.input?.headline ?? "unknown headline";
+		const rubric = output.map((a) => `- ${a.symbol} (${a.direction}): ${a.tradeThesis}`).join("\n");
+
+		const prompt = `You are a financial analyst grading an AI-generated research output.
+
+Headline: "${headline}"
+
+The AI produced these trade theses:
+${rubric}
+
+For each symbol, judge whether the thesis is PLAUSIBLE given the headline.
+Be strict: a thesis is plausible only if the connection between the headline
+and the symbol's trade case is evident.
+
+Respond with JSON only:
+{ "judgments": [ { "symbol": "XYZ", "plausible": true|false, "reason": "..." } ] }`;
+
+		try {
+			const resp = await client.messages.create({
+				model: "claude-sonnet-4-6",
+				max_tokens: 600,
+				messages: [{ role: "user", content: prompt }],
+			});
+			const text = resp.content[0]?.type === "text" ? resp.content[0].text : "";
+			const cleaned = text
+				.replace(/```json?\n?/g, "")
+				.replace(/```/g, "")
+				.trim();
+			const parsed = JSON.parse(cleaned) as {
+				judgments: Array<{ symbol: string; plausible: boolean; reason: string }>;
+			};
+			const total = parsed.judgments.length;
+			const passed = parsed.judgments.filter((j) => j.plausible).length;
+			const pass = passed === total && total > 0;
+			return {
+				score: total > 0 ? passed / total : 0,
+				pass,
+				reason: `${passed}/${total} theses plausible`,
+			};
+		} catch (err) {
+			return { score: 0, pass: false, reason: `judge failed: ${String(err)}` };
+		}
+	},
+};
+
 export const allResearchGraders: RG[] = [
 	jsonShapeGrader,
 	minSymbolsGrader,
@@ -294,4 +356,5 @@ export const allResearchGraders: RG[] = [
 	primaryPresentGrader,
 	whitelistComplianceGrader,
 	negativeRejectionGrader,
+	thesisPlausibilityJudge,
 ];
