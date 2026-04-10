@@ -98,11 +98,13 @@ export async function runNewsPoll(): Promise<void> {
 	// Non-US stocks (LSE, AIM): FMP /news/stock, per-symbol
 	const nonUsSymbols = watchlist.filter((s) => s.exchange === "LSE" || s.exchange === "AIM");
 	if (nonUsSymbols.length > 0) {
+		let lseArticles = 0;
 		log.info({ symbolCount: nonUsSymbols.length }, "Polling FMP news per symbol for LSE/AIM");
 		for (const { symbol, exchange } of nonUsSymbols) {
 			const articles = await fetchFmpCompanyNews(symbol, exchange);
 			for (const article of articles) {
 				totalArticles++;
+				lseArticles++;
 				const result = await processArticle(article, exchange, classifyHeadline);
 				if (result === "classified") classified++;
 				else if (result === "filtered") filtered++;
@@ -112,7 +114,7 @@ export async function runNewsPoll(): Promise<void> {
 			await Bun.sleep(200);
 		}
 		log.info(
-			{ exchange: "LSE/AIM", symbols: nonUsSymbols.length, articles: totalArticles },
+			{ exchange: "LSE", symbols: nonUsSymbols.length, articles: lseArticles },
 			"FMP news poll complete",
 		);
 	}
