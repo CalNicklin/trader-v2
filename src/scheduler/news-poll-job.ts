@@ -3,8 +3,10 @@ import { getConfig } from "../config.ts";
 import { getDb } from "../db/client.ts";
 import { strategies } from "../db/schema.ts";
 import { classifyHeadline } from "../news/classifier.ts";
+import type { NewsArticle } from "../news/finnhub.ts";
 import { fetchCompanyNews } from "../news/finnhub.ts";
 import { processArticle } from "../news/ingest.ts";
+import { fetchRnsNews } from "../news/rns-scraper.ts";
 import { fetchUkNewsForSymbols } from "../news/rss-feeds.ts";
 import { createChildLogger } from "../utils/logger.ts";
 
@@ -94,13 +96,28 @@ export async function runNewsPoll(): Promise<void> {
 		await Bun.sleep(1100);
 	}
 
-	// Non-US stocks (LSE, AIM): RSS feeds
+	// Non-US stocks (LSE, AIM): RSS feeds + RNS scraper
 	const nonUsSymbols = watchlist.filter((s) => s.exchange !== "NASDAQ" && s.exchange !== "NYSE");
 	if (nonUsSymbols.length > 0) {
-		const rssResults = await fetchUkNewsForSymbols(nonUsSymbols);
+		const [rssResults, rnsArticles] = await Promise.all([
+			fetchUkNewsForSymbols(nonUsSymbols),
+			fetchRnsNews(nonUsSymbols.map((s) => s.symbol)),
+		]);
+
+		// Index RNS articles by symbol for lookup
+		const rnsBySymbol = new Map<string, NewsArticle[]>();
+		for (const a of rnsArticles) {
+			const sym = a.symbols[0];
+			if (!sym) continue;
+			const list = rnsBySymbol.get(sym) ?? [];
+			list.push(a);
+			rnsBySymbol.set(sym, list);
+		}
+
 		for (const { symbol, exchange } of nonUsSymbols) {
-			const articles = rssResults.get(symbol) ?? [];
-			for (const article of articles) {
+			const rss = rssResults.get(symbol) ?? [];
+			const rns = rnsBySymbol.get(symbol) ?? [];
+			for (const article of [...rss, ...rns]) {
 				totalArticles++;
 				const result = await processArticle(article, exchange, classifyHeadline);
 				if (result === "classified") classified++;
