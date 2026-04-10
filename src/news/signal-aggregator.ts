@@ -92,6 +92,10 @@ export async function getAggregatedNewsSignal(
 		acquisitionLikelihood: { num: 0, den: 0 },
 	};
 
+	let topWeight = 0;
+	let topCatalystType: string | null = null;
+	let topExpectedMoveDuration: string | null = null;
+
 	for (const row of events) {
 		if (row.sentiment == null || row.classifiedAt == null || row.confidence == null) continue;
 		const w = decayWeight(row.confidence, ageHours(row.classifiedAt, now));
@@ -101,6 +105,11 @@ export async function getAggregatedNewsSignal(
 				sub[field].num += value * w;
 				sub[field].den += w;
 			}
+		}
+		if (w > topWeight) {
+			topWeight = w;
+			topCatalystType = row.catalystType;
+			topExpectedMoveDuration = row.expectedMoveDuration;
 		}
 	}
 
@@ -114,7 +123,7 @@ export async function getAggregatedNewsSignal(
 		managementTone: mean("managementTone"),
 		regulatoryRisk: mean("regulatoryRisk"),
 		acquisitionLikelihood: mean("acquisitionLikelihood"),
-		catalystType: null,
-		expectedMoveDuration: null,
+		catalystType: topCatalystType,
+		expectedMoveDuration: topExpectedMoveDuration,
 	};
 }

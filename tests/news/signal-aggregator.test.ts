@@ -273,3 +273,82 @@ describe("getAggregatedNewsSignal — sub-signals", () => {
 		expect(result.earningsSurprise).toBeCloseTo(0.4, 5);
 	});
 });
+
+describe("getAggregatedNewsSignal — categoricals and edge cases", () => {
+	test("catalystType taken from the highest-weight row", async () => {
+		// Older low-confidence row — loser
+		await insertEvent({
+			symbol: "AZN",
+			sentiment: 0.2,
+			confidence: 0.4,
+			classifiedAt: minutesAgo(120), // 1 half-life
+			catalystType: "partnership",
+		});
+		// Fresh high-confidence row — winner
+		await insertEvent({
+			symbol: "AZN",
+			sentiment: 0.8,
+			confidence: 0.9,
+			classifiedAt: minutesAgo(0),
+			catalystType: "earnings_beat",
+		});
+		const result = await getAggregatedNewsSignal("AZN", "LSE", NOW);
+		expect(result.catalystType).toBe("earnings_beat");
+	});
+
+	test("expectedMoveDuration taken from the highest-weight row", async () => {
+		await insertEvent({
+			symbol: "AZN",
+			sentiment: 0.2,
+			confidence: 0.4,
+			classifiedAt: minutesAgo(120),
+			expectedMoveDuration: "1-2w",
+		});
+		await insertEvent({
+			symbol: "AZN",
+			sentiment: 0.8,
+			confidence: 0.9,
+			classifiedAt: minutesAgo(0),
+			expectedMoveDuration: "1-3d",
+		});
+		const result = await getAggregatedNewsSignal("AZN", "LSE", NOW);
+		expect(result.expectedMoveDuration).toBe("1-3d");
+	});
+
+	test("categoricals null when no news_events rows exist", async () => {
+		await insertAnalysis({
+			symbol: "AZN",
+			exchange: "LSE",
+			sentiment: 0.5,
+			confidence: 0.8,
+			createdAt: minutesAgo(0),
+		});
+		const result = await getAggregatedNewsSignal("AZN", "LSE", NOW);
+		expect(result.catalystType).toBeNull();
+		expect(result.expectedMoveDuration).toBeNull();
+	});
+
+	test("neutralised filterAndPin row dampens but does not flip sentiment", async () => {
+		// Real positive signal
+		await insertAnalysis({
+			symbol: "AZN",
+			exchange: "LSE",
+			sentiment: 0.8,
+			confidence: 0.9,
+			createdAt: minutesAgo(0),
+		});
+		// Neutralised pin (what filterAndPin writes when LLM drops primary)
+		await insertAnalysis({
+			symbol: "AZN",
+			exchange: "LSE",
+			sentiment: 0,
+			confidence: 0.5,
+			createdAt: minutesAgo(0),
+		});
+		const result = await getAggregatedNewsSignal("AZN", "LSE", NOW);
+		// (0.8*0.9 + 0*0.5) / (0.9 + 0.5) = 0.72/1.4 ≈ 0.514
+		expect(result.sentiment).toBeCloseTo(0.514, 2);
+		// biome-ignore lint/style/noNonNullAssertion: guarded by toBeCloseTo above
+		expect(result.sentiment!).toBeGreaterThan(0);
+	});
+});
