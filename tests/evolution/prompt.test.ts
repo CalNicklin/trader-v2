@@ -203,6 +203,12 @@ describe("buildEvolutionPrompt", () => {
 		const { user } = buildEvolutionPrompt(landscape);
 		expect(user).not.toContain("POPULATION CRITICAL");
 	});
+
+	test("includes news pipeline subsystem context", () => {
+		const landscape = makeLandscape();
+		const { system } = buildEvolutionPrompt(landscape);
+		expect(system).toContain("News pipeline (current architecture)");
+	});
 });
 
 // ── parseEvolutionResponse ────────────────────────────────────────────────────
