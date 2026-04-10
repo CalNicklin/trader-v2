@@ -1,6 +1,6 @@
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
-import { newsAnalyses } from "../db/schema.ts";
+import { newsAnalyses, newsEvents } from "../db/schema.ts";
 
 export const HALF_LIFE_HOURS = 2;
 export const WINDOW_HOURS = 24;
@@ -55,13 +55,65 @@ export async function getAggregatedNewsSignal(
 		sentimentDen += w;
 	}
 
+	const events = await db
+		.select({
+			sentiment: newsEvents.sentiment,
+			confidence: newsEvents.confidence,
+			classifiedAt: newsEvents.classifiedAt,
+			earningsSurprise: newsEvents.earningsSurprise,
+			guidanceChange: newsEvents.guidanceChange,
+			managementTone: newsEvents.managementTone,
+			regulatoryRisk: newsEvents.regulatoryRisk,
+			acquisitionLikelihood: newsEvents.acquisitionLikelihood,
+			catalystType: newsEvents.catalystType,
+			expectedMoveDuration: newsEvents.expectedMoveDuration,
+		})
+		.from(newsEvents)
+		.where(
+			and(
+				sql`${newsEvents.symbols} LIKE ${`%"${symbol}"%`}`,
+				gte(newsEvents.classifiedAt, cutoff),
+			),
+		);
+
+	const subFields = [
+		"earningsSurprise",
+		"guidanceChange",
+		"managementTone",
+		"regulatoryRisk",
+		"acquisitionLikelihood",
+	] as const;
+	type SubField = (typeof subFields)[number];
+	const sub: Record<SubField, { num: number; den: number }> = {
+		earningsSurprise: { num: 0, den: 0 },
+		guidanceChange: { num: 0, den: 0 },
+		managementTone: { num: 0, den: 0 },
+		regulatoryRisk: { num: 0, den: 0 },
+		acquisitionLikelihood: { num: 0, den: 0 },
+	};
+
+	for (const row of events) {
+		if (row.sentiment == null || row.classifiedAt == null || row.confidence == null) continue;
+		const w = decayWeight(row.confidence, ageHours(row.classifiedAt, now));
+		for (const field of subFields) {
+			const value = row[field];
+			if (value != null) {
+				sub[field].num += value * w;
+				sub[field].den += w;
+			}
+		}
+	}
+
+	const mean = (field: SubField): number | null =>
+		sub[field].den > 0 ? sub[field].num / sub[field].den : null;
+
 	return {
 		sentiment: sentimentDen > 0 ? sentimentNum / sentimentDen : null,
-		earningsSurprise: null,
-		guidanceChange: null,
-		managementTone: null,
-		regulatoryRisk: null,
-		acquisitionLikelihood: null,
+		earningsSurprise: mean("earningsSurprise"),
+		guidanceChange: mean("guidanceChange"),
+		managementTone: mean("managementTone"),
+		regulatoryRisk: mean("regulatoryRisk"),
+		acquisitionLikelihood: mean("acquisitionLikelihood"),
 		catalystType: null,
 		expectedMoveDuration: null,
 	};

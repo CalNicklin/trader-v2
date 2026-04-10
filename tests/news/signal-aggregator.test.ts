@@ -155,3 +155,121 @@ describe("getAggregatedNewsSignal — sentiment", () => {
 		expect(lse.sentiment).toBeCloseTo(1, 5);
 	});
 });
+
+async function insertEvent(row: {
+	symbol: string;
+	sentiment: number | null;
+	confidence: number;
+	classifiedAt: string;
+	earningsSurprise?: number | null;
+	guidanceChange?: number | null;
+	managementTone?: number | null;
+	regulatoryRisk?: number | null;
+	acquisitionLikelihood?: number | null;
+	catalystType?: string | null;
+	expectedMoveDuration?: string | null;
+}): Promise<void> {
+	const db = getDb();
+	await db.insert(newsEvents).values({
+		source: "test",
+		headline: `ev-${Math.random()}`,
+		symbols: JSON.stringify([row.symbol]),
+		sentiment: row.sentiment,
+		confidence: row.confidence,
+		tradeable: true,
+		eventType: "test",
+		urgency: "low",
+		classifiedAt: row.classifiedAt,
+		earningsSurprise: row.earningsSurprise ?? null,
+		guidanceChange: row.guidanceChange ?? null,
+		managementTone: row.managementTone ?? null,
+		regulatoryRisk: row.regulatoryRisk ?? null,
+		acquisitionLikelihood: row.acquisitionLikelihood ?? null,
+		catalystType: row.catalystType ?? null,
+		expectedMoveDuration: row.expectedMoveDuration ?? null,
+	});
+}
+
+describe("getAggregatedNewsSignal — sub-signals", () => {
+	test("returns weighted mean of earningsSurprise", async () => {
+		await insertEvent({
+			symbol: "AZN",
+			sentiment: 0.5,
+			confidence: 1,
+			classifiedAt: minutesAgo(0),
+			earningsSurprise: 0.8,
+		});
+		await insertEvent({
+			symbol: "AZN",
+			sentiment: 0.1,
+			confidence: 1,
+			classifiedAt: minutesAgo(0),
+			earningsSurprise: 0.2,
+		});
+		const result = await getAggregatedNewsSignal("AZN", "LSE", NOW);
+		expect(result.earningsSurprise).toBeCloseTo(0.5, 5);
+	});
+
+	test("null sub-signal excluded from its own denominator", async () => {
+		await insertEvent({
+			symbol: "AZN",
+			sentiment: 0.5,
+			confidence: 1,
+			classifiedAt: minutesAgo(0),
+			earningsSurprise: 0.8,
+		});
+		await insertEvent({
+			symbol: "AZN",
+			sentiment: 0.5,
+			confidence: 1,
+			classifiedAt: minutesAgo(0),
+			earningsSurprise: null, // not treated as 0
+		});
+		const result = await getAggregatedNewsSignal("AZN", "LSE", NOW);
+		expect(result.earningsSurprise).toBeCloseTo(0.8, 5);
+	});
+
+	test("skips events where sentiment is null (classification failed)", async () => {
+		await insertEvent({
+			symbol: "AZN",
+			sentiment: null,
+			confidence: 1,
+			classifiedAt: minutesAgo(0),
+			earningsSurprise: 0.8,
+		});
+		const result = await getAggregatedNewsSignal("AZN", "LSE", NOW);
+		expect(result.earningsSurprise).toBeNull();
+	});
+
+	test("symbol matching uses JSON array membership (no prefix collision)", async () => {
+		await insertEvent({
+			symbol: "AZNL", // distinct ticker, should not match AZN query
+			sentiment: 0.5,
+			confidence: 1,
+			classifiedAt: minutesAgo(0),
+			earningsSurprise: 0.8,
+		});
+		const result = await getAggregatedNewsSignal("AZN", "LSE", NOW);
+		expect(result.earningsSurprise).toBeNull();
+	});
+
+	test("news_events drives sub-signals, news_analyses drives sentiment (no crossover)", async () => {
+		await insertAnalysis({
+			symbol: "AZN",
+			exchange: "LSE",
+			sentiment: 0.7,
+			confidence: 1,
+			createdAt: minutesAgo(0),
+		});
+		await insertEvent({
+			symbol: "AZN",
+			sentiment: -0.3, // would corrupt sentiment if read from events
+			confidence: 1,
+			classifiedAt: minutesAgo(0),
+			earningsSurprise: 0.4,
+		});
+		const result = await getAggregatedNewsSignal("AZN", "LSE", NOW);
+		expect(result.sentiment).toBeCloseTo(0.7, 5);
+		expect(result.earningsSurprise).toBeCloseTo(0.4, 5);
+	});
+});
