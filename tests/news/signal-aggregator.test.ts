@@ -348,7 +348,6 @@ describe("getAggregatedNewsSignal — categoricals and edge cases", () => {
 		const result = await getAggregatedNewsSignal("AZN", "LSE", NOW);
 		// (0.8*0.9 + 0*0.5) / (0.9 + 0.5) = 0.72/1.4 ≈ 0.514
 		expect(result.sentiment).toBeCloseTo(0.514, 2);
-		// biome-ignore lint/style/noNonNullAssertion: guarded by toBeCloseTo above
-		expect(result.sentiment!).toBeGreaterThan(0);
+		expect(result.sentiment).toBeGreaterThan(0);
 	});
 });

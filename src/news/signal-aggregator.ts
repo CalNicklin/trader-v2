@@ -70,10 +70,7 @@ export async function getAggregatedNewsSignal(
 		})
 		.from(newsEvents)
 		.where(
-			and(
-				sql`${newsEvents.symbols} LIKE ${`%"${symbol}"%`}`,
-				gte(newsEvents.classifiedAt, cutoff),
-			),
+			and(sql`${newsEvents.symbols} LIKE ${`%"${symbol}"%`}`, gte(newsEvents.classifiedAt, cutoff)),
 		);
 
 	const subFields = [

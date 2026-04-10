@@ -3,6 +3,7 @@ import type { Exchange } from "../broker/contracts.ts";
 import { getQuoteFromCache } from "../data/quotes.ts";
 import { getDb } from "../db/client.ts";
 import { strategies } from "../db/schema.ts";
+import { getAggregatedNewsSignal } from "../news/signal-aggregator.ts";
 import type { QuoteFields } from "../strategy/context.ts";
 import { evaluateAllStrategies } from "../strategy/evaluator.ts";
 import { runGraduationGate } from "../strategy/graduation.ts";
@@ -32,6 +33,7 @@ export async function runStrategyEvaluation(options?: {
 			if (!cached || cached.last == null) return null;
 
 			const indicators = await getIndicators(symbol, exchange);
+			const newsSignal = await getAggregatedNewsSignal(symbol, exchange);
 
 			const quote: QuoteFields = {
 				last: cached.last,
@@ -40,14 +42,14 @@ export async function runStrategyEvaluation(options?: {
 				volume: cached.volume,
 				avgVolume: cached.avgVolume,
 				changePercent: cached.changePercent,
-				newsSentiment: cached.newsSentiment,
-				newsEarningsSurprise: cached.newsEarningsSurprise,
-				newsGuidanceChange: cached.newsGuidanceChange,
-				newsManagementTone: cached.newsManagementTone,
-				newsRegulatoryRisk: cached.newsRegulatoryRisk,
-				newsAcquisitionLikelihood: cached.newsAcquisitionLikelihood,
-				newsCatalystType: cached.newsCatalystType,
-				newsExpectedMoveDuration: cached.newsExpectedMoveDuration,
+				newsSentiment: newsSignal.sentiment,
+				newsEarningsSurprise: newsSignal.earningsSurprise,
+				newsGuidanceChange: newsSignal.guidanceChange,
+				newsManagementTone: newsSignal.managementTone,
+				newsRegulatoryRisk: newsSignal.regulatoryRisk,
+				newsAcquisitionLikelihood: newsSignal.acquisitionLikelihood,
+				newsCatalystType: newsSignal.catalystType,
+				newsExpectedMoveDuration: newsSignal.expectedMoveDuration,
 			};
 
 			return { quote, indicators };
