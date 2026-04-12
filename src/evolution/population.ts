@@ -9,6 +9,7 @@ export const MAX_POPULATION = 8;
 export const DRAWDOWN_KILL_PCT = 15;
 export const MIN_POPULATION = 3;
 export const RECOVERY_SPAWN_CAP = 2;
+export const DRAWDOWN_KILL_MIN_TRADES = 10;
 
 async function retireStrategy(strategyId: number, reason: string): Promise<void> {
 	const db = getDb();
@@ -49,6 +50,21 @@ export async function checkDrawdowns(): Promise<number[]> {
 			.get();
 
 		if (metrics?.maxDrawdownPct != null && metrics.maxDrawdownPct > DRAWDOWN_KILL_PCT) {
+			// Protect young strategies — a single bad trade on a small sample
+			// can spike drawdown well past the threshold. Let them accumulate
+			// enough data before enforcing the kill.
+			if ((metrics.sampleSize ?? 0) < DRAWDOWN_KILL_MIN_TRADES) {
+				log.info(
+					{
+						strategyId: strategy.id,
+						drawdown: metrics.maxDrawdownPct.toFixed(2),
+						sampleSize: metrics.sampleSize,
+						minTrades: DRAWDOWN_KILL_MIN_TRADES,
+					},
+					"Drawdown exceeds kill threshold but strategy has too few trades — sparing",
+				);
+				continue;
+			}
 			await retireStrategy(
 				strategy.id,
 				`Max drawdown ${metrics.maxDrawdownPct.toFixed(2)}% exceeded kill threshold of ${DRAWDOWN_KILL_PCT}%`,

@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { and, eq, gte, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, gte, isNotNull, isNull, lt } from "drizzle-orm";
 import { getConfig } from "../config";
 import { getDb } from "../db/client";
 import { tradeInsights } from "../db/schema";
@@ -71,6 +71,33 @@ export async function markMatchedInsights(
 				.where(eq(tradeInsights.id, insight.id));
 		}
 	}
+}
+
+/**
+ * Mark insights older than 14 days that were never matched by any spawn
+ * as ledToImprovement = false. Without this, stale NULL insights accumulate
+ * and the hit rate denominator stays zero forever.
+ */
+export async function expireStaleInsights(): Promise<number> {
+	const db = getDb();
+	const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+	const stale = await db
+		.update(tradeInsights)
+		.set({ ledToImprovement: false })
+		.where(
+			and(
+				isNull(tradeInsights.ledToImprovement),
+				isNotNull(tradeInsights.suggestedAction),
+				lt(tradeInsights.createdAt, fourteenDaysAgo),
+			),
+		)
+		.returning({ id: tradeInsights.id });
+
+	if (stale.length > 0) {
+		log.info({ count: stale.length }, "Expired stale unacted insights");
+	}
+	return stale.length;
 }
 
 export async function runEvolutionCycle(): Promise<{
@@ -230,6 +257,9 @@ export async function runEvolutionCycle(): Promise<{
 			);
 		}
 	}
+
+	// Expire stale insights so the hit rate denominator reflects reality
+	await expireStaleInsights();
 
 	return {
 		drawdownKills,
