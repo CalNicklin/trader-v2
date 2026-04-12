@@ -3,6 +3,8 @@ import { getDb } from "../db/client";
 import { strategies, strategyMutations } from "../db/schema";
 import type { ValidatedMutation } from "./types";
 
+const SEED_VIRTUAL_BALANCE = 10_000;
+
 export async function spawnChild(
 	mutation: ValidatedMutation,
 	createdBy = "evolution",
@@ -20,6 +22,11 @@ export async function spawnChild(
 		throw new Error(`Parent strategy ${mutation.parentId} not found`);
 	}
 
+	// Recovery spawns get a fresh seed balance — inheriting a depleted parent
+	// balance would leave the child near the kill threshold immediately.
+	const isRecovery = createdBy.includes("recovery");
+	const childBalance = isRecovery ? SEED_VIRTUAL_BALANCE : parent.virtualBalance;
+
 	// 2. Insert new child strategy
 	const [child] = await db
 		.insert(strategies)
@@ -30,7 +37,7 @@ export async function spawnChild(
 			signals: JSON.stringify(mutation.signals),
 			universe: JSON.stringify(mutation.universe),
 			status: "paper" as const,
-			virtualBalance: parent.virtualBalance,
+			virtualBalance: childBalance,
 			parentStrategyId: parent.id,
 			generation: parent.generation + 1,
 			createdBy,
