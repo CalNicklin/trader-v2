@@ -204,4 +204,80 @@ describe("spawnChild", () => {
 
 		expect(child!.createdBy).toBe("evolution:recovery");
 	});
+
+	it("recovery spawns get fresh virtual balance instead of inheriting depleted parent balance", async () => {
+		const { strategies } = await import("../../src/db/schema.ts");
+		const { spawnChild } = await import("../../src/evolution/spawner.ts");
+
+		const [parent] = await db
+			.insert(strategies)
+			.values({
+				name: "depleted-parent",
+				description: "Parent with low balance from losses",
+				parameters: JSON.stringify({ stop_loss_pct: 3 }),
+				signals: JSON.stringify({ entry_long: "rsi < 30" }),
+				universe: JSON.stringify(["AAPL"]),
+				status: "paper" as const,
+				virtualBalance: 1121.76,
+				generation: 1,
+				createdBy: "seed",
+			})
+			.returning();
+
+		const mutation: ValidatedMutation = {
+			parentId: parent!.id,
+			type: "structural",
+			name: "recovery-fresh-balance",
+			description: "Recovery spawn should get fresh capital",
+			parameters: { stop_loss_pct: 4 },
+			signals: { entry_long: "rsi < 25", exit: "rsi > 70" },
+			universe: ["MSFT"],
+			parameterDiff: {},
+		};
+
+		const childId = await spawnChild(mutation, "evolution:recovery");
+
+		const { eq } = await import("drizzle-orm");
+		const [child] = await db.select().from(strategies).where(eq(strategies.id, childId));
+
+		expect(child!.virtualBalance).toBe(10000);
+	});
+
+	it("non-recovery spawns still inherit parent virtual balance", async () => {
+		const { strategies } = await import("../../src/db/schema.ts");
+		const { spawnChild } = await import("../../src/evolution/spawner.ts");
+
+		const [parent] = await db
+			.insert(strategies)
+			.values({
+				name: "wealthy-parent",
+				description: "Parent with accumulated gains",
+				parameters: JSON.stringify({ stop_loss_pct: 3 }),
+				signals: JSON.stringify({ entry_long: "rsi < 30" }),
+				universe: JSON.stringify(["AAPL"]),
+				status: "paper" as const,
+				virtualBalance: 15000,
+				generation: 2,
+				createdBy: "evolution",
+			})
+			.returning();
+
+		const mutation: ValidatedMutation = {
+			parentId: parent!.id,
+			type: "parameter_tweak",
+			name: "normal-child",
+			description: "Normal evolution spawn inherits balance",
+			parameters: { stop_loss_pct: 4 },
+			signals: { entry_long: "rsi < 30" },
+			universe: ["AAPL"],
+			parameterDiff: { stop_loss_pct: { from: 3, to: 4 } },
+		};
+
+		const childId = await spawnChild(mutation);
+
+		const { eq } = await import("drizzle-orm");
+		const [child] = await db.select().from(strategies).where(eq(strategies.id, childId));
+
+		expect(child!.virtualBalance).toBe(15000);
+	});
 });
