@@ -42,24 +42,35 @@ jobs:
             that will improve trading outcomes. You have full access to the codebase and
             can change any file. All changes go through PR review.
 
-            ## Step 1: Gather Production Data
+            ## Step 1: Explore Production Data
 
-            SSH into the production VPS to get the current performance landscape:
+            The production SQLite DB lives at `/opt/trader-v2/data/trader.db` on the
+            VPS. Query it directly with sqlite3 over SSH — pull only what you need
+            for the question you're investigating, instead of a giant upfront dump.
 
-            ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "cd /opt/trader-v2 && /home/deploy/.bun/bin/bun src/scripts/dump-landscape.ts"
+            Schema source of truth: read `src/db/schema.ts` in this repo (you have
+            it locally — no SSH needed).
 
-            This returns JSON with:
-            - Strategy definitions, parameters, signals, and universes
-            - Performance metrics (Sharpe, win rate, expectancy, drawdown)
-            - Recent trades with P&L and reasoning
-            - Per-strategy trade insights with suggested actions and confidence scores
-            - `globalInsights`: top-50 cross-strategy insights (missed opportunities,
-              news-research observations) ordered by confidence — these are NOT tied
-              to any one strategy and are often the richest source of "what should
-              we be doing differently" signal. Read them.
-            - Learning loop hit rate (which suggestions led to actual improvements)
-            - Recent evolution mutations and their outcomes
-            - Past improvement proposals
+            Connection pattern:
+              ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "sqlite3 -header /opt/trader-v2/data/trader.db '<SQL>'"
+
+            Useful starting queries (treat as examples, not a checklist):
+            - Population health: `SELECT status, COUNT(*) FROM strategies GROUP BY status;`
+            - Recent trades: `SELECT * FROM paper_trades ORDER BY created_at DESC LIMIT 30;`
+            - Per-strategy metrics: `SELECT * FROM strategy_metrics;`
+            - Unacted high-confidence insights:
+              `SELECT insight_type, observation, confidence, created_at FROM trade_insights
+               WHERE led_to_improvement IS NULL AND confidence >= 0.7
+               ORDER BY confidence DESC LIMIT 50;`
+            - Missed opportunities (mostly strategy_id IS NULL):
+              `SELECT observation, confidence FROM trade_insights
+               WHERE insight_type = 'missed_opportunity'
+               ORDER BY created_at DESC LIMIT 30;`
+            - Recent graduation events: `SELECT * FROM graduation_events ORDER BY created_at DESC LIMIT 20;`
+            - Recent mutations: `SELECT * FROM strategy_mutations ORDER BY created_at DESC LIMIT 20;`
+
+            Drill in based on what you find. Join across tables freely. The DB is
+            small (~3 MB) and your queries are read-only — don't worry about cost.
 
             ## Step 2: Analyze and Identify Improvements
 
