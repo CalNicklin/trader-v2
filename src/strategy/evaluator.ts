@@ -37,6 +37,72 @@ interface SignalDef {
 	exit?: string;
 }
 
+const NULL_QUOTE: QuoteFields = {
+	last: null,
+	bid: null,
+	ask: null,
+	volume: null,
+	avgVolume: null,
+	changePercent: null,
+	newsSentiment: null,
+	newsEarningsSurprise: null,
+	newsGuidanceChange: null,
+	newsManagementTone: null,
+	newsRegulatoryRisk: null,
+	newsAcquisitionLikelihood: null,
+	newsCatalystType: null,
+	newsExpectedMoveDuration: null,
+};
+
+const NULL_INDICATORS: SymbolIndicators = { rsi14: null, atr14: null, volume_ratio: null };
+
+/**
+ * Evaluate exit signals using only time-based conditions (hold_days).
+ * Used when quote data is unavailable or position is on a symbol no longer in universe.
+ * Price-based conditions (pnl_pct) will safely evaluate to false with null quote data.
+ */
+async function evaluateTimeBasedExit(
+	strategy: StrategyRow,
+	position: {
+		id: number;
+		symbol: string;
+		exchange: string;
+		entryPrice: number;
+		openedAt: string;
+		quantity: number;
+		currentPrice: number | null;
+	},
+): Promise<void> {
+	if (!strategy.signals) return;
+	const signals: SignalDef = JSON.parse(strategy.signals);
+	if (!signals.exit) return;
+
+	const ctx = buildSignalContext({
+		quote: NULL_QUOTE,
+		indicators: NULL_INDICATORS,
+		position: {
+			entryPrice: position.entryPrice,
+			openedAt: position.openedAt,
+			quantity: position.quantity,
+		},
+	});
+
+	if (evalExpr(signals.exit, ctx)) {
+		const exitPrice = position.currentPrice ?? position.entryPrice;
+		log.info(
+			{ strategy: strategy.name, symbol: position.symbol, positionId: position.id, exitPrice },
+			"Time-based exit fired (no quote data available)",
+		);
+		await closePaperPosition({
+			positionId: position.id,
+			strategyId: strategy.id,
+			exitPrice,
+			signalType: "exit",
+			reasoning: `Time-based exit (no current quote): ${signals.exit}`,
+		});
+	}
+}
+
 export interface EvalInput {
 	quote: QuoteFields;
 	indicators: SymbolIndicators;
@@ -257,10 +323,14 @@ export async function evaluateAllStrategies(
 		const openSymbols = new Set(openPositions.map((p) => `${p.symbol}:${p.exchange}`));
 		const cooldownSymbols = await getSymbolsOnCooldown(strategy.id);
 
+		const evaluatedSymbols = new Set<string>();
+
 		for (const symbolSpec of exchangeFiltered) {
 			const [symbol, exchange] = symbolSpec.includes(":")
 				? symbolSpec.split(":")
 				: [symbolSpec, "NASDAQ"];
+
+			evaluatedSymbols.add(`${symbol}:${exchange}`);
 
 			// Skip symbols with no open position when entries are disallowed (us_close)
 			if (options?.allowNewEntries === false && !openSymbols.has(`${symbol}:${exchange}`)) {
@@ -277,7 +347,23 @@ export async function evaluateAllStrategies(
 			}
 
 			const data = await getQuoteAndIndicators(symbol!, exchange!);
-			if (!data) continue;
+			if (!data) {
+				// No quote data — still attempt time-based exit for open positions
+				if (openSymbols.has(`${symbol}:${exchange}`)) {
+					const pos = openPositions.find((p) => p.symbol === symbol && p.exchange === exchange);
+					if (pos) {
+						try {
+							await evaluateTimeBasedExit(strategy, pos);
+						} catch (error) {
+							log.error(
+								{ strategy: strategy.name, symbol, error },
+								"Error in time-based exit fallback",
+							);
+						}
+					}
+				}
+				continue;
+			}
 
 			try {
 				const opened = await evaluateStrategyForSymbol(
@@ -290,6 +376,31 @@ export async function evaluateAllStrategies(
 				if (opened) riskState.openPositionCount++;
 			} catch (error) {
 				log.error({ strategy: strategy.name, symbol, error }, "Error evaluating strategy");
+			}
+		}
+
+		// ── Exit-check orphaned positions (symbols no longer in universe) ────
+		for (const pos of openPositions) {
+			const key = `${pos.symbol}:${pos.exchange}`;
+			if (evaluatedSymbols.has(key)) continue;
+
+			log.info(
+				{ strategy: strategy.name, symbol: pos.symbol, exchange: pos.exchange },
+				"Evaluating orphaned position for exit (symbol not in current universe)",
+			);
+
+			const data = await getQuoteAndIndicators(pos.symbol, pos.exchange);
+			try {
+				if (data) {
+					await evaluateStrategyForSymbol(strategy, pos.symbol, pos.exchange, data, riskState);
+				} else {
+					await evaluateTimeBasedExit(strategy, pos);
+				}
+			} catch (error) {
+				log.error(
+					{ strategy: strategy.name, symbol: pos.symbol, error },
+					"Error evaluating orphaned position",
+				);
 			}
 		}
 	}
@@ -354,10 +465,14 @@ export async function evaluateAllStrategies(
 		const openSymbolsGrad = new Set(openPositions.map((p) => `${p.symbol}:${p.exchange}`));
 		const cooldownSymbolsGrad = await getSymbolsOnCooldown(strategy.id);
 
+		const evaluatedSymbolsGrad = new Set<string>();
+
 		for (const symbolSpec of exchangeFilteredGrad) {
 			const [symbol, exchange] = symbolSpec.includes(":")
 				? symbolSpec.split(":")
 				: [symbolSpec, "NASDAQ"];
+
+			evaluatedSymbolsGrad.add(`${symbol}:${exchange}`);
 
 			// Skip symbols with no open position when entries are disallowed (us_close)
 			if (options?.allowNewEntries === false && !openSymbolsGrad.has(`${symbol}:${exchange}`)) {
@@ -390,7 +505,23 @@ export async function evaluateAllStrategies(
 			}
 
 			const data = await getQuoteAndIndicators(symbol!, exchange!);
-			if (!data) continue;
+			if (!data) {
+				// No quote data — still attempt time-based exit for open positions
+				if (openSymbolsGrad.has(`${symbol}:${exchange}`)) {
+					const pos = openPositions.find((p) => p.symbol === symbol && p.exchange === exchange);
+					if (pos) {
+						try {
+							await evaluateTimeBasedExit(strategy, pos);
+						} catch (error) {
+							log.error(
+								{ strategy: strategy.name, symbol, error },
+								"Error in time-based exit fallback",
+							);
+						}
+					}
+				}
+				continue;
+			}
 
 			try {
 				const opened = await evaluateStrategyForSymbol(
@@ -405,6 +536,31 @@ export async function evaluateAllStrategies(
 				log.error(
 					{ strategy: strategy.name, symbol, error },
 					"Error evaluating graduated strategy",
+				);
+			}
+		}
+
+		// ── Exit-check orphaned positions (symbols no longer in universe) ────
+		for (const pos of openPositions) {
+			const key = `${pos.symbol}:${pos.exchange}`;
+			if (evaluatedSymbolsGrad.has(key)) continue;
+
+			log.info(
+				{ strategy: strategy.name, symbol: pos.symbol, exchange: pos.exchange },
+				"Evaluating orphaned graduated position for exit",
+			);
+
+			const data = await getQuoteAndIndicators(pos.symbol, pos.exchange);
+			try {
+				if (data) {
+					await evaluateStrategyForSymbol(strategy, pos.symbol, pos.exchange, data, riskState);
+				} else {
+					await evaluateTimeBasedExit(strategy, pos);
+				}
+			} catch (error) {
+				log.error(
+					{ strategy: strategy.name, symbol: pos.symbol, error },
+					"Error evaluating orphaned graduated position",
 				);
 			}
 		}
