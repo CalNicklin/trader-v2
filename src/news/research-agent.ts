@@ -6,11 +6,11 @@ import { fmpValidateSymbol } from "../data/fmp.ts";
 import { getDb } from "../db/client.ts";
 import { newsAnalyses, quotesCache, strategies } from "../db/schema.ts";
 import { getInjectedSymbols, injectSymbol } from "../strategy/universe.ts";
-import { type ParseDeps, parseUniverseSpec } from "./exchange-resolver.ts";
 import { canAffordCall } from "../utils/budget.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
 import { recordUsage } from "../utils/token-tracker.ts";
+import { type ParseDeps, parseUniverseSpec } from "./exchange-resolver.ts";
 
 const log = createChildLogger({ module: "research-agent" });
 
