@@ -3,9 +3,17 @@ import { desc } from "drizzle-orm";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { closeDb, getDb } from "../../src/db/client.ts";
 import { newsAnalyses, newsEvents } from "../../src/db/schema.ts";
-import { getAggregatedNewsSignal } from "../../src/news/signal-aggregator.ts";
+import {
+	CLOSED_HOURS_RATE,
+	effectiveAgeHours,
+	getAggregatedNewsSignal,
+	HALF_LIFE_HOURS,
+} from "../../src/news/signal-aggregator.ts";
 
-const NOW = new Date("2026-04-10T20:00:00.000Z");
+// Chosen inside the LSE session so existing age offsets (0, 2h, 4h, 25h back)
+// all fall during UK trading hours and decay at the full rate.
+// 12:00Z on 2026-04-10 = 13:00 BST Friday (uk_session).
+const NOW = new Date("2026-04-10T12:00:00.000Z");
 
 beforeEach(() => {
 	closeDb();
@@ -326,6 +334,49 @@ describe("getAggregatedNewsSignal — categoricals and edge cases", () => {
 		const result = await getAggregatedNewsSignal("AZN", "LSE", NOW);
 		expect(result.catalystType).toBeNull();
 		expect(result.expectedMoveDuration).toBeNull();
+	});
+
+	test("market-closed hours accrue age at CLOSED_HOURS_RATE (LSE overnight)", () => {
+		// Friday 13:00 BST (NOW) minus a row created at Thursday 15:00 BST.
+		// Thu 15:00–16:30 BST = 1.5h LSE open. 16:30 Thu → 08:00 Fri = 15.5h closed.
+		// 08:00 Fri → 13:00 Fri = 5h open. Total open = 6.5h. Total closed = 15.5h.
+		// Effective = 6.5 + 15.5 * 0.25 = 10.375h (wall-clock would be 22h).
+		const createdAt = new Date(NOW.getTime() - 22 * 60 * 60 * 1000).toISOString();
+		const age = effectiveAgeHours(createdAt, NOW, "LSE");
+		expect(age).toBeCloseTo(10.375, 1);
+	});
+
+	test("effectiveAgeHours equals wall-clock when market is open the whole span", () => {
+		// 2h back from NOW (13:00 BST) = 11:00 BST, entirely inside uk_session.
+		const createdAt = new Date(NOW.getTime() - 2 * 60 * 60 * 1000).toISOString();
+		const age = effectiveAgeHours(createdAt, NOW, "LSE");
+		expect(age).toBeCloseTo(2, 1);
+	});
+
+	test("unknown exchange falls back to wall-clock age", () => {
+		const createdAt = new Date(NOW.getTime() - 6 * 60 * 60 * 1000).toISOString();
+		const age = effectiveAgeHours(createdAt, NOW, "UNKNOWN");
+		expect(age).toBeCloseTo(6, 3);
+	});
+
+	test("overnight LSE news retains meaningful weight at next open", async () => {
+		// Simulate the SHEL case: news classified Friday 19:10 BST (post-close),
+		// evaluated Monday 08:05 BST (first eval of next UK session).
+		const mondayOpen = new Date("2026-04-13T07:05:00.000Z"); // 08:05 BST Mon
+		const fridayPostClose = new Date("2026-04-10T18:10:00.000Z"); // 19:10 BST Fri
+		const eff = effectiveAgeHours(fridayPostClose.toISOString(), mondayOpen, "LSE");
+		const wall = (mondayOpen.getTime() - fridayPostClose.getTime()) / (60 * 60 * 1000);
+		// Market was fully closed across the whole span (Fri post-close → weekend → Mon pre-open).
+		// Effective age must equal wall × CLOSED_HOURS_RATE.
+		expect(eff).toBeCloseTo(wall * CLOSED_HOURS_RATE, 1);
+		// And the decay weight at this effective age keeps the signal alive,
+		// whereas wall-clock decay would have zeroed it.
+		const effWeight = 0.5 ** (eff / HALF_LIFE_HOURS);
+		const wallWeight = 0.5 ** (wall / HALF_LIFE_HOURS);
+		// Weekend-long closure still decays significantly, but effective weight
+		// stays >100× the wall-clock weight — enough to matter vs. noise floor.
+		expect(effWeight / wallWeight).toBeGreaterThan(100);
+		expect(wallWeight).toBeLessThan(1e-5);
 	});
 
 	test("neutralised filterAndPin row dampens but does not flip sentiment", async () => {

@@ -1,9 +1,15 @@
 import { and, eq, gte, sql } from "drizzle-orm";
+import type { Exchange } from "../broker/contracts.ts";
 import { getDb } from "../db/client.ts";
 import { newsAnalyses, newsEvents } from "../db/schema.ts";
+import { isExchangeOpen } from "../scheduler/sessions.ts";
 
 export const HALF_LIFE_HOURS = 2;
 export const WINDOW_HOURS = 24;
+/** Decay accrual rate while the symbol's exchange is closed (vs 1.0 while open). */
+export const CLOSED_HOURS_RATE = 0.25;
+
+const KNOWN_EXCHANGES: ReadonlySet<string> = new Set(["LSE", "NASDAQ", "NYSE"]);
 
 export interface AggregatedNewsSignal {
 	sentiment: number | null;
@@ -16,8 +22,33 @@ export interface AggregatedNewsSignal {
 	expectedMoveDuration: string | null;
 }
 
-function ageHours(createdAt: string, now: Date): number {
-	return (now.getTime() - new Date(createdAt).getTime()) / (1000 * 60 * 60);
+const SLICE_MS = 15 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Age in "effective hours" for decay purposes. Hours during which the
+ * symbol's exchange is open count at full rate; closed hours (overnight,
+ * weekends, holidays implicitly via the session calendar) count at
+ * CLOSED_HOURS_RATE. Prevents overnight news from decaying to zero before
+ * the next open — see `docs/specs/...` (regime-aware decay).
+ */
+export function effectiveAgeHours(createdAt: string, now: Date, exchange: string): number {
+	const thenMs = new Date(createdAt).getTime();
+	const nowMs = now.getTime();
+	if (nowMs <= thenMs) return 0;
+	if (!KNOWN_EXCHANGES.has(exchange)) {
+		return (nowMs - thenMs) / HOUR_MS;
+	}
+	const ex = exchange as Exchange;
+	let effectiveMs = 0;
+	for (let sliceEnd = nowMs; sliceEnd > thenMs; sliceEnd -= SLICE_MS) {
+		const sliceStart = Math.max(thenMs, sliceEnd - SLICE_MS);
+		const spanMs = sliceEnd - sliceStart;
+		const midpoint = new Date((sliceStart + sliceEnd) / 2);
+		const rate = isExchangeOpen(ex, midpoint) ? 1 : CLOSED_HOURS_RATE;
+		effectiveMs += spanMs * rate;
+	}
+	return effectiveMs / HOUR_MS;
 }
 
 function decayWeight(confidence: number, ageH: number): number {
@@ -50,7 +81,7 @@ export async function getAggregatedNewsSignal(
 	let sentimentNum = 0;
 	let sentimentDen = 0;
 	for (const row of analyses) {
-		const w = decayWeight(row.confidence, ageHours(row.createdAt, now));
+		const w = decayWeight(row.confidence, effectiveAgeHours(row.createdAt, now, exchange));
 		sentimentNum += row.sentiment * w;
 		sentimentDen += w;
 	}
@@ -95,7 +126,7 @@ export async function getAggregatedNewsSignal(
 
 	for (const row of events) {
 		if (row.sentiment == null || row.classifiedAt == null || row.confidence == null) continue;
-		const w = decayWeight(row.confidence, ageHours(row.classifiedAt, now));
+		const w = decayWeight(row.confidence, effectiveAgeHours(row.classifiedAt!, now, exchange));
 		for (const field of subFields) {
 			const value = row[field];
 			if (value != null) {
