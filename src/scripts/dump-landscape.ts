@@ -117,6 +117,15 @@ async function main() {
 		.limit(20)
 		.all();
 
+	// ── Global insights (not tied to a strategy: missed opps, news research) ──
+	const globalInsights = await db
+		.select()
+		.from(tradeInsights)
+		.where(isNull(tradeInsights.strategyId))
+		.orderBy(desc(tradeInsights.confidence), desc(tradeInsights.createdAt))
+		.limit(50)
+		.all();
+
 	// ── Past improvement proposals ────────────────────────────────────────
 	const proposals = await db
 		.select()
@@ -155,6 +164,13 @@ async function main() {
 			createdAt: e.createdAt,
 		})),
 		pastProposals: proposals,
+		globalInsights: globalInsights.map((i) => ({
+			type: i.insightType,
+			observation: i.observation,
+			suggestedAction: i.suggestedAction ? JSON.parse(i.suggestedAction) : null,
+			confidence: i.confidence,
+			createdAt: i.createdAt,
+		})),
 	};
 
 	console.log(JSON.stringify(output, null, 2));

@@ -52,7 +52,11 @@ jobs:
             - Strategy definitions, parameters, signals, and universes
             - Performance metrics (Sharpe, win rate, expectancy, drawdown)
             - Recent trades with P&L and reasoning
-            - Trade insights with suggested actions and confidence scores
+            - Per-strategy trade insights with suggested actions and confidence scores
+            - `globalInsights`: top-50 cross-strategy insights (missed opportunities,
+              news-research observations) ordered by confidence — these are NOT tied
+              to any one strategy and are often the richest source of "what should
+              we be doing differently" signal. Read them.
             - Learning loop hit rate (which suggestions led to actual improvements)
             - Recent evolution mutations and their outcomes
             - Past improvement proposals
