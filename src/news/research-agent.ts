@@ -10,6 +10,7 @@ import { canAffordCall } from "../utils/budget.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
 import { recordUsage } from "../utils/token-tracker.ts";
+import { type ParseDeps, parseUniverseSpec } from "./exchange-resolver.ts";
 
 const log = createChildLogger({ module: "research-agent" });
 
@@ -183,9 +184,9 @@ async function isSymbolInUniverse(symbol: string, exchange: string): Promise<boo
 	return injected.some((i) => i.symbol === symbol && i.exchange === exchange);
 }
 
-export async function buildUniverseWhitelist(): Promise<
-	Array<{ symbol: string; exchange: string }>
-> {
+export async function buildUniverseWhitelist(
+	deps: ParseDeps = {},
+): Promise<Array<{ symbol: string; exchange: string }>> {
 	const db = getDb();
 	const rows = await db
 		.select({ universe: strategies.universe })
@@ -203,12 +204,15 @@ export async function buildUniverseWhitelist(): Promise<
 			continue;
 		}
 		for (const spec of list) {
-			const [sym, ex] = spec.includes(":") ? spec.split(":") : [spec, "NASDAQ"];
-			if (!sym || !ex) continue;
-			const key = `${sym}:${ex}`;
+			const parsed = await parseUniverseSpec(spec, deps);
+			if (!parsed) {
+				log.warn({ spec }, "buildUniverseWhitelist: could not resolve exchange — skipped");
+				continue;
+			}
+			const key = `${parsed.symbol}:${parsed.exchange}`;
 			if (seen.has(key)) continue;
 			seen.add(key);
-			result.push({ symbol: sym, exchange: ex });
+			result.push(parsed);
 		}
 	}
 	return result;

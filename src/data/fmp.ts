@@ -345,3 +345,77 @@ export async function fmpValidateSymbol(symbol: string, exchange: string): Promi
 		return false;
 	}
 }
+
+const EXCHANGE_NORMALIZATION: Record<string, "NASDAQ" | "NYSE" | "LSE"> = {
+	"NASDAQ Global Select": "NASDAQ",
+	"NASDAQ Global Market": "NASDAQ",
+	"NASDAQ Capital Market": "NASDAQ",
+	NASDAQ: "NASDAQ",
+	"New York Stock Exchange": "NYSE",
+	"NYSE American": "NYSE",
+	"NYSE Arca": "NYSE",
+	NYSE: "NYSE",
+	"London Stock Exchange": "LSE",
+	LSE: "LSE",
+	NMS: "NASDAQ",
+	NGM: "NASDAQ",
+	NCM: "NASDAQ",
+	NYQ: "NYSE",
+	ASE: "NYSE",
+	PCX: "NYSE",
+	AIM: "LSE",
+};
+
+export function normalizeFmpExchange(raw: string): "NASDAQ" | "NYSE" | "LSE" | null {
+	return EXCHANGE_NORMALIZATION[raw] ?? null;
+}
+
+interface ExchangeResolverDeps {
+	fetch?: (path: string, params: Record<string, string>) => Promise<unknown>;
+}
+
+const exchangeCache = new Map<
+	string,
+	{ exchange: "NASDAQ" | "NYSE" | "LSE" | null; expiresAt: number }
+>();
+const EXCHANGE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+export function _resetExchangeResolverCache(): void {
+	exchangeCache.clear();
+}
+
+export async function fmpResolveExchange(
+	symbol: string,
+	deps: ExchangeResolverDeps = {},
+): Promise<"NASDAQ" | "NYSE" | "LSE" | null> {
+	const now = Date.now();
+	const key = symbol.trim().toUpperCase();
+	const cached = exchangeCache.get(key);
+	if (cached && cached.expiresAt > now) return cached.exchange;
+
+	const fetcher =
+		deps.fetch ??
+		((path, params) =>
+			fmpFetch<Array<{ symbol: string; exchange: string; isActivelyTrading?: boolean }>>(
+				path,
+				params,
+			));
+
+	try {
+		const data = (await fetcher("/profile", { symbol: key })) as Array<{
+			symbol: string;
+			exchange: string;
+			isActivelyTrading?: boolean;
+		}>;
+		if (!data || data.length === 0) {
+			exchangeCache.set(key, { exchange: null, expiresAt: now + EXCHANGE_TTL_MS });
+			return null;
+		}
+		const normalized = normalizeFmpExchange(data[0]!.exchange);
+		exchangeCache.set(key, { exchange: normalized, expiresAt: now + EXCHANGE_TTL_MS });
+		return normalized;
+	} catch {
+		exchangeCache.set(key, { exchange: null, expiresAt: now + EXCHANGE_TTL_MS });
+		return null;
+	}
+}

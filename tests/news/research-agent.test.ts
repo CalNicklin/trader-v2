@@ -1,5 +1,5 @@
 // tests/news/research-agent.test.ts
-import { afterEach, beforeEach, describe, expect, it, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { closeDb, getDb } from "../../src/db/client.ts";
@@ -182,7 +182,7 @@ describe("buildUniverseWhitelist", () => {
 				name: "t1",
 				description: "test",
 				parameters: "{}",
-				universe: JSON.stringify(["SHEL:LSE", "BP.:LSE", "AAPL"]),
+				universe: JSON.stringify(["SHEL:LSE", "BP.:LSE", "AAPL:NASDAQ"]),
 				status: "paper",
 				createdBy: "test",
 			},
@@ -190,7 +190,7 @@ describe("buildUniverseWhitelist", () => {
 				name: "t2",
 				description: "test",
 				parameters: "{}",
-				universe: JSON.stringify(["SHEL:LSE", "MSFT"]),
+				universe: JSON.stringify(["SHEL:LSE", "MSFT:NASDAQ"]),
 				status: "paper",
 				createdBy: "test",
 			},
@@ -204,6 +204,50 @@ describe("buildUniverseWhitelist", () => {
 		expect(keys.has("MSFT:NASDAQ")).toBe(true);
 		// deduped
 		expect(whitelist.filter((w) => w.symbol === "SHEL" && w.exchange === "LSE").length).toBe(1);
+	});
+
+	it("resolves bare symbols via injected resolver (AAPL→NASDAQ, JPM→NYSE) and preserves explicit suffixes", async () => {
+		const db = getDb();
+		await db.insert(strategies).values({
+			name: "t_bare",
+			description: "test",
+			parameters: "{}",
+			universe: JSON.stringify(["AAPL", "JPM", "SHEL:LSE"]),
+			status: "paper",
+			createdBy: "test",
+		});
+
+		const resolver = mock(async (sym: string) => {
+			if (sym === "AAPL") return "NASDAQ" as const;
+			if (sym === "JPM") return "NYSE" as const;
+			return null;
+		});
+
+		const whitelist = await buildUniverseWhitelist({ resolver });
+		expect(whitelist).toContainEqual({ symbol: "AAPL", exchange: "NASDAQ" });
+		expect(whitelist).toContainEqual({ symbol: "JPM", exchange: "NYSE" });
+		expect(whitelist).toContainEqual({ symbol: "SHEL", exchange: "LSE" });
+		// resolver should not be called for explicit-suffix spec
+		expect(resolver).toHaveBeenCalledWith("AAPL");
+		expect(resolver).toHaveBeenCalledWith("JPM");
+		expect(resolver).not.toHaveBeenCalledWith("SHEL");
+	});
+
+	it("skips bare symbols whose exchange cannot be resolved", async () => {
+		const db = getDb();
+		await db.insert(strategies).values({
+			name: "t_unresolvable",
+			description: "test",
+			parameters: "{}",
+			universe: JSON.stringify(["MYSTERY", "AAPL:NASDAQ"]),
+			status: "paper",
+			createdBy: "test",
+		});
+
+		const resolver = mock(async () => null);
+		const whitelist = await buildUniverseWhitelist({ resolver });
+		expect(whitelist.find((w) => w.symbol === "MYSTERY")).toBeUndefined();
+		expect(whitelist).toContainEqual({ symbol: "AAPL", exchange: "NASDAQ" });
 	});
 
 	it("ignores non-paper strategies", async () => {

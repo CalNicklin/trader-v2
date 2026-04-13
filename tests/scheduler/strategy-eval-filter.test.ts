@@ -1,14 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import type { Exchange } from "../../src/broker/contracts";
 
 describe("strategy eval exchange filter", () => {
 	test("filterUniverseByExchanges keeps only matching exchanges", async () => {
 		const { filterUniverseByExchanges } = await import("../../src/scheduler/strategy-eval-job");
 		const universe = ["AAPL:NASDAQ", "VOD:LSE", "MSFT:NASDAQ"];
 
-		const usOnly = filterUniverseByExchanges(universe, ["NASDAQ", "NYSE"]);
+		const usOnly = await filterUniverseByExchanges(universe, ["NASDAQ", "NYSE"]);
 		expect(usOnly).toEqual(["AAPL:NASDAQ", "MSFT:NASDAQ"]);
 
-		const ukOnly = filterUniverseByExchanges(universe, ["LSE"]);
+		const ukOnly = await filterUniverseByExchanges(universe, ["LSE"]);
 		expect(ukOnly).toEqual(["VOD:LSE"]);
 	});
 
@@ -16,15 +17,31 @@ describe("strategy eval exchange filter", () => {
 		const { filterUniverseByExchanges } = await import("../../src/scheduler/strategy-eval-job");
 		const universe = ["AAPL:NASDAQ", "VOD:LSE"];
 
-		const all = filterUniverseByExchanges(universe);
+		const all = await filterUniverseByExchanges(universe);
 		expect(all).toEqual(["AAPL:NASDAQ", "VOD:LSE"]);
 	});
 
-	test("filterUniverseByExchanges handles bare symbols (default NASDAQ)", async () => {
+	test("filterUniverseByExchanges resolves bare symbols via resolver", async () => {
 		const { filterUniverseByExchanges } = await import("../../src/scheduler/strategy-eval-job");
-		const universe = ["AAPL", "VOD:LSE"];
+		const resolver = async (symbol: string): Promise<Exchange | null> => {
+			if (symbol === "JPM") return "NYSE";
+			if (symbol === "AAPL") return "NASDAQ";
+			return null;
+		};
 
-		const usOnly = filterUniverseByExchanges(universe, ["NASDAQ"]);
-		expect(usOnly).toEqual(["AAPL"]);
+		const result = await filterUniverseByExchanges(["JPM", "AAPL", "SHEL:LSE"], ["NYSE"], {
+			resolver,
+		});
+		expect(result).toEqual(["JPM"]);
+	});
+
+	test("filterUniverseByExchanges skips bare symbols that cannot be resolved", async () => {
+		const { filterUniverseByExchanges } = await import("../../src/scheduler/strategy-eval-job");
+		const resolver = async (): Promise<Exchange | null> => null;
+
+		const result = await filterUniverseByExchanges(["UNKNOWN", "AAPL:NASDAQ"], ["NASDAQ"], {
+			resolver,
+		});
+		expect(result).toEqual(["AAPL:NASDAQ"]);
 	});
 });
