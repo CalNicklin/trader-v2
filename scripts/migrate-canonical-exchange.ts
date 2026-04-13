@@ -11,7 +11,9 @@ async function main(): Promise<void> {
 	const db = getDb();
 
 	const symbolsRows = await db.all<{ symbol: string }>(
-		sql`SELECT DISTINCT symbol FROM news_analyses`,
+		sql`SELECT symbol FROM news_analyses
+		    UNION
+		    SELECT symbol FROM quotes_cache`,
 	);
 	const symbols = symbolsRows.map((r) => r.symbol);
 	console.log(`Resolving canonical exchange for ${symbols.length} symbols...`);
