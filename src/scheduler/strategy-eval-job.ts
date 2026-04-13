@@ -3,6 +3,7 @@ import type { Exchange } from "../broker/contracts.ts";
 import { getQuoteFromCache } from "../data/quotes.ts";
 import { getDb } from "../db/client.ts";
 import { strategies } from "../db/schema.ts";
+import { type ParseDeps, parseUniverseSpec } from "../news/exchange-resolver.ts";
 import { getAggregatedNewsSignal } from "../news/signal-aggregator.ts";
 import type { QuoteFields } from "../strategy/context.ts";
 import { evaluateAllStrategies } from "../strategy/evaluator.ts";
@@ -13,14 +14,20 @@ import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "strategy-eval-job" });
 
-export function filterUniverseByExchanges(universe: string[], exchanges?: Exchange[]): string[] {
+export async function filterUniverseByExchanges(
+	universe: string[],
+	exchanges?: Exchange[],
+	deps: ParseDeps = {},
+): Promise<string[]> {
 	if (!exchanges || exchanges.length === 0) return universe;
 
 	const exchangeSet = new Set(exchanges);
-	return universe.filter((spec) => {
-		const exchange = spec.includes(":") ? spec.split(":")[1]! : "NASDAQ";
-		return exchangeSet.has(exchange as Exchange);
-	});
+	const kept: string[] = [];
+	for (const spec of universe) {
+		const parsed = await parseUniverseSpec(spec, deps);
+		if (parsed && exchangeSet.has(parsed.exchange)) kept.push(spec);
+	}
+	return kept;
 }
 
 export async function runStrategyEvaluation(options?: {
