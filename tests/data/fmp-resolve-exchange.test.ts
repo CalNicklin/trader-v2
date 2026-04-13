@@ -19,6 +19,11 @@ describe("normalizeFmpExchange", () => {
 	test("maps LSE", () => {
 		expect(normalizeFmpExchange("London Stock Exchange")).toBe("LSE");
 	});
+	test("maps short codes", () => {
+		expect(normalizeFmpExchange("NMS")).toBe("NASDAQ");
+		expect(normalizeFmpExchange("NYQ")).toBe("NYSE");
+		expect(normalizeFmpExchange("AIM")).toBe("LSE");
+	});
 	test("returns null for unrecognized exchange", () => {
 		expect(normalizeFmpExchange("Tokyo Stock Exchange")).toBeNull();
 		expect(normalizeFmpExchange("")).toBeNull();
@@ -44,6 +49,15 @@ describe("fmpResolveExchange", () => {
 			{ symbol: "AAPL", exchange: "NASDAQ Global Select", isActivelyTrading: true },
 		]);
 		await fmpResolveExchange("AAPL", { fetch: fetchMock });
+		await fmpResolveExchange("AAPL", { fetch: fetchMock });
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	test("normalizes cache key across symbol casing", async () => {
+		const fetchMock = mock(async () => [
+			{ symbol: "AAPL", exchange: "NASDAQ Global Select", isActivelyTrading: true },
+		]);
+		await fmpResolveExchange("aapl", { fetch: fetchMock });
 		await fmpResolveExchange("AAPL", { fetch: fetchMock });
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});

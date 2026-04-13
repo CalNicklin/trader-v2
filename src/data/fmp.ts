@@ -357,6 +357,13 @@ const EXCHANGE_NORMALIZATION: Record<string, "NASDAQ" | "NYSE" | "LSE"> = {
 	NYSE: "NYSE",
 	"London Stock Exchange": "LSE",
 	LSE: "LSE",
+	NMS: "NASDAQ",
+	NGM: "NASDAQ",
+	NCM: "NASDAQ",
+	NYQ: "NYSE",
+	ASE: "NYSE",
+	PCX: "NYSE",
+	AIM: "LSE",
 };
 
 export function normalizeFmpExchange(raw: string): "NASDAQ" | "NYSE" | "LSE" | null {
@@ -382,7 +389,8 @@ export async function fmpResolveExchange(
 	deps: ExchangeResolverDeps = {},
 ): Promise<"NASDAQ" | "NYSE" | "LSE" | null> {
 	const now = Date.now();
-	const cached = exchangeCache.get(symbol);
+	const key = symbol.trim().toUpperCase();
+	const cached = exchangeCache.get(key);
 	if (cached && cached.expiresAt > now) return cached.exchange;
 
 	const fetcher =
@@ -394,20 +402,20 @@ export async function fmpResolveExchange(
 			));
 
 	try {
-		const data = (await fetcher("/profile", { symbol })) as Array<{
+		const data = (await fetcher("/profile", { symbol: key })) as Array<{
 			symbol: string;
 			exchange: string;
 			isActivelyTrading?: boolean;
 		}>;
 		if (!data || data.length === 0) {
-			exchangeCache.set(symbol, { exchange: null, expiresAt: now + EXCHANGE_TTL_MS });
+			exchangeCache.set(key, { exchange: null, expiresAt: now + EXCHANGE_TTL_MS });
 			return null;
 		}
 		const normalized = normalizeFmpExchange(data[0]!.exchange);
-		exchangeCache.set(symbol, { exchange: normalized, expiresAt: now + EXCHANGE_TTL_MS });
+		exchangeCache.set(key, { exchange: normalized, expiresAt: now + EXCHANGE_TTL_MS });
 		return normalized;
 	} catch {
-		exchangeCache.set(symbol, { exchange: null, expiresAt: now + EXCHANGE_TTL_MS });
+		exchangeCache.set(key, { exchange: null, expiresAt: now + EXCHANGE_TTL_MS });
 		return null;
 	}
 }
