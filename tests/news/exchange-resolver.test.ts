@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { _resetExchangeResolverCache } from "../../src/data/fmp.ts";
 import { parseUniverseSpec } from "../../src/news/exchange-resolver.ts";
 
