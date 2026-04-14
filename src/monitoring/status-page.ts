@@ -208,8 +208,8 @@ export function buildConsolePage(
 		tab === "overview"
 			? `<div class="console">
 <div class="kpi-strip">
-<div class="kpi"><div class="kpi-label">Daily P&amp;L</div><div class="kpi-value" style="color:${kpiColor(data.dailyPnl, data.dailyPnlLimit)}">${data.dailyPnl >= 0 ? "+" : ""}${data.dailyPnl.toFixed(2)}p</div><div class="kpi-sub">limit: ${data.dailyPnlLimit.toFixed(0)}%</div></div>
-<div class="kpi"><div class="kpi-label">Weekly P&amp;L</div><div class="kpi-value" style="color:${kpiColor(data.weeklyPnl, data.weeklyPnlLimit)}">${data.weeklyPnl >= 0 ? "+" : ""}${data.weeklyPnl.toFixed(2)}p</div><div class="kpi-sub">limit: ${data.weeklyPnlLimit.toFixed(0)}%</div></div>
+<div class="kpi"><div class="kpi-label">Daily P&amp;L</div><div class="kpi-value" style="color:${kpiColor(data.dailyPnl, data.dailyPnlLimit)}">${data.dailyPnl >= 0 ? "+" : ""}${data.dailyPnl.toFixed(2)}</div><div class="kpi-sub">limit: ${data.dailyPnlLimit.toFixed(0)}%</div></div>
+<div class="kpi"><div class="kpi-label">Weekly P&amp;L</div><div class="kpi-value" style="color:${kpiColor(data.weeklyPnl, data.weeklyPnlLimit)}">${data.weeklyPnl >= 0 ? "+" : ""}${data.weeklyPnl.toFixed(2)}</div><div class="kpi-sub">limit: ${data.weeklyPnlLimit.toFixed(0)}%</div></div>
 <div class="kpi"><div class="kpi-label">Open Positions</div><div class="kpi-value" style="color:${data.openPositionCount > 0 ? "#f59e0b" : "#666"}">${data.openPositionCount}</div><div class="kpi-sub">${data.positions[0] ? escHtml(data.positions[0].symbol) : "—"}</div></div>
 <div class="kpi"><div class="kpi-label">Trades Today</div><div class="kpi-value" style="color:${data.tradesToday > 0 ? "#e2e8f0" : "#666"}">${data.tradesToday}</div><div class="kpi-sub">—</div></div>
 <div class="kpi"><div class="kpi-label">API Spend</div><div class="kpi-value" style="color:${data.apiSpendToday > data.apiBudget * 0.8 ? "#ef4444" : "#666"}">$${data.apiSpendToday.toFixed(2)}</div><div class="kpi-sub">budget: $${data.apiBudget.toFixed(2)}</div></div>

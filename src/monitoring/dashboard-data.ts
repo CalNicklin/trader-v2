@@ -132,6 +132,30 @@ function getGitHash(): string {
 	return _gitHash;
 }
 
+function startOfTodayIso(): string {
+	const d = new Date();
+	d.setUTCHours(0, 0, 0, 0);
+	return d.toISOString();
+}
+
+function startOfWeekIso(): string {
+	const d = new Date();
+	d.setUTCHours(0, 0, 0, 0);
+	const day = d.getUTCDay(); // 0=Sun
+	const diff = (day + 6) % 7; // back to Monday
+	d.setUTCDate(d.getUTCDate() - diff);
+	return d.toISOString();
+}
+
+function sumPaperPnlSince(db: ReturnType<typeof getDb>, sinceIso: string): number {
+	const row = db
+		.select({ total: sql<number>`coalesce(sum(${paperTrades.pnl}), 0)` })
+		.from(paperTrades)
+		.where(sql`${paperTrades.pnl} is not null and ${paperTrades.createdAt} >= ${sinceIso}`)
+		.get();
+	return row?.total ?? 0;
+}
+
 /** Cached IBKR account ID — fetched once. */
 let _ibkrAccount: string | null = null;
 let _ibkrAccountFetched = false;
@@ -169,11 +193,15 @@ export async function getDashboardData(): Promise<DashboardData> {
 		// Broker module not loaded
 	}
 
-	// P&L from risk_state
+	// P&L from risk_state (live), falling back to today's paper-trade exits when live is off
 	const dailyRow = db.select().from(riskState).where(eq(riskState.key, "daily_pnl")).get();
 	const weeklyRow = db.select().from(riskState).where(eq(riskState.key, "weekly_pnl")).get();
-	const dailyPnl = dailyRow ? Number.parseFloat(dailyRow.value) || 0 : 0;
-	const weeklyPnl = weeklyRow ? Number.parseFloat(weeklyRow.value) || 0 : 0;
+	const liveDaily = dailyRow ? Number.parseFloat(dailyRow.value) || 0 : 0;
+	const liveWeekly = weeklyRow ? Number.parseFloat(weeklyRow.value) || 0 : 0;
+	const paperDaily = sumPaperPnlSince(db, startOfTodayIso());
+	const paperWeekly = sumPaperPnlSince(db, startOfWeekIso());
+	const dailyPnl = liveDaily !== 0 ? liveDaily : paperDaily;
+	const weeklyPnl = liveWeekly !== 0 ? liveWeekly : paperWeekly;
 
 	// Positions
 	const positions = db.select().from(livePositions).all();
@@ -743,8 +771,10 @@ export async function getGuardianData(): Promise<GuardianData> {
 
 	const peakBalance = Number.parseFloat(state.get("peak_balance") ?? "0") || 0;
 	const accountBalance = Number.parseFloat(state.get("account_balance") ?? "0") || 0;
-	const dailyPnl = Number.parseFloat(state.get("daily_pnl") ?? "0") || 0;
-	const weeklyPnl = Number.parseFloat(state.get("weekly_pnl") ?? "0") || 0;
+	const liveDaily = Number.parseFloat(state.get("daily_pnl") ?? "0") || 0;
+	const liveWeekly = Number.parseFloat(state.get("weekly_pnl") ?? "0") || 0;
+	const dailyPnl = liveDaily !== 0 ? liveDaily : sumPaperPnlSince(db, startOfTodayIso());
+	const weeklyPnl = liveWeekly !== 0 ? liveWeekly : sumPaperPnlSince(db, startOfWeekIso());
 
 	const drawdownPct =
 		peakBalance > 0
