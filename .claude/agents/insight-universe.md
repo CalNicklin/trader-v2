@@ -79,7 +79,7 @@ Focus on:
 > **Expected impact:** +8 bps/week gross edge (rough), need to net out
 > friction on LSE (stamp duty — Exec will care about this).
 >
-> **Implementation sketch:** add symbols to `src/universe/seed.ts`;
+> **Implementation sketch:** add symbols to `src/strategy/seed.ts`;
 > add "commodity_news" catalyst gate in the news classifier so we only
 > fire on actual commodity triggers, not any news about the symbol.
 >
