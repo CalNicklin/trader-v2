@@ -112,6 +112,11 @@ export function buildEvolutionPrompt(
 		})
 		.join("\n\n");
 
+	const missedBlock =
+		landscape.missedOpportunities.length > 0
+			? `\n\n## Missed Opportunities (detected but not captured by any strategy)\n\n${landscape.missedOpportunities.map((m) => `- ${m.observation} (confidence: ${m.confidence.toFixed(2)})`).join("\n")}\n\nConsider proposing a structural mutation to capture these patterns — catalyst-driven momentum trades triggered by major news events.`
+			: "";
+
 	const recoveryBlock = recoveryMode
 		? `\n\n**POPULATION CRITICAL:** Only ${activePaperCount}/${MAX_POPULATION} strategies active. Propose structural mutations — new signal logic, different entry/exit approaches, fresh universes. Prioritise diversity over data-driven tuning. Do NOT propose parameter_tweak — there is insufficient trade data.`
 		: "";
@@ -120,16 +125,17 @@ export function buildEvolutionPrompt(
 
 Population: ${slotsUsed}
 
-${strategyBlocks}
+${strategyBlocks}${missedBlock}
 
 ---
 
 ## Task
 
 Propose mutations to improve this portfolio. Guidelines:
-- Prioritise strategies with 30+ trades and Sharpe < 1.5 for parameter_tweak
+- Prioritise strategies with 15+ trades and Sharpe < 1.5 for parameter_tweak
 - Propose a new_variant if ${slotsAvailable} slot(s) are available and there is a promising parent
 - For \`parameter_tweak\` and \`new_variant\`, stay within parameter ranges. For \`structural\`, any parameter names are allowed, but max 5.
+- If missed opportunities show a pattern not covered by existing strategies, propose a structural mutation to capture it
 - Return only a JSON array — no additional text${recoveryBlock}`;
 
 	return { system: SYSTEM_PROMPT, user };

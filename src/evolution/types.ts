@@ -46,9 +46,16 @@ export interface TradeSummary {
 	createdAt: string;
 }
 
+export interface MissedOpportunity {
+	symbol: string;
+	observation: string;
+	confidence: number;
+}
+
 export interface PerformanceLandscape {
 	strategies: StrategyPerformance[];
 	activePaperCount: number;
+	missedOpportunities: MissedOpportunity[];
 	timestamp: string;
 }
 

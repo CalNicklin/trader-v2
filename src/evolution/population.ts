@@ -10,6 +10,7 @@ export const DRAWDOWN_KILL_PCT = 15;
 export const MIN_POPULATION = 3;
 export const RECOVERY_SPAWN_CAP = 2;
 export const DRAWDOWN_KILL_MIN_TRADES = 10;
+export const MIN_TRADES_FOR_EVOLUTION = 15;
 
 async function retireStrategy(strategyId: number, reason: string): Promise<void> {
 	const db = getDb();

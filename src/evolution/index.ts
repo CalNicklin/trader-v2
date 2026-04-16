@@ -8,7 +8,12 @@ import { createChildLogger } from "../utils/logger";
 import { withRetry } from "../utils/retry";
 import { recordUsage } from "../utils/token-tracker";
 import { getPerformanceLandscape } from "./analyzer";
-import { MAX_POPULATION, MIN_POPULATION, RECOVERY_SPAWN_CAP } from "./population";
+import {
+	MAX_POPULATION,
+	MIN_POPULATION,
+	MIN_TRADES_FOR_EVOLUTION,
+	RECOVERY_SPAWN_CAP,
+} from "./population";
 import { buildEvolutionPrompt, parseEvolutionResponse } from "./prompt";
 import { spawnChild } from "./spawner";
 import type { TournamentResult } from "./types";
@@ -129,25 +134,28 @@ export async function runEvolutionCycle(): Promise<{
 
 	const recoveryMode = landscape.activePaperCount < MIN_POPULATION;
 
-	// Step 5b: Skip Sonnet call if no paper strategies with 30+ trades (bypass in recovery mode)
+	// Step 5b: Skip Sonnet call if no paper strategies with enough trades (bypass in recovery mode)
 	if (recoveryMode) {
 		log.warn(
 			{ activePaperCount: landscape.activePaperCount, minPopulation: MIN_POPULATION },
-			"Recovery mode: bypassing 30-trade gate due to low population",
+			"Recovery mode: bypassing trade gate due to low population",
 		);
 	} else {
 		const strategiesWithEnoughTrades = landscape.strategies.filter(
-			(s) => s.status === "paper" && (s.metrics?.sampleSize ?? 0) >= 30,
+			(s) => s.status === "paper" && (s.metrics?.sampleSize ?? 0) >= MIN_TRADES_FOR_EVOLUTION,
 		);
 
 		if (strategiesWithEnoughTrades.length === 0) {
-			log.info("Skipping evolution: no paper strategies with 30+ trades");
+			log.info(
+				{ gate: MIN_TRADES_FOR_EVOLUTION },
+				"Skipping evolution: no paper strategies with enough trades",
+			);
 			return {
 				drawdownKills,
 				tournaments: tournamentResults.length,
 				populationCulls,
 				spawned: [],
-				skippedReason: "no paper strategies with 30+ trades",
+				skippedReason: `no paper strategies with ${MIN_TRADES_FOR_EVOLUTION}+ trades`,
 			};
 		}
 	}

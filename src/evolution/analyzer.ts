@@ -1,9 +1,10 @@
-import { desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { paperTrades, strategies, strategyMetrics, tradeInsights } from "../db/schema";
 import { createChildLogger } from "../utils/logger";
 import type {
 	MetricsSummary,
+	MissedOpportunity,
 	PerformanceLandscape,
 	SignalDef,
 	StrategyPerformance,
@@ -122,6 +123,39 @@ export async function getStrategyPerformance(
 	};
 }
 
+const MISSED_OPPORTUNITY_LIMIT = 15;
+
+async function getMissedOpportunities(): Promise<MissedOpportunity[]> {
+	const db = getDb();
+	const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+	const rows = await db
+		.select({
+			observation: tradeInsights.observation,
+			confidence: tradeInsights.confidence,
+		})
+		.from(tradeInsights)
+		.where(
+			and(
+				eq(tradeInsights.insightType, "missed_opportunity"),
+				isNull(tradeInsights.strategyId),
+				gte(tradeInsights.confidence, 0.8),
+				gte(tradeInsights.createdAt, thirtyDaysAgo),
+			),
+		)
+		.orderBy(desc(tradeInsights.confidence))
+		.limit(MISSED_OPPORTUNITY_LIMIT);
+
+	return rows.map((r) => {
+		const symbolMatch = r.observation.match(/^(\S+)\s+moved/);
+		return {
+			symbol: symbolMatch?.[1] ?? "UNKNOWN",
+			observation: r.observation,
+			confidence: r.confidence ?? 0,
+		};
+	});
+}
+
 export async function getPerformanceLandscape(): Promise<PerformanceLandscape> {
 	const db = getDb();
 
@@ -132,17 +166,23 @@ export async function getPerformanceLandscape(): Promise<PerformanceLandscape> {
 		.all();
 
 	// N+1 is acceptable here — population cap of 8 means max 24 queries
-	const performances = await Promise.all(nonRetired.map((s) => getStrategyPerformance(s.id)));
+	const [performances, missedOpportunities] = await Promise.all([
+		Promise.all(nonRetired.map((s) => getStrategyPerformance(s.id))),
+		getMissedOpportunities(),
+	]);
 
 	const validPerformances = performances.filter((p): p is StrategyPerformance => p !== null);
 
 	const activePaperCount = validPerformances.filter((p) => p.status === "paper").length;
 
-	log.info(`Landscape built: ${validPerformances.length} strategies, ${activePaperCount} paper`);
+	log.info(
+		`Landscape built: ${validPerformances.length} strategies, ${activePaperCount} paper, ${missedOpportunities.length} missed opportunities`,
+	);
 
 	return {
 		strategies: validPerformances,
 		activePaperCount,
+		missedOpportunities,
 		timestamp: new Date().toISOString(),
 	};
 }
