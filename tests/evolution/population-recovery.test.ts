@@ -66,7 +66,7 @@ describe("population recovery mode", () => {
 		mockParentIds = [];
 	});
 
-	it("bypasses 30-trade gate when population is below MIN_POPULATION", async () => {
+	it("bypasses trade gate when population is below MIN_POPULATION", async () => {
 		const { strategies } = await import("../../src/db/schema.ts");
 		const { runEvolutionCycle } = await import("../../src/evolution/index.ts");
 
@@ -103,7 +103,7 @@ describe("population recovery mode", () => {
 
 		const result = await runEvolutionCycle();
 
-		// Should NOT have been skipped — recovery mode bypasses 30-trade gate
+		// Should NOT have been skipped — recovery mode bypasses trade gate
 		expect(result.skippedReason).toBeUndefined();
 		expect(result.spawned.length).toBeGreaterThan(0);
 	});
@@ -186,7 +186,7 @@ describe("population recovery mode", () => {
 		}
 	});
 
-	it("still skips when population is at or above MIN_POPULATION with no 30-trade strategies", async () => {
+	it("still skips when population is at or above MIN_POPULATION with insufficient trades", async () => {
 		const { strategies } = await import("../../src/db/schema.ts");
 		const { runEvolutionCycle } = await import("../../src/evolution/index.ts");
 
@@ -229,8 +229,8 @@ describe("population recovery mode", () => {
 
 		const result = await runEvolutionCycle();
 
-		// Not in recovery mode, no strategies with 30+ trades → should skip
-		expect(result.skippedReason).toBe("no paper strategies with 30+ trades");
+		// Not in recovery mode, no strategies with enough trades → should skip
+		expect(result.skippedReason).toBe("no paper strategies with 15+ trades");
 		expect(result.spawned).toEqual([]);
 	});
 });

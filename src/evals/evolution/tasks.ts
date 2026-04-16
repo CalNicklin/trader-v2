@@ -25,6 +25,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 1,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 1,
@@ -82,6 +83,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 2,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 2,
@@ -170,6 +172,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 3,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 4,
@@ -291,6 +294,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 1,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 7,
@@ -346,6 +350,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 2,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 8,
@@ -444,6 +449,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 7,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 10,
@@ -498,6 +504,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 8,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 11,
@@ -552,6 +559,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 3,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 12,
@@ -608,6 +616,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 2,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 13,
@@ -697,6 +706,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 2,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 15,
@@ -752,6 +762,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 0,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [],
 			},
 		},
@@ -771,6 +782,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 1,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 16,
@@ -834,6 +846,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 2,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 17,
@@ -890,6 +903,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 2,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 18,
@@ -978,6 +992,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 1,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 20,
@@ -1034,6 +1049,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 2,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 21,
@@ -1126,6 +1142,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 1,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 23,
@@ -1182,6 +1199,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 1,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 24,
@@ -1236,6 +1254,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 2,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 25,
@@ -1326,6 +1345,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 2,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 27,
@@ -1414,6 +1434,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 2,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 29,
@@ -1502,6 +1523,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 2,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 31,
@@ -1591,6 +1613,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 3,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 33,
@@ -1713,6 +1736,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 1,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 36,
@@ -1768,6 +1792,7 @@ export const EVOLUTION_TASKS: EvalTask<EvolutionInput, EvolutionReference>[] = [
 			landscape: {
 				activePaperCount: 1,
 				timestamp: "2026-04-04T09:00:00Z",
+				missedOpportunities: [],
 				strategies: [
 					{
 						id: 37,

@@ -40,6 +40,7 @@ function makeLandscape(overrides: Partial<PerformanceLandscape> = {}): Performan
 	return {
 		strategies: [makeStrategy()],
 		activePaperCount: 3,
+		missedOpportunities: [],
 		timestamp: "2026-04-04T09:00:00.000Z",
 		...overrides,
 	};
@@ -202,6 +203,34 @@ describe("buildEvolutionPrompt", () => {
 		const landscape = makeLandscape({ activePaperCount: 2 });
 		const { user } = buildEvolutionPrompt(landscape);
 		expect(user).not.toContain("POPULATION CRITICAL");
+	});
+
+	test("includes missed opportunities section when present", () => {
+		const landscape = makeLandscape({
+			missedOpportunities: [
+				{
+					symbol: "AVGO",
+					observation: "AVGO moved +11.5% (predicted long). Thesis: AI chip supply deal.",
+					confidence: 0.95,
+				},
+				{
+					symbol: "INTC",
+					observation: "INTC moved +17.4% (predicted long). Thesis: Terafab partnership.",
+					confidence: 0.9,
+				},
+			],
+		});
+		const { user } = buildEvolutionPrompt(landscape);
+		expect(user).toContain("Missed Opportunities");
+		expect(user).toContain("AVGO moved +11.5%");
+		expect(user).toContain("INTC moved +17.4%");
+		expect(user).toContain("catalyst-driven momentum");
+	});
+
+	test("omits missed opportunities section when empty", () => {
+		const landscape = makeLandscape({ missedOpportunities: [] });
+		const { user } = buildEvolutionPrompt(landscape);
+		expect(user).not.toContain("Missed Opportunities");
 	});
 
 	test("includes news pipeline subsystem context", () => {

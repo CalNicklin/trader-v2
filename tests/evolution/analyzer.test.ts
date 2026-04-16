@@ -239,6 +239,65 @@ describe("evolution analyzer", () => {
 		expect(landscape.strategies).toHaveLength(3);
 	});
 
+	test("getPerformanceLandscape includes missed opportunities with null strategyId", async () => {
+		const { strategies, tradeInsights } = await import("../../src/db/schema.ts");
+		const { getPerformanceLandscape } = await import("../../src/evolution/analyzer.ts");
+
+		await db.insert(strategies).values({
+			name: "test-strategy",
+			description: "Test",
+			parameters: "{}",
+			status: "paper" as const,
+			virtualBalance: 10000,
+			generation: 1,
+		});
+
+		await db.insert(tradeInsights).values([
+			{
+				strategyId: null,
+				insightType: "missed_opportunity" as const,
+				observation: "AVGO moved +11.5% (predicted long). Thesis: AI chip deal.",
+				confidence: 0.95,
+			},
+			{
+				strategyId: null,
+				insightType: "missed_opportunity" as const,
+				observation: "INTC moved +17.4% (predicted long). Thesis: Terafab.",
+				confidence: 0.9,
+			},
+			{
+				strategyId: null,
+				insightType: "missed_opportunity" as const,
+				observation: "Low confidence miss",
+				confidence: 0.5,
+			},
+		]);
+
+		const landscape = await getPerformanceLandscape();
+
+		expect(landscape.missedOpportunities).toHaveLength(2);
+		expect(landscape.missedOpportunities[0]!.symbol).toBe("AVGO");
+		expect(landscape.missedOpportunities[0]!.confidence).toBe(0.95);
+		expect(landscape.missedOpportunities[1]!.symbol).toBe("INTC");
+	});
+
+	test("getPerformanceLandscape returns empty missed opportunities when none exist", async () => {
+		const { strategies } = await import("../../src/db/schema.ts");
+		const { getPerformanceLandscape } = await import("../../src/evolution/analyzer.ts");
+
+		await db.insert(strategies).values({
+			name: "test-strategy",
+			description: "Test",
+			parameters: "{}",
+			status: "paper" as const,
+			virtualBalance: 10000,
+			generation: 1,
+		});
+
+		const landscape = await getPerformanceLandscape();
+		expect(landscape.missedOpportunities).toEqual([]);
+	});
+
 	test("getStrategyPerformance includes suggestedActions from high-confidence insights", async () => {
 		const { strategies, tradeInsights } = await import("../../src/db/schema.ts");
 		const { getStrategyPerformance } = await import("../../src/evolution/analyzer.ts");
