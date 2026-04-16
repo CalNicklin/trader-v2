@@ -80,7 +80,7 @@ Other sections are secondary unless you need to triangulate.
 > evaluation cycles drops ~8%.
 >
 > **Implementation sketch:** add `COOLDOWN_AFTER_KILL_HOURS = 24` to
-> `src/config.ts`; check in `src/evolution/floor-spawner.ts` before
+> `src/config.ts`; check in `src/evolution/spawner.ts` before
 > spawning.
 >
 > **Reversibility:** config tweak, fully reversible.
