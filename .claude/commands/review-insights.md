@@ -1,6 +1,6 @@
 ---
 description: Spawn a 5-analyst team to review learning-loop insights and propose prioritised P&L improvements
-allowed-tools: Bash(./scripts/pull-insight-snapshot.sh:*), Bash(git:*), Read, Write, Edit, Glob, Grep
+allowed-tools: Bash(./scripts/pull-insight-snapshot.sh:*), Bash(git:*), Bash(date:*), Read, Write, Edit, Glob, Grep
 ---
 
 ## Precheck
