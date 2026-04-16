@@ -154,7 +154,7 @@ SELECT job,
  ORDER BY cost_usd DESC;
 .print
 
-.print ## 10. Header
+.print ## 10. Footer — about this snapshot
 .print - Database: /opt/trader-v2/data/trader.db on VPS
 .print
 SQL
