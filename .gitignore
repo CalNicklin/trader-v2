@@ -11,6 +11,7 @@ src/evals/research-agent/results/
 .worktrees/
 .claire/
 # Claude Code project config — ignore everything by default, un-ignore shared files below.
+# Pattern: un-ignore dir so git descends into it, then re-ignore dir/* to keep its contents off by default, then whitelist specific files.
 .claude/*
 !.claude/settings.json
 !.claude/commands/
