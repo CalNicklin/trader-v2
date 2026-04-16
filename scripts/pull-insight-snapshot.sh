@@ -175,7 +175,7 @@ DB_SIZE=$("$SCRIPT_DIR/vps-ssh.sh" "stat -c%s /opt/trader-v2/data/trader.db" 2>/
 
 # ── Run the SQL batch over SSH, append to the header ──────────────────────
 
-"$SCRIPT_DIR/vps-ssh.sh" "sqlite3 /opt/trader-v2/data/trader.db" < "$SQL_FILE" >> "$TMP_HEADER"
+"$SCRIPT_DIR/vps-ssh.sh" "sqlite3 -bail /opt/trader-v2/data/trader.db" < "$SQL_FILE" >> "$TMP_HEADER"
 mv "$TMP_HEADER" "$OUT"
 
 # ── Fail-fast checks ──────────────────────────────────────────────────────
@@ -187,6 +187,8 @@ if [ "$SIZE_BYTES" -lt 2048 ]; then
   exit 1
 fi
 
+# Counts markdown data rows whose first column starts with a digit (integer ID or date).
+# Intentionally misses sections whose first column is a label (e.g. strategy status, job name) — they're not the primary sanity check.
 INSIGHT_ROWS=$(grep -c '^| [0-9]' "$OUT" || true)
 if [ "$INSIGHT_ROWS" -lt 10 ]; then
   echo "ERROR: snapshot contains $INSIGHT_ROWS data rows across all sections — need at least 10." >&2
