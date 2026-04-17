@@ -34,9 +34,9 @@ describe("strategy evaluator", () => {
 		migrate(db, { migrationsFolder: "./drizzle/migrations" });
 	});
 
-	test("evaluateStrategy opens position when entry signal fires", async () => {
+	test("evaluateStrategyForSymbol returns proposedEntry when entry signal fires", async () => {
 		const { evaluateStrategyForSymbol } = await import("../../src/strategy/evaluator.ts");
-		const { strategies, paperPositions, paperTrades } = await import("../../src/db/schema.ts");
+		const { strategies } = await import("../../src/db/schema.ts");
 
 		const [strat] = await db
 			.insert(strategies)
@@ -55,7 +55,7 @@ describe("strategy evaluator", () => {
 			})
 			.returning();
 
-		await evaluateStrategyForSymbol(strat!, "AAPL", "NASDAQ", {
+		const result = await evaluateStrategyForSymbol(strat!, "AAPL", "NASDAQ", {
 			quote: {
 				last: 150,
 				bid: 149.5,
@@ -75,13 +75,12 @@ describe("strategy evaluator", () => {
 			indicators: { rsi14: 45, atr14: 3.0, volume_ratio: 1.5 },
 		});
 
-		const positions = await db.select().from(paperPositions);
-		expect(positions).toHaveLength(1);
-		expect(positions[0]!.symbol).toBe("AAPL");
-
-		const trades = await db.select().from(paperTrades);
-		expect(trades).toHaveLength(1);
-		expect(trades[0]!.side).toBe("BUY");
+		expect(result.kind).toBe("proposedEntry");
+		if (result.kind === "proposedEntry") {
+			expect(result.params.symbol).toBe("AAPL");
+			expect(result.params.side).toBe("BUY");
+			expect(result.params.strategyId).toBe(strat!.id);
+		}
 	});
 
 	test("evaluateStrategy closes position when exit signal fires", async () => {

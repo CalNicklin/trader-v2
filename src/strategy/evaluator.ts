@@ -7,9 +7,11 @@ import {
 	getOpenPositionForSymbol,
 	getOpenPositions,
 	getSymbolsOnCooldown,
+	type OpenPositionInput,
 	openPaperPosition,
 } from "../paper/manager.ts";
-import { STRATEGY_MIN_VIABLE_BALANCE } from "../risk/constants.ts";
+import { tickWouldBreachCap } from "../risk/basket-cap.ts";
+import { MAX_CONCURRENT_POSITIONS, STRATEGY_MIN_VIABLE_BALANCE } from "../risk/constants.ts";
 import { checkTradeRiskGate } from "../risk/gate.ts";
 import { isTradingHalted, isWeeklyDrawdownActive } from "../risk/guardian.ts";
 import { createChildLogger } from "../utils/logger.ts";
@@ -108,7 +110,23 @@ export interface EvalInput {
 	indicators: SymbolIndicators;
 }
 
-/** Returns true if a new position was opened (caller must update riskState). */
+/**
+ * Result of evaluating a single symbol:
+ * - "none": no action (no signal fired, or gate rejected)
+ * - "exited": an existing position was closed (already fired)
+ * - "proposedEntry": an entry signal fired and passed the individual risk gate;
+ *   the caller must decide whether to open it (subject to basket-cap check)
+ */
+export type SymbolEvalResult =
+	| { kind: "none" }
+	| { kind: "exited" }
+	| { kind: "proposedEntry"; params: OpenPositionInput };
+
+/**
+ * Evaluate a strategy against a single symbol. Exits fire immediately; entries
+ * are returned as proposals so the caller can enforce the tick-wide basket cap
+ * (see `src/risk/basket-cap.ts`).
+ */
 export async function evaluateStrategyForSymbol(
 	strategy: StrategyRow,
 	symbol: string,
@@ -119,8 +137,8 @@ export async function evaluateStrategyForSymbol(
 		openPositionSectors: (string | null)[];
 		weeklyDrawdownActive: boolean;
 	},
-): Promise<boolean> {
-	if (!strategy.signals) return false;
+): Promise<SymbolEvalResult> {
+	if (!strategy.signals) return { kind: "none" };
 
 	const signals: SignalDef = JSON.parse(strategy.signals);
 
@@ -149,49 +167,53 @@ export async function evaluateStrategyForSymbol(
 						signalType: "exit",
 						reasoning: `Exit signal: ${signals.exit}`,
 					});
+					return { kind: "exited" };
 				}
 			}
 		}
-		return false;
-	} else {
-		const ctx = buildSignalContext({
-			quote: input.quote,
-			indicators: input.indicators,
-			position: null,
+		return { kind: "none" };
+	}
+
+	const ctx = buildSignalContext({
+		quote: input.quote,
+		indicators: input.indicators,
+		position: null,
+	});
+
+	if (input.quote.last == null || input.quote.last <= 0) return { kind: "none" };
+	const price = input.quote.last;
+
+	if (signals.entry_long && evalExpr(signals.entry_long, ctx)) {
+		const gateResult = checkTradeRiskGate({
+			accountBalance: strategy.virtualBalance,
+			price,
+			atr14: input.indicators.atr14 ?? 0,
+			side: "BUY",
+			exchange,
+			sector: null,
+			borrowFeeAnnualPct: null,
+			openPositionCount: riskState?.openPositionCount ?? 0,
+			openPositionSectors: riskState?.openPositionSectors ?? [],
+			weeklyDrawdownActive: riskState?.weeklyDrawdownActive,
 		});
 
-		if (input.quote.last == null || input.quote.last <= 0) return false;
-		const price = input.quote.last;
+		if (!gateResult.allowed) {
+			log.debug(
+				{ strategy: strategy.name, symbol, reason: gateResult.reason },
+				"Trade rejected by risk gate",
+			);
+			return { kind: "none" };
+		}
 
-		if (signals.entry_long && evalExpr(signals.entry_long, ctx)) {
-			const gateResult = checkTradeRiskGate({
-				accountBalance: strategy.virtualBalance,
-				price,
-				atr14: input.indicators.atr14 ?? 0,
-				side: "BUY",
-				exchange,
-				sector: null,
-				borrowFeeAnnualPct: null,
-				openPositionCount: riskState?.openPositionCount ?? 0,
-				openPositionSectors: riskState?.openPositionSectors ?? [],
-				weeklyDrawdownActive: riskState?.weeklyDrawdownActive,
-			});
-
-			if (!gateResult.allowed) {
-				log.debug(
-					{ strategy: strategy.name, symbol, reason: gateResult.reason },
-					"Trade rejected by risk gate",
-				);
-				return false;
-			}
-
-			const { quantity, stopLossPrice } = gateResult.sizing!;
-			if (quantity > 0) {
-				log.info(
-					{ strategy: strategy.name, symbol, signal: "entry_long", quantity, price, stopLossPrice },
-					"Entry long signal fired (risk-gated)",
-				);
-				await openPaperPosition({
+		const { quantity, stopLossPrice } = gateResult.sizing!;
+		if (quantity > 0) {
+			log.info(
+				{ strategy: strategy.name, symbol, signal: "entry_long", quantity, price, stopLossPrice },
+				"Entry long signal fired (risk-gated) — proposing open",
+			);
+			return {
+				kind: "proposedEntry",
+				params: {
 					strategyId: strategy.id,
 					symbol,
 					exchange,
@@ -200,45 +222,47 @@ export async function evaluateStrategyForSymbol(
 					quantity,
 					signalType: "entry_long",
 					reasoning: `Entry signal: ${signals.entry_long}`,
-				});
-				return true;
-			}
-		} else if (signals.entry_short && evalExpr(signals.entry_short, ctx)) {
-			const gateResult = checkTradeRiskGate({
-				accountBalance: strategy.virtualBalance,
-				price,
-				atr14: input.indicators.atr14 ?? 0,
-				side: "SELL",
-				exchange,
-				sector: null,
-				borrowFeeAnnualPct: null,
-				openPositionCount: riskState?.openPositionCount ?? 0,
-				openPositionSectors: riskState?.openPositionSectors ?? [],
-				weeklyDrawdownActive: riskState?.weeklyDrawdownActive,
-			});
+				},
+			};
+		}
+	} else if (signals.entry_short && evalExpr(signals.entry_short, ctx)) {
+		const gateResult = checkTradeRiskGate({
+			accountBalance: strategy.virtualBalance,
+			price,
+			atr14: input.indicators.atr14 ?? 0,
+			side: "SELL",
+			exchange,
+			sector: null,
+			borrowFeeAnnualPct: null,
+			openPositionCount: riskState?.openPositionCount ?? 0,
+			openPositionSectors: riskState?.openPositionSectors ?? [],
+			weeklyDrawdownActive: riskState?.weeklyDrawdownActive,
+		});
 
-			if (!gateResult.allowed) {
-				log.debug(
-					{ strategy: strategy.name, symbol, reason: gateResult.reason },
-					"Trade rejected by risk gate",
-				);
-				return false;
-			}
+		if (!gateResult.allowed) {
+			log.debug(
+				{ strategy: strategy.name, symbol, reason: gateResult.reason },
+				"Trade rejected by risk gate",
+			);
+			return { kind: "none" };
+		}
 
-			const { quantity, stopLossPrice } = gateResult.sizing!;
-			if (quantity > 0) {
-				log.info(
-					{
-						strategy: strategy.name,
-						symbol,
-						signal: "entry_short",
-						quantity,
-						price,
-						stopLossPrice,
-					},
-					"Entry short signal fired (risk-gated)",
-				);
-				await openPaperPosition({
+		const { quantity, stopLossPrice } = gateResult.sizing!;
+		if (quantity > 0) {
+			log.info(
+				{
+					strategy: strategy.name,
+					symbol,
+					signal: "entry_short",
+					quantity,
+					price,
+					stopLossPrice,
+				},
+				"Entry short signal fired (risk-gated) — proposing open",
+			);
+			return {
+				kind: "proposedEntry",
+				params: {
 					strategyId: strategy.id,
 					symbol,
 					exchange,
@@ -247,12 +271,55 @@ export async function evaluateStrategyForSymbol(
 					quantity,
 					signalType: "entry_short",
 					reasoning: `Entry signal: ${signals.entry_short}`,
-				});
-				return true;
-			}
+				},
+			};
 		}
-		return false;
 	}
+	return { kind: "none" };
+}
+
+/**
+ * Given a strategy's existing open count and a list of proposed entries collected
+ * over a single evaluation tick, either fire all proposals (if the tick stays
+ * within the basket cap) or log a warning and fire none. Returns the number
+ * of positions actually opened.
+ */
+async function fireProposedEntriesWithBasketCap(
+	strategy: StrategyRow,
+	existingOpen: number,
+	proposedEntries: OpenPositionInput[],
+): Promise<number> {
+	if (proposedEntries.length === 0) return 0;
+
+	if (tickWouldBreachCap(existingOpen, proposedEntries.length)) {
+		log.warn(
+			{
+				event: "basket_over_cap",
+				strategy: strategy.name,
+				strategyId: strategy.id,
+				existingOpen,
+				proposedCount: proposedEntries.length,
+				symbols: proposedEntries.map((p) => p.symbol),
+				cap: MAX_CONCURRENT_POSITIONS,
+			},
+			"Basket would breach MAX_CONCURRENT_POSITIONS — rejecting entire tick",
+		);
+		return 0;
+	}
+
+	let opened = 0;
+	for (const params of proposedEntries) {
+		try {
+			await openPaperPosition(params);
+			opened++;
+		} catch (error) {
+			log.error(
+				{ strategy: strategy.name, symbol: params.symbol, error },
+				"Error opening proposed paper position",
+			);
+		}
+	}
+	return opened;
 }
 
 export async function evaluateAllStrategies(
@@ -324,6 +391,7 @@ export async function evaluateAllStrategies(
 		const cooldownSymbols = await getSymbolsOnCooldown(strategy.id);
 
 		const evaluatedSymbols = new Set<string>();
+		const proposedEntries: OpenPositionInput[] = [];
 
 		for (const symbolSpec of exchangeFiltered) {
 			const [symbol, exchange] = symbolSpec.includes(":")
@@ -366,18 +434,23 @@ export async function evaluateAllStrategies(
 			}
 
 			try {
-				const opened = await evaluateStrategyForSymbol(
+				const result = await evaluateStrategyForSymbol(
 					strategy,
 					symbol!,
 					exchange!,
 					data,
 					riskState,
 				);
-				if (opened) riskState.openPositionCount++;
+				if (result.kind === "proposedEntry") {
+					proposedEntries.push(result.params);
+				}
 			} catch (error) {
 				log.error({ strategy: strategy.name, symbol, error }, "Error evaluating strategy");
 			}
 		}
+
+		// Apply basket-cap check and fire (or reject) the tick's proposed entries
+		await fireProposedEntriesWithBasketCap(strategy, openPositions.length, proposedEntries);
 
 		// ── Exit-check orphaned positions (symbols no longer in universe) ────
 		for (const pos of openPositions) {
@@ -392,6 +465,8 @@ export async function evaluateAllStrategies(
 			const data = await getQuoteAndIndicators(pos.symbol, pos.exchange);
 			try {
 				if (data) {
+					// Orphaned positions only exit; entries shouldn't fire here, but if they
+					// somehow did we'd ignore the proposal (out-of-universe symbol).
 					await evaluateStrategyForSymbol(strategy, pos.symbol, pos.exchange, data, riskState);
 				} else {
 					await evaluateTimeBasedExit(strategy, pos);
@@ -466,6 +541,7 @@ export async function evaluateAllStrategies(
 		const cooldownSymbolsGrad = await getSymbolsOnCooldown(strategy.id);
 
 		const evaluatedSymbolsGrad = new Set<string>();
+		const proposedEntriesGrad: OpenPositionInput[] = [];
 
 		for (const symbolSpec of exchangeFilteredGrad) {
 			const [symbol, exchange] = symbolSpec.includes(":")
@@ -524,14 +600,16 @@ export async function evaluateAllStrategies(
 			}
 
 			try {
-				const opened = await evaluateStrategyForSymbol(
+				const result = await evaluateStrategyForSymbol(
 					strategy,
 					symbol!,
 					exchange!,
 					data,
 					riskState,
 				);
-				if (opened) riskState.openPositionCount++;
+				if (result.kind === "proposedEntry") {
+					proposedEntriesGrad.push(result.params);
+				}
 			} catch (error) {
 				log.error(
 					{ strategy: strategy.name, symbol, error },
@@ -539,6 +617,9 @@ export async function evaluateAllStrategies(
 				);
 			}
 		}
+
+		// Apply basket-cap check and fire (or reject) the tick's proposed entries
+		await fireProposedEntriesWithBasketCap(strategy, openPositions.length, proposedEntriesGrad);
 
 		// ── Exit-check orphaned positions (symbols no longer in universe) ────
 		for (const pos of openPositions) {

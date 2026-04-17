@@ -41,6 +41,7 @@ describe("full evaluation cycle", () => {
 	test("full cycle: strategy + quote -> evaluate -> trade -> metrics", async () => {
 		const { strategies, paperTrades, strategyMetrics } = await import("../../src/db/schema.ts");
 		const { evaluateStrategyForSymbol } = await import("../../src/strategy/evaluator.ts");
+		const { openPaperPosition } = await import("../../src/paper/manager.ts");
 		const { recalculateMetrics } = await import("../../src/strategy/metrics.ts");
 
 		// Insert a strategy that will trigger on any positive price
@@ -61,8 +62,8 @@ describe("full evaluation cycle", () => {
 			})
 			.returning();
 
-		// Evaluate — should open a position
-		await evaluateStrategyForSymbol(strat!, "TEST", "NASDAQ", {
+		// Evaluate — should propose an entry, then fire it
+		const entryResult = await evaluateStrategyForSymbol(strat!, "TEST", "NASDAQ", {
 			quote: {
 				last: 100,
 				bid: 99.5,
@@ -81,6 +82,10 @@ describe("full evaluation cycle", () => {
 			},
 			indicators: { rsi14: 50, atr14: 2.0, volume_ratio: 1.25 },
 		});
+		expect(entryResult.kind).toBe("proposedEntry");
+		if (entryResult.kind === "proposedEntry") {
+			await openPaperPosition(entryResult.params);
+		}
 
 		let trades = await db.select().from(paperTrades);
 		expect(trades).toHaveLength(1);
