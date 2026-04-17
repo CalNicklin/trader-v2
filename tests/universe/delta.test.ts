@@ -14,7 +14,7 @@ describe("runDailyDeltaCheck", () => {
 	test("demotes symbols flagged as halted by the checker", async () => {
 		const { runDailyDeltaCheck } = await import("../../src/universe/delta.ts");
 		const { getDb } = await import("../../src/db/client.ts");
-		const { investableUniverse } = await import("../../src/db/schema.ts");
+		const { investableUniverse, universeSnapshots } = await import("../../src/db/schema.ts");
 		const { eq } = await import("drizzle-orm");
 
 		await getDb()
@@ -38,6 +38,16 @@ describe("runDailyDeltaCheck", () => {
 			.where(eq(investableUniverse.symbol, "HALT"))
 			.all();
 		expect(rows[0]?.active).toBe(false);
+
+		const snapshots = await getDb()
+			.select()
+			.from(universeSnapshots)
+			.where(eq(universeSnapshots.symbol, "HALT"))
+			.all();
+		expect(snapshots).toHaveLength(1);
+		expect(snapshots[0]?.snapshotDate).toBe("2026-04-17");
+		expect(snapshots[0]?.action).toBe("removed");
+		expect(snapshots[0]?.reason).toBe("halted");
 	});
 
 	test("does nothing when no symbols are flagged", async () => {

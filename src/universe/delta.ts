@@ -34,28 +34,30 @@ export async function runDailyDeltaCheck(input: DeltaCheckInput): Promise<DeltaC
 			log.info({ symbol: flag.symbol, exchange: flag.exchange }, "Skipping exempt symbol");
 			continue;
 		}
-		const result = await db
-			.update(investableUniverse)
-			.set({ active: false, lastRefreshed: now })
-			.where(
-				and(
-					eq(investableUniverse.symbol, flag.symbol),
-					eq(investableUniverse.exchange, flag.exchange),
-					eq(investableUniverse.active, true),
-				),
-			)
-			.returning({ id: investableUniverse.id });
+		await db.transaction(async (tx) => {
+			const result = await tx
+				.update(investableUniverse)
+				.set({ active: false, lastRefreshed: now })
+				.where(
+					and(
+						eq(investableUniverse.symbol, flag.symbol),
+						eq(investableUniverse.exchange, flag.exchange),
+						eq(investableUniverse.active, true),
+					),
+				)
+				.returning({ id: investableUniverse.id });
 
-		if (result.length > 0) {
-			demoted++;
-			await db.insert(universeSnapshots).values({
-				snapshotDate: input.snapshotDate,
-				symbol: flag.symbol,
-				exchange: flag.exchange,
-				action: "removed" as const,
-				reason: flag.reason,
-			});
-		}
+			if (result.length > 0) {
+				demoted++;
+				await tx.insert(universeSnapshots).values({
+					snapshotDate: input.snapshotDate,
+					symbol: flag.symbol,
+					exchange: flag.exchange,
+					action: "removed" as const,
+					reason: flag.reason,
+				});
+			}
+		});
 	}
 
 	log.info({ flagged: flags.length, demoted }, "Daily delta check complete");
