@@ -158,4 +158,8 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - tests: 723/723 pass
 - lint: clean (2 pre-existing warnings in unrelated test stubs)
 
+**Commit:** ec4ab71 — Universe Step 1 Task 6: weekly refresh orchestrator
+
+**Fix commit:** 50610a0 — Transaction-wrap refresh + capture now once (wraps upsert/deactivate/snapshot in db.transaction; single `now` timestamp for all writes)
+
 **Next task:** Task 7 — Daily delta check
