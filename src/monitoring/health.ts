@@ -1,6 +1,6 @@
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "../db/client";
-import { dailySnapshots, quotesCache, strategies } from "../db/schema";
+import { dailySnapshots, investableUniverse, quotesCache, strategies } from "../db/schema";
 import { getDailySpend } from "../utils/budget";
 
 export interface HealthData {
@@ -13,6 +13,11 @@ export interface HealthData {
 	lastQuoteTime: string | null;
 	paused: boolean;
 	ibkrConnected?: boolean;
+	universe: {
+		activeCount: number;
+		lastRefreshed: string | null;
+		bySource: { russell_1000: number; ftse_350: number; aim_allshare: number };
+	};
 }
 
 // Module-level pause state
@@ -88,5 +93,29 @@ export async function getHealthData(): Promise<HealthData> {
 		lastQuoteTime,
 		paused: _paused,
 		ibkrConnected,
+		universe: await getUniverseHealth(),
 	};
+}
+
+export async function getUniverseHealth(): Promise<{
+	activeCount: number;
+	lastRefreshed: string | null;
+	bySource: { russell_1000: number; ftse_350: number; aim_allshare: number };
+}> {
+	const db = getDb();
+	const rows = await db
+		.select({
+			indexSource: investableUniverse.indexSource,
+			lastRefreshed: investableUniverse.lastRefreshed,
+		})
+		.from(investableUniverse)
+		.where(eq(investableUniverse.active, true))
+		.all();
+	const bySource = { russell_1000: 0, ftse_350: 0, aim_allshare: 0 };
+	let latest: string | null = null;
+	for (const r of rows) {
+		bySource[r.indexSource]++;
+		if (latest == null || r.lastRefreshed > latest) latest = r.lastRefreshed;
+	}
+	return { activeCount: rows.length, lastRefreshed: latest, bySource };
 }

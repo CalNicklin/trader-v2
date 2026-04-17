@@ -15,7 +15,7 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - [x] Task 6: Weekly refresh orchestrator
 - [x] Task 7: Daily delta check (halt/bankrupt detection)
 - [x] Task 8: Cron job registration (weekly + daily)
-- [ ] Task 9: Health endpoint exposure
+- [x] Task 9: Health endpoint exposure
 - [ ] Task 10: Initial seed + verification
 - [ ] Task 11: End-to-end integration test
 
@@ -217,3 +217,25 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 **Commit:** 378b7a0
 
 **Next task:** Task 9 — Health endpoint exposure
+
+## Task 9: completed
+
+**Layer:** L3 (wiring)
+
+**Completed work:**
+- Added `getUniverseHealth` to `src/monitoring/health.ts`
+- Wired `universe: await getUniverseHealth()` into the main health JSON response
+- Added `universe` field to the `HealthData` interface
+- Added 2 tests covering empty and populated states
+
+**Exported contracts:**
+- `getUniverseHealth(): Promise<{activeCount, lastRefreshed, bySource}>`
+
+**Verification:**
+- typecheck: pass
+- tests: 728/728 pass
+- lint: clean
+
+**Commit:** <sha>
+
+**Next task:** Task 10 — Initial seed + verification
