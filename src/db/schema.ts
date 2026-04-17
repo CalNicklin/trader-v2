@@ -510,3 +510,27 @@ export const universeSnapshots = sqliteTable(
 		dateIdx: index("universe_snapshots_date_idx").on(table.snapshotDate),
 	}),
 );
+
+// ── Symbol Profiles cache ───────────────────────────────────────────────────
+
+export const symbolProfiles = sqliteTable(
+	"symbol_profiles",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		symbol: text("symbol").notNull(),
+		exchange: text("exchange").notNull(),
+		marketCapUsd: real("market_cap_usd"),
+		sharesOutstanding: real("shares_outstanding"),
+		freeFloatShares: real("free_float_shares"),
+		ipoDate: text("ipo_date"),
+		fetchedAt: text("fetched_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => ({
+		symbolExchangeUnique: uniqueIndex("symbol_profiles_symbol_exchange_unique").on(
+			table.symbol,
+			table.exchange,
+		),
+	}),
+);
