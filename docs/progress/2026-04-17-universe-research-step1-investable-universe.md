@@ -87,6 +87,6 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - tests: 707/707 pass
 - lint: clean
 
-**Commit:** <sha> — Universe Step 1 Task 3: FTSE 350 + AIM constituents fetchers
+**Commit:** 2cdabac — Universe Step 1 Task 3: FTSE 350 + AIM constituents fetchers
 
 **Next task:** Task 4 — Liquidity filter pipeline
