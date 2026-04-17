@@ -10,6 +10,22 @@ src/evals/results/
 src/evals/research-agent/results/
 .worktrees/
 .claire/
-.claude/
+# Claude Code project config — ignore everything by default, un-ignore shared files below.
+# Pattern: un-ignore dir so git descends into it, then re-ignore dir/* to keep its contents off by default, then whitelist specific files.
+.claude/*
+!.claude/settings.json
+!.claude/commands/
+.claude/commands/*
+!.claude/commands/review-insights.md
+!.claude/agents/
+.claude/agents/*
+!.claude/agents/insight-risk.md
+!.claude/agents/insight-signal.md
+!.claude/agents/insight-universe.md
+!.claude/agents/insight-execution.md
+!.claude/agents/insight-devils-advocate.md
+
+# Team snapshot dumps — never commit
+.claude-team-data/
 monitor/dist/
 monitor/node_modules/
