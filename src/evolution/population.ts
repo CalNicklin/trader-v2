@@ -1,6 +1,12 @@
 import { and, desc, eq, gte, isNotNull } from "drizzle-orm";
 import { getDb } from "../db/client";
-import { graduationEvents, paperTrades, strategies, strategyMetrics, tradeInsights } from "../db/schema";
+import {
+	graduationEvents,
+	paperTrades,
+	strategies,
+	strategyMetrics,
+	tradeInsights,
+} from "../db/schema";
 import { closeAllPositions } from "../paper/manager";
 import { createChildLogger } from "../utils/logger";
 import { computeBackHalfPnl, MIN_CLOSED_TRADES_FOR_BACK_HALF } from "./back-half-pnl";
@@ -221,10 +227,7 @@ export async function checkConsecutiveLossPause(): Promise<number[]> {
 			recentTrades.length >= CONSECUTIVE_LOSS_PAUSE &&
 			recentTrades.every((t) => (t.pnl ?? 0) < 0)
 		) {
-			await pauseStrategy(
-				strategy.id,
-				`${CONSECUTIVE_LOSS_PAUSE} consecutive losing trades`,
-			);
+			await pauseStrategy(strategy.id, `${CONSECUTIVE_LOSS_PAUSE} consecutive losing trades`);
 			paused.push(strategy.id);
 			continue;
 		}
