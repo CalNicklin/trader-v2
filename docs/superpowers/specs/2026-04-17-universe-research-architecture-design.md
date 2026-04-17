@@ -38,7 +38,7 @@ The existing strategy evaluator, graduation gate, risk guardrails, and learning 
 ### Source composition
 
 - **US:** Russell 1000 membership (proxy via FMP `/v3/russell-1000-constituent` or cached index file)
-- **UK:** FTSE 350 constituents (FMP `/v3/symbol/FTSE` or hand-curated weekly-refreshed list)
+- **UK:** FTSE 350 + AIM All-Share constituents (FMP `/v3/symbol/FTSE`, `/v3/symbol/AIM` or hand-curated weekly-refreshed list). After the $5M ADV liquidity filter the effective AIM count will likely be ~30–80 names — AIM is fraud-prone and thin, but the liquidity floor handles that. The existing seed universe already trades some AIM names (GAW, FDEV, TET, JET2, BOWL), so this is continuity rather than expansion.
 - **Always included if held:** existing strategies' open positions (to avoid orphaning active trades during refresh)
 
 ### Eligibility filters (applied at refresh time)
@@ -79,10 +79,16 @@ A name enters the watchlist when **any** of the following fire:
 1. **News catalyst:** classifier marks headline `tradeable=true AND urgency>=medium AND symbol in investable_universe`
 2. **Research agent promotion:** existing research agent path, confidence `>= 0.75`
 3. **Earnings window:** name reports within next 5 trading days (via FMP `/v3/earning_calendar`)
-4. **Insider buy (US only):** Form 4 purchase `>= $100k` by officer/director in last 10 days (sec-api.io or equivalent)
-5. **Unusual volume:** `volume_ratio >= 3.0` over 20-day avg, same session (via existing quotes_cache)
-6. **Sector rotation:** sector RS breakout flagged by daily sector scan (future — not v1)
-7. **Missed-opportunity feedback:** learning loop surfaces a name repeatedly — three missed-opportunity insights with confidence `>= 0.8` in 14 days → auto-promote
+4. **Unusual volume:** `volume_ratio >= 3.0` over 20-day avg, same session (via existing quotes_cache)
+5. **Missed-opportunity feedback:** learning loop surfaces a name repeatedly — three missed-opportunity insights with confidence `>= 0.8` in 14 days → auto-promote
+
+Deferred to a follow-up (kept out of v1 scope for minimum cost / engineering surface):
+
+- **Insider buy (Form 4):** high alpha but requires EDGAR parsing and new data pipeline. Defer to a focused follow-up once the four-tier architecture is proven.
+- **8-K filings:** same reasoning — defer.
+- **Sector rotation:** requires a daily sector-RS scanner; defer to a later enhancement.
+
+Rationale: five triggers (news, research, earnings, volume, feedback) already cover the two largest alpha-density sources identified in the research memo (news catalysts, earnings calendar) plus the existing research-agent and learning-loop feedback. Shipping without SEC data keeps v1 dependency-free and costs unchanged.
 
 ### Research enrichment (Opus/Sonnet)
 
@@ -219,13 +225,12 @@ Add `watchlist_filter` TEXT column (JSON) to `strategies`. Keep existing `univer
 ## Data sources
 
 Already wired:
-- **FMP:** `/v3/russell-1000-constituent`, `/v3/symbol/FTSE`, `/v3/earning_calendar`, `/v3/stock-screener`, `/v3/quote/<symbol>` for spread sampling
+- **FMP:** `/v3/russell-1000-constituent`, `/v3/symbol/FTSE`, `/v3/symbol/AIM`, `/v3/earning_calendar`, `/v3/stock-screener`, `/v3/quote/<symbol>` for spread sampling
 - **IBKR:** market-data snapshots (fallback / confirmation)
 - **News classifier:** existing pipeline
 - **Research agent:** existing Opus/Sonnet path
 
-New dependency:
-- **SEC EDGAR feed** for Form 4 insider buys and 8-K filings. Options: sec-api.io (paid, clean API) or direct EDGAR atom feed parsing (free, messier). Recommend sec-api.io for v1 at ~$30/mo — decision deferred to implementation plan.
+No new paid dependencies in v1. SEC filings (Form 4, 8-K) are deferred to a follow-up iteration to minimize v1 cost and scope.
 
 ## Component changes
 
@@ -270,11 +275,11 @@ Estimated monthly LLM cost delta:
 
 Estimated API cost delta:
 
-- **FMP:** adds `/earning_calendar` daily, `/russell-1000-constituent` weekly — both within free/existing tier
-- **SEC filings (sec-api.io):** ~$30/month for Form 4 + 8-K feeds, if we go paid
+- **FMP:** adds `/earning_calendar` daily, `/russell-1000-constituent` + `/symbol/AIM` weekly — all within free/existing tier
 - **IBKR spread sampling:** no new cost, uses existing subscription
+- **SEC filings:** deferred to follow-up; zero v1 cost
 
-Net estimate: **$40–$70/month** incremental LLM + data cost. Subsumes Wave 2 proposal #10 (AI supply-chain universe-add) entirely.
+Net estimate: **$12–$36/month** incremental LLM cost only. No new paid data feeds. Subsumes Wave 2 proposal #10 (AI supply-chain universe-add) entirely.
 
 ## How this subsumes open backlog
 
@@ -293,13 +298,18 @@ Out of scope — may come later but not in this design:
 - Replacing seed strategies themselves (we keep the existing strategy class; only the universe selection changes)
 - Live-trading flag changes — this is paper-first; live flip follows existing gating
 
-## Open questions for Cal
+## Decisions locked in
 
-- **Form 4 / 8-K data source:** sec-api.io at ~$30/mo or DIY EDGAR parsing? (Recommend: sec-api.io for v1, revisit.)
-- **UK universe:** FTSE 350 is ~350 names; after liquidity filters we might have ~100. Is that enough, or do we want to include AIM? (AIM has much higher fraud rate and poor liquidity — recommend excluding from v1.)
-- **Watchlist cap:** 150 soft / 300 hard — too conservative? A discretionary hedge fund watches 40–150; a systematic shop watches more. (Recommend 150/300 for v1; raise after we see how it behaves.)
-- **Migration order:** start with `news_sentiment_mr_v1` or with `earnings_drift_v1` (which gains earnings-calendar auto-promotion natively)? (Recommend `news_sentiment_mr_v1` — smallest blast radius.)
-- **Default `watchlist_filter` for new seeds:** should mutation-spawned children inherit the parent's filter, or start with a permissive default? (Recommend: inherit parent's filter verbatim; evolution can mutate it over time.)
+- **SEC filings data source:** deferred to a post-v1 iteration. v1 ships without Form 4 or 8-K — news, earnings, volume, research, and feedback triggers already cover the two highest-alpha catalyst classes.
+- **UK universe:** include both FTSE 350 and AIM All-Share. The $5M ADV filter handles the AIM liquidity problem mechanically; expected effective AIM count after filtering is ~30–80 names.
+- **Migration order:** `news_sentiment_mr_v1` first (smallest blast radius, already news-gated).
+
+## Still-open questions
+
+- **Watchlist cap:** 150 soft / 300 hard — too conservative for v1? (Default: 150/300. Easy to raise later based on observed behaviour.)
+- **Default `watchlist_filter` for mutation-spawned children:** inherit parent's filter verbatim, or start with a permissive default? (Default recommendation: inherit; evolution can mutate it.)
+
+Both can be resolved in the implementation plan — not blocking.
 
 ## Success criteria (30 days after Step 4 migration complete)
 
