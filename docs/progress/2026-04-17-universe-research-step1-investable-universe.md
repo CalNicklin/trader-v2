@@ -16,7 +16,7 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - [x] Task 7: Daily delta check (halt/bankrupt detection)
 - [x] Task 8: Cron job registration (weekly + daily)
 - [x] Task 9: Health endpoint exposure
-- [ ] Task 10: Initial seed + verification
+- [x] Task 10: Initial seed + verification
 - [ ] Task 11: End-to-end integration test
 
 ## Completed tasks
@@ -239,3 +239,22 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 **Commit:** 1dbb6a2
 
 **Next task:** Task 10 — Initial seed + verification
+
+## Task 10: completed
+
+**Layer:** L4 (rollout)
+
+**Completed work:**
+- Created `scripts/seed-universe.ts` — manual one-off invocation of `runWeeklyUniverseRefresh` for initial deploy
+
+**Exported contracts:**
+- (script — no exports)
+
+**Verification:**
+- typecheck: pass
+- tests: 728/728 pass
+- lint: clean
+
+**Commit:** <sha>
+
+**Next task:** Task 11 — End-to-end integration test
