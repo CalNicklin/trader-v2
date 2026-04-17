@@ -5,6 +5,7 @@ describe("checkConsecutiveLossPause", () => {
 	let db: ReturnType<typeof import("../../src/db/client.ts").getDb>;
 
 	beforeEach(async () => {
+		_tradeSeq = 0;
 		const { resetConfigForTesting } = await import("../../src/config.ts");
 		resetConfigForTesting();
 		const { closeDb, getDb } = await import("../../src/db/client.ts");
@@ -38,8 +39,11 @@ describe("checkConsecutiveLossPause", () => {
 		return row!.id;
 	}
 
+	let _tradeSeq = 0;
 	async function insertTrade(strategyId: number, pnl: number) {
 		const { paperTrades } = await import("../../src/db/schema.ts");
+		const createdAt = new Date(Date.now() + _tradeSeq * 1000).toISOString();
+		_tradeSeq++;
 		await db.insert(paperTrades).values({
 			strategyId,
 			symbol: "TEST",
@@ -50,6 +54,7 @@ describe("checkConsecutiveLossPause", () => {
 			friction: 0,
 			pnl,
 			signalType: "exit",
+			createdAt,
 		});
 	}
 
@@ -155,5 +160,25 @@ describe("checkConsecutiveLossPause", () => {
 		expect(paused).not.toContain(id);
 		const row = await db.select().from(strategies).where(eq(strategies.id, id)).get();
 		expect(row?.status).toBe("paper");
+	});
+
+	test("pauses on pattern_analysis insight with tag 'recurring_failure' and conf 0.9", async () => {
+		const { checkConsecutiveLossPause } = await import("../../src/evolution/population.ts");
+		const { strategies, tradeInsights } = await import("../../src/db/schema.ts");
+
+		const id = await insertPaperStrategy();
+		await db.insert(tradeInsights).values({
+			strategyId: id,
+			insightType: "pattern_analysis",
+			tags: JSON.stringify(["recurring_failure"]),
+			observation: "recurring failure pattern detected across multiple sessions",
+			confidence: 0.9,
+		});
+
+		const paused = await checkConsecutiveLossPause();
+
+		expect(paused).toContain(id);
+		const row = await db.select().from(strategies).where(eq(strategies.id, id)).get();
+		expect(row?.status).toBe("paused");
 	});
 });
