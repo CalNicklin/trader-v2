@@ -111,3 +111,56 @@ describe("health data collector", () => {
 		expect(data.lastQuoteTime).toBe(now);
 	});
 });
+
+describe("getUniverseHealth", () => {
+	beforeEach(async () => {
+		const { resetConfigForTesting } = await import("../../src/config.ts");
+		resetConfigForTesting();
+		const { closeDb, getDb } = await import("../../src/db/client.ts");
+		closeDb();
+		const db = getDb();
+		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
+		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+	});
+
+	test("reports zero when universe is empty", async () => {
+		const { getUniverseHealth } = await import("../../src/monitoring/health.ts");
+		const result = await getUniverseHealth();
+		expect(result.activeCount).toBe(0);
+		expect(result.bySource.russell_1000).toBe(0);
+	});
+
+	test("counts active symbols by source", async () => {
+		const { getUniverseHealth } = await import("../../src/monitoring/health.ts");
+		const { getDb } = await import("../../src/db/client.ts");
+		const { investableUniverse } = await import("../../src/db/schema.ts");
+
+		await getDb()
+			.insert(investableUniverse)
+			.values([
+				{
+					symbol: "AAPL",
+					exchange: "NASDAQ",
+					indexSource: "russell_1000" as const,
+					active: true,
+				},
+				{
+					symbol: "HSBA",
+					exchange: "LSE",
+					indexSource: "ftse_350" as const,
+					active: true,
+				},
+				{
+					symbol: "GONE",
+					exchange: "NASDAQ",
+					indexSource: "russell_1000" as const,
+					active: false,
+				},
+			]);
+
+		const result = await getUniverseHealth();
+		expect(result.activeCount).toBe(2);
+		expect(result.bySource.russell_1000).toBe(1);
+		expect(result.bySource.ftse_350).toBe(1);
+	});
+});

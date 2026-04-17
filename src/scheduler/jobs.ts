@@ -30,7 +30,9 @@ export type JobName =
 	| "missed_opportunity_weekly"
 	| "promotion_check"
 	| "research_calibration_24h"
-	| "research_calibration_48h";
+	| "research_calibration_48h"
+	| "universe_refresh_weekly"
+	| "universe_delta_daily";
 
 const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	quote_refresh_uk: "quotes_uk",
@@ -60,6 +62,8 @@ const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	promotion_check: "analysis",
 	research_calibration_24h: "analysis",
 	research_calibration_48h: "analysis",
+	universe_refresh_weekly: "analysis",
+	universe_delta_daily: "analysis",
 };
 
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
@@ -285,6 +289,18 @@ async function executeJob(name: JobName): Promise<void> {
 		case "research_calibration_48h": {
 			const { backfillOutcomes } = await import("../news/research-calibration.ts");
 			await backfillOutcomes({ window: "48h" });
+			break;
+		}
+
+		case "universe_refresh_weekly": {
+			const { runWeeklyUniverseRefresh } = await import("./universe-jobs.ts");
+			await runWeeklyUniverseRefresh();
+			break;
+		}
+
+		case "universe_delta_daily": {
+			const { runDailyUniverseDelta } = await import("./universe-jobs.ts");
+			await runDailyUniverseDelta();
 			break;
 		}
 	}

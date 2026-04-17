@@ -205,6 +205,24 @@ export async function getOpenPositionForSymbol(
 	return position ?? null;
 }
 
+export async function getOpenPositionSymbols(): Promise<{ symbol: string; exchange: string }[]> {
+	const db = getDb();
+	const rows = await db
+		.select({ symbol: paperPositions.symbol, exchange: paperPositions.exchange })
+		.from(paperPositions)
+		.where(isNull(paperPositions.closedAt))
+		.all();
+	const seen = new Set<string>();
+	const distinct: { symbol: string; exchange: string }[] = [];
+	for (const r of rows) {
+		const key = `${r.symbol}:${r.exchange}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		distinct.push(r);
+	}
+	return distinct;
+}
+
 /** Returns a Set of "symbol:exchange" keys that had a losing exit within the cooldown window. */
 export async function getSymbolsOnCooldown(strategyId: number): Promise<Set<string>> {
 	const db = getDb();

@@ -58,6 +58,10 @@ export const CRON_SCHEDULE: Record<string, CronEntry> = {
 	earnings_calendar_sync: { cron: "0 6 * * 1-5" },
 	heartbeat: { cron: "0 7 * * 1-5" },
 
+	// Universe management
+	universe_refresh_weekly: { cron: "0 3 * * 1" },
+	universe_delta_daily: { cron: "30 22 * * 1-5" },
+
 	// Weekend
 	weekly_digest: { cron: "30 17 * * 0" },
 	strategy_evolution: { cron: "0 18 * * 0" },
