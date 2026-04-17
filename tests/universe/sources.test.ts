@@ -37,3 +37,41 @@ describe("fetchRussell1000Constituents", () => {
 		expect(result).toEqual([]);
 	});
 });
+
+describe("fetchFtse350Constituents", () => {
+	test("returns LSE-listed constituents tagged ftse_350", async () => {
+		const { fetchFtse350Constituents } = await import("../../src/universe/sources.ts");
+		const mockFetch = async (url: string) => {
+			expect(url).toContain("symbol/FTSE");
+			return {
+				ok: true,
+				json: async () => [
+					{ symbol: "HSBA.L", name: "HSBC", exchange: "LSE" },
+					{ symbol: "BP.L", name: "BP", exchange: "LSE" },
+				],
+			} as Response;
+		};
+		const result = await fetchFtse350Constituents(mockFetch);
+		expect(result).toHaveLength(2);
+		expect(result[0]).toEqual({ symbol: "HSBA", exchange: "LSE", indexSource: "ftse_350" });
+	});
+});
+
+describe("fetchAimAllShareConstituents", () => {
+	test("returns AIM-listed constituents tagged aim_allshare", async () => {
+		const { fetchAimAllShareConstituents } = await import("../../src/universe/sources.ts");
+		const mockFetch = async (url: string) => {
+			expect(url).toContain("symbol/AIM");
+			return {
+				ok: true,
+				json: async () => [
+					{ symbol: "GAW.L", name: "Games Workshop", exchange: "AIM" },
+					{ symbol: "FDEV.L", name: "Frontier Developments", exchange: "AIM" },
+				],
+			} as Response;
+		};
+		const result = await fetchAimAllShareConstituents(mockFetch);
+		expect(result).toHaveLength(2);
+		expect(result[0]).toEqual({ symbol: "GAW", exchange: "AIM", indexSource: "aim_allshare" });
+	});
+});
