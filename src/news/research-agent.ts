@@ -11,6 +11,7 @@ import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
 import { recordUsage } from "../utils/token-tracker.ts";
 import { type ParseDeps, parseUniverseSpec } from "./exchange-resolver.ts";
+import { recordOutcome } from "./research-calibration.ts";
 
 const log = createChildLogger({ module: "research-agent" });
 
@@ -341,7 +342,7 @@ export async function runResearchAnalysis(
 				: null;
 
 			// Always store analysis (for debugging/eval flywheel)
-			await db
+			const inserted = await db
 				.insert(newsAnalyses)
 				.values({
 					newsEventId,
@@ -372,7 +373,31 @@ export async function runResearchAnalysis(
 						priceAtAnalysis,
 						validatedTicker: isValidTicker,
 					},
-				});
+				})
+				.returning({ id: newsAnalyses.id });
+
+			// Proposal #4 — calibration log. Record tradeable predictions only
+			// (direction != "avoid") so we can measure research-agent precision
+			// across the full fired set, not just the missed_opportunity subset.
+			// Wrapped in try/catch — telemetry must NOT break the classifier.
+			if (analysis.direction !== "avoid" && inserted[0]?.id != null) {
+				try {
+					await recordOutcome({
+						newsAnalysisId: inserted[0].id,
+						symbol: analysis.symbol,
+						exchange: analysis.exchange,
+						predictedDirection: analysis.direction,
+						confidence: analysis.confidence,
+						eventType: analysis.eventType,
+						priceAtCall: priceAtAnalysis,
+					});
+				} catch (err) {
+					log.warn(
+						{ err, symbol: analysis.symbol, exchange: analysis.exchange },
+						"calibration_record_failed",
+					);
+				}
+			}
 
 			// Only write to quotesCache if ticker is real
 			if (isValidTicker) {
