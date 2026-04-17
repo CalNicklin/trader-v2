@@ -1,7 +1,7 @@
 import { getConfig } from "../config.ts";
 import { createChildLogger } from "../utils/logger.ts";
 
-const log = createChildLogger({ module: "universe:sources" });
+const log = createChildLogger({ module: "universe-sources" });
 
 export interface ConstituentRow {
 	symbol: string;
@@ -9,7 +9,9 @@ export interface ConstituentRow {
 	indexSource: "russell_1000" | "ftse_350" | "aim_allshare";
 }
 
-type FetchLike = (url: string) => Promise<Pick<Response, "ok" | "status" | "statusText" | "json">>;
+export type FetchLike = (
+	url: string,
+) => Promise<Pick<Response, "ok" | "status" | "statusText" | "json">>;
 
 interface FmpConstituent {
 	symbol: string;
