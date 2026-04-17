@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { paperPositions, paperTrades, strategies } from "../db/schema.ts";
 import { LOSS_COOLDOWN_HOURS } from "../risk/constants.ts";
@@ -215,7 +215,7 @@ export async function getSymbolsOnCooldown(strategyId: number): Promise<Set<stri
 		.where(
 			and(
 				eq(paperTrades.strategyId, strategyId),
-				eq(paperTrades.signalType, "exit"),
+				inArray(paperTrades.signalType, ["exit", "hard_stop"]),
 				lt(paperTrades.pnl, 0),
 				gt(paperTrades.createdAt, cutoff),
 			),

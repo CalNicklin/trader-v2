@@ -151,7 +151,7 @@ export async function evaluateStrategyForSymbol(
 
 	if (openPosition) {
 		// ── Hard stop-loss kill floor (flat -5%) ─────────────────────────────
-		if (input.quote.last != null) {
+		if (input.quote.last != null && openPosition.entryPrice > 0) {
 			const currentPrice = input.quote.last;
 			const entryPrice = openPosition.entryPrice;
 			const lossPct =

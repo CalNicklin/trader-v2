@@ -345,6 +345,100 @@ describe("evaluator hard stop-loss kill floor", () => {
 		expect(positions[0]!.closedAt).toBeNull();
 	});
 
+	// ── hard_stop puts symbol on re-entry cooldown ───────────────────────────
+
+	test("hard_stop exit places symbol on cooldown (prevents immediate re-entry)", async () => {
+		const { evaluateStrategyForSymbol } = await import("../../src/strategy/evaluator.ts");
+		const { strategies } = await import("../../src/db/schema.ts");
+		const { openPaperPosition, getSymbolsOnCooldown } = await import(
+			"../../src/paper/manager.ts"
+		);
+
+		const [strat] = await db
+			.insert(strategies)
+			.values({
+				name: "kill_floor_cooldown",
+				description: "test",
+				parameters: JSON.stringify({ position_size_pct: 10, stop_loss_pct: 5 }),
+				signals: JSON.stringify({
+					entry_long: "last > 0",
+					exit: "pnl_pct > 100",
+				}),
+				universe: JSON.stringify(["AAPL"]),
+				status: "paper" as const,
+				virtualBalance: 10000,
+				generation: 1,
+			})
+			.returning();
+
+		// Entry at 100; drop to 90 (-10%) triggers hard_stop
+		await openPaperPosition({
+			strategyId: strat!.id,
+			symbol: "AAPL",
+			exchange: "NASDAQ",
+			side: "BUY",
+			price: 100,
+			quantity: 10,
+			signalType: "entry_long",
+			reasoning: "test",
+		});
+
+		const result = await evaluateStrategyForSymbol(strat!, "AAPL", "NASDAQ", {
+			quote: makeQuote(90), // -10% — triggers hard_stop
+			indicators: VALID_INDICATORS,
+		});
+
+		expect(result.kind).toBe("exited");
+
+		// Symbol must now appear in the cooldown set
+		const cooldown = await getSymbolsOnCooldown(strat!.id);
+		expect(cooldown.has("AAPL:NASDAQ")).toBe(true);
+	});
+
+	// ── entryPrice = 0 guard ─────────────────────────────────────────────────
+
+	test("does NOT crash or trigger kill floor when entryPrice is 0", async () => {
+		const { evaluateStrategyForSymbol } = await import("../../src/strategy/evaluator.ts");
+		const { strategies, paperPositions } = await import("../../src/db/schema.ts");
+
+		// Insert an open position with entryPrice 0 directly into the DB
+		const [strat] = await db
+			.insert(strategies)
+			.values({
+				name: "kill_floor_zero_entry",
+				description: "test",
+				parameters: JSON.stringify({ position_size_pct: 10, stop_loss_pct: 5 }),
+				signals: JSON.stringify({
+					entry_long: "last > 0",
+					exit: "pnl_pct > 100",
+				}),
+				universe: JSON.stringify(["AAPL"]),
+				status: "paper" as const,
+				virtualBalance: 10000,
+				generation: 1,
+			})
+			.returning();
+
+		// Insert the position manually with entryPrice = 0
+		await db.insert(paperPositions).values({
+			strategyId: strat!.id,
+			symbol: "AAPL",
+			exchange: "NASDAQ",
+			side: "BUY",
+			entryPrice: 0,
+			quantity: 10,
+			openedAt: new Date().toISOString(),
+		});
+
+		const result = await evaluateStrategyForSymbol(strat!, "AAPL", "NASDAQ", {
+			quote: makeQuote(50), // any price — entryPrice=0 guard should skip kill floor
+			indicators: VALID_INDICATORS,
+		});
+
+		// No crash, and no false kill-floor trigger — exit signal didn't fire (pnl_pct > 100 is false)
+		expect(result.kind).toBe("none");
+	});
+
 	// ── Kill floor fires BEFORE exit signal ──────────────────────────────────
 
 	test("kill floor fires before normal exit signal when both conditions met", async () => {

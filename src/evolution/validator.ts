@@ -108,7 +108,7 @@ export function validateMutation(
 	// We check the raw proposal value, not the clamped one, because clamping would silently
 	// convert 0 to the range minimum — we want an explicit rejection instead.
 	const rawStopLoss = proposal.parameters.stop_loss_pct;
-	if (rawStopLoss === undefined || rawStopLoss === null || rawStopLoss === 0) {
+	if (rawStopLoss === undefined || rawStopLoss === null || rawStopLoss <= 0) {
 		return { valid: false, reason: "stop_loss_pct must be non-zero" };
 	}
 

@@ -221,6 +221,18 @@ describe("stop_loss_pct spawn-time guard", () => {
 		expect(result.valid).toBe(true);
 	});
 
+	it("rejects mutation with negative stop_loss_pct", () => {
+		const parent = makeParent();
+		const proposal = makeProposal({
+			parameters: { stop_loss_pct: -3, hold_days: 7, position_size_pct: 12 },
+		});
+
+		const result = validateMutation(proposal, parent, []);
+		expect(result.valid).toBe(false);
+		if (result.valid) return;
+		expect(result.reason).toMatch(/stop_loss_pct must be non-zero/);
+	});
+
 	it("does NOT apply stop_loss_pct guard to structural mutations", () => {
 		const parent = makeParent();
 		const proposal: MutationProposal = {
