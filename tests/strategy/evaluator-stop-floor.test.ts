@@ -350,9 +350,7 @@ describe("evaluator hard stop-loss kill floor", () => {
 	test("hard_stop exit places symbol on cooldown (prevents immediate re-entry)", async () => {
 		const { evaluateStrategyForSymbol } = await import("../../src/strategy/evaluator.ts");
 		const { strategies } = await import("../../src/db/schema.ts");
-		const { openPaperPosition, getSymbolsOnCooldown } = await import(
-			"../../src/paper/manager.ts"
-		);
+		const { openPaperPosition, getSymbolsOnCooldown } = await import("../../src/paper/manager.ts");
 
 		const [strat] = await db
 			.insert(strategies)

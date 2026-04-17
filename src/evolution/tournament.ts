@@ -2,7 +2,12 @@ import { eq, isNull } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { graduationEvents, strategies, strategyMetrics, strategyMutations } from "../db/schema";
 import { createChildLogger } from "../utils/logger";
-import { checkConsecutiveLossPause, checkDrawdowns, checkExpectancyKill, enforcePopulationCap } from "./population";
+import {
+	checkConsecutiveLossPause,
+	checkDrawdowns,
+	checkExpectancyKill,
+	enforcePopulationCap,
+} from "./population";
 import type { TournamentResult } from "./types";
 
 const log = createChildLogger({ module: "evolution:tournament" });

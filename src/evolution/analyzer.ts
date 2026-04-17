@@ -42,11 +42,11 @@ export async function getStrategyPerformance(
 
 	// Filter out non-numeric params (e.g. signal_polarity) when building numeric parameter map
 	const parameters: Record<string, number> = strategy.parameters
-		? Object.fromEntries(
+		? (Object.fromEntries(
 				Object.entries(JSON.parse(strategy.parameters) as Record<string, unknown>).filter(
 					([, v]) => typeof v === "number",
 				),
-			)
+			) as Record<string, number>)
 		: {};
 
 	const signals: SignalDef = strategy.signals ? (JSON.parse(strategy.signals) as SignalDef) : {};
