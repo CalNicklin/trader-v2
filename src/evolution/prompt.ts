@@ -229,9 +229,14 @@ export function parseEvolutionResponse(raw: string): MutationProposal[] {
 			continue;
 		}
 
-		// All parameter values must be finite numbers
+		// Filter out non-numeric/non-finite values — categorical params like signal_polarity
+		// are metadata, not mutation targets. Strip them here; the parent value is preserved.
 		const paramEntries = Object.entries(obj.parameters as Record<string, unknown>);
-		if (paramEntries.some(([_k, v]) => typeof v !== "number" || !Number.isFinite(v))) {
+		const numericEntries = paramEntries.filter(
+			([_k, v]) => typeof v === "number" && Number.isFinite(v),
+		);
+		if (numericEntries.length === 0 && paramEntries.length > 0) {
+			// Every entry was non-numeric — skip proposals with no actionable params
 			continue;
 		}
 
@@ -240,7 +245,7 @@ export function parseEvolutionResponse(raw: string): MutationProposal[] {
 			type: obj.type,
 			name: obj.name.slice(0, 100),
 			description: obj.description.slice(0, 500),
-			parameters: obj.parameters as Record<string, number>,
+			parameters: Object.fromEntries(numericEntries) as Record<string, number>,
 			reasoning: obj.reasoning,
 		};
 

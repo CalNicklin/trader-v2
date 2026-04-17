@@ -18,7 +18,7 @@ export const strategies = sqliteTable("strategies", {
 	signals: text("signals"), // JSON: { entry_long, entry_short, exit }
 	universe: text("universe"), // JSON: string[]
 	status: text("status", {
-		enum: ["paper", "probation", "active", "core", "retired"],
+		enum: ["paper", "probation", "active", "core", "retired", "paused"],
 	})
 		.notNull()
 		.default("paper"),
@@ -208,7 +208,7 @@ export const graduationEvents = sqliteTable("graduation_events", {
 	id: integer("id").primaryKey({ autoIncrement: true }),
 	strategyId: integer("strategy_id").notNull(),
 	event: text("event", {
-		enum: ["graduated", "promoted", "demoted", "killed"],
+		enum: ["graduated", "promoted", "demoted", "killed", "paused"],
 	}).notNull(),
 	fromTier: text("from_tier"),
 	toTier: text("to_tier"),

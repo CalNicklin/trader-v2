@@ -12,7 +12,11 @@ import {
 	WouldBreachCooldownError,
 } from "../paper/manager.ts";
 import { tickWouldBreachCap } from "../risk/basket-cap.ts";
-import { MAX_CONCURRENT_POSITIONS, STRATEGY_MIN_VIABLE_BALANCE } from "../risk/constants.ts";
+import {
+	HARD_STOP_LOSS_PCT,
+	MAX_CONCURRENT_POSITIONS,
+	STRATEGY_MIN_VIABLE_BALANCE,
+} from "../risk/constants.ts";
 import { checkTradeRiskGate } from "../risk/gate.ts";
 import { isTradingHalted, isWeeklyDrawdownActive } from "../risk/guardian.ts";
 import { createChildLogger } from "../utils/logger.ts";
@@ -146,6 +150,39 @@ export async function evaluateStrategyForSymbol(
 	const openPosition = await getOpenPositionForSymbol(strategy.id, symbol, exchange);
 
 	if (openPosition) {
+		// ── Hard stop-loss kill floor (flat -5%) ─────────────────────────────
+		if (input.quote.last != null && openPosition.entryPrice > 0) {
+			const currentPrice = input.quote.last;
+			const entryPrice = openPosition.entryPrice;
+			const lossPct =
+				openPosition.side === "BUY"
+					? (entryPrice - currentPrice) / entryPrice
+					: (currentPrice - entryPrice) / entryPrice;
+
+			if (lossPct >= HARD_STOP_LOSS_PCT) {
+				log.warn(
+					{
+						strategy: strategy.name,
+						symbol,
+						positionId: openPosition.id,
+						side: openPosition.side,
+						entryPrice,
+						currentPrice,
+						lossPct: lossPct.toFixed(4),
+					},
+					"Hard stop-loss kill floor triggered — force-closing position",
+				);
+				await closePaperPosition({
+					positionId: openPosition.id,
+					strategyId: strategy.id,
+					exitPrice: currentPrice,
+					signalType: "hard_stop",
+					reasoning: `Hard stop-loss kill floor: position down ${(lossPct * 100).toFixed(2)}% (limit ${HARD_STOP_LOSS_PCT * 100}%)`,
+				});
+				return { kind: "exited" };
+			}
+		}
+
 		if (signals.exit) {
 			const ctx = buildSignalContext({
 				quote: input.quote,

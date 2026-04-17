@@ -1,6 +1,12 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull } from "drizzle-orm";
 import { getDb } from "../db/client";
-import { graduationEvents, strategies, strategyMetrics } from "../db/schema";
+import {
+	graduationEvents,
+	paperTrades,
+	strategies,
+	strategyMetrics,
+	tradeInsights,
+} from "../db/schema";
 import { closeAllPositions } from "../paper/manager";
 import { createChildLogger } from "../utils/logger";
 import { computeBackHalfPnl, MIN_CLOSED_TRADES_FOR_BACK_HALF } from "./back-half-pnl";
@@ -15,6 +21,7 @@ export const MIN_POPULATION = 3;
 export const RECOVERY_SPAWN_CAP = 2;
 export const DRAWDOWN_KILL_MIN_TRADES = 10;
 export const MIN_TRADES_FOR_EVOLUTION = 15;
+export const CONSECUTIVE_LOSS_PAUSE = 5;
 
 async function retireStrategy(strategyId: number, reason: string): Promise<void> {
 	const db = getDb();
@@ -176,4 +183,108 @@ export async function enforcePopulationCap(): Promise<number[]> {
 	}
 
 	return culled;
+}
+
+async function pauseStrategy(strategyId: number, reason: string): Promise<void> {
+	const db = getDb();
+
+	await db
+		.update(strategies)
+		.set({ status: "paused" as const })
+		.where(eq(strategies.id, strategyId));
+
+	await db.insert(graduationEvents).values({
+		strategyId,
+		event: "paused" as const,
+		evidence: JSON.stringify({ reason }),
+	});
+
+	log.warn({ strategyId, reason }, `Strategy ${strategyId} paused: ${reason}`);
+}
+
+export async function checkConsecutiveLossPause(): Promise<number[]> {
+	const db = getDb();
+
+	const paperStrategies = await db
+		.select()
+		.from(strategies)
+		.where(eq(strategies.status, "paper"))
+		.all();
+
+	const paused: number[] = [];
+
+	for (const strategy of paperStrategies) {
+		// Condition A: ≥5 consecutive losing exits
+		const recentTrades = await db
+			.select()
+			.from(paperTrades)
+			.where(and(eq(paperTrades.strategyId, strategy.id), isNotNull(paperTrades.pnl)))
+			.orderBy(desc(paperTrades.createdAt))
+			.limit(CONSECUTIVE_LOSS_PAUSE)
+			.all();
+
+		if (
+			recentTrades.length >= CONSECUTIVE_LOSS_PAUSE &&
+			recentTrades.every((t) => (t.pnl ?? 0) < 0)
+		) {
+			await pauseStrategy(strategy.id, `${CONSECUTIVE_LOSS_PAUSE} consecutive losing trades`);
+			paused.push(strategy.id);
+			continue;
+		}
+
+		// Condition B: single trade ≥5% of virtualBalance loss
+		const recentTradesForB = await db
+			.select()
+			.from(paperTrades)
+			.where(and(eq(paperTrades.strategyId, strategy.id), isNotNull(paperTrades.pnl)))
+			.orderBy(desc(paperTrades.createdAt))
+			.limit(10)
+			.all();
+
+		const threshold = -(strategy.virtualBalance * 0.05);
+		const bigLoss = recentTradesForB.find((t) => (t.pnl ?? 0) < threshold);
+		if (bigLoss) {
+			await pauseStrategy(
+				strategy.id,
+				`Single trade loss ${bigLoss.pnl?.toFixed(2)} exceeds 5% of virtualBalance (${strategy.virtualBalance})`,
+			);
+			paused.push(strategy.id);
+			continue;
+		}
+
+		// Condition C: pattern_analysis insight with filter_failure or recurring_failure tag, conf ≥ 0.85
+		// Only consider insights from the last 30 days to avoid stale signals permanently triggering pauses
+		const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+		const insights = await db
+			.select()
+			.from(tradeInsights)
+			.where(
+				and(
+					eq(tradeInsights.strategyId, strategy.id),
+					eq(tradeInsights.insightType, "pattern_analysis"),
+					gte(tradeInsights.createdAt, thirtyDaysAgo),
+				),
+			)
+			.all();
+
+		for (const insight of insights) {
+			if ((insight.confidence ?? 0) < 0.85) continue;
+			let tags: string[] = [];
+			try {
+				tags = JSON.parse(insight.tags ?? "[]");
+			} catch {
+				// ignore malformed tags
+			}
+			if (tags.includes("filter_failure") || tags.includes("recurring_failure")) {
+				await pauseStrategy(
+					strategy.id,
+					`pattern_analysis insight with tag "${tags.find((t) => t === "filter_failure" || t === "recurring_failure")}" and confidence ${insight.confidence}`,
+				);
+				paused.push(strategy.id);
+				break;
+			}
+		}
+	}
+
+	return paused;
 }

@@ -186,6 +186,71 @@ describe("validateMutation", () => {
 	});
 });
 
+describe("stop_loss_pct spawn-time guard", () => {
+	it("rejects mutation with stop_loss_pct: 0", () => {
+		const parent = makeParent();
+		const proposal = makeProposal({
+			parameters: { stop_loss_pct: 0, hold_days: 7, position_size_pct: 12 },
+		});
+
+		const result = validateMutation(proposal, parent, []);
+		expect(result.valid).toBe(false);
+		if (result.valid) return;
+		expect(result.reason).toMatch(/stop_loss_pct must be non-zero/);
+	});
+
+	it("rejects mutation with stop_loss_pct absent", () => {
+		const parent = makeParent();
+		const proposal = makeProposal({
+			parameters: { hold_days: 7, position_size_pct: 12 },
+		});
+
+		const result = validateMutation(proposal, parent, []);
+		expect(result.valid).toBe(false);
+		if (result.valid) return;
+		expect(result.reason).toMatch(/stop_loss_pct must be non-zero/);
+	});
+
+	it("accepts mutation with valid stop_loss_pct", () => {
+		const parent = makeParent();
+		const proposal = makeProposal({
+			parameters: { stop_loss_pct: 3, hold_days: 7, position_size_pct: 12 },
+		});
+
+		const result = validateMutation(proposal, parent, []);
+		expect(result.valid).toBe(true);
+	});
+
+	it("rejects mutation with negative stop_loss_pct", () => {
+		const parent = makeParent();
+		const proposal = makeProposal({
+			parameters: { stop_loss_pct: -3, hold_days: 7, position_size_pct: 12 },
+		});
+
+		const result = validateMutation(proposal, parent, []);
+		expect(result.valid).toBe(false);
+		if (result.valid) return;
+		expect(result.reason).toMatch(/stop_loss_pct must be non-zero/);
+	});
+
+	it("does NOT apply stop_loss_pct guard to structural mutations", () => {
+		const parent = makeParent();
+		const proposal: MutationProposal = {
+			parentId: 1,
+			type: "structural",
+			name: "Structural No Stop",
+			description: "Structural — stop_loss_pct guard should not apply",
+			parameters: { hold_days: 5 }, // no stop_loss_pct
+			reasoning: "Testing structural bypass",
+			signals: { entry_long: "rsi14 < 30", exit: "hold_days > 5" },
+		};
+
+		const result = validateMutation(proposal, parent, []);
+		// Structural mutations skip the non-zero stop_loss_pct check
+		expect(result.valid).toBe(true);
+	});
+});
+
 describe("structural mutation validation", () => {
 	test("see tests/evolution/structural.test.ts for full structural validation coverage", () => {
 		// Structural mutation validation tests are in their own dedicated file

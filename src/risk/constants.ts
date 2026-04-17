@@ -1,6 +1,7 @@
 /** All hard risk limits. Human-controlled, not AI-tunable. */
 
 // ── Per-Trade Limits ──────────────────────────────────────────────────────
+export const HARD_STOP_LOSS_PCT = 0.05; // 5% — flat kill floor per trade
 export const RISK_PER_TRADE_PCT = 0.01; // 1% of account balance
 export const MIN_POSITION_VALUE = 50; // USD — below this, spreads eat edge
 export const MAX_CONCURRENT_POSITIONS = 3;
