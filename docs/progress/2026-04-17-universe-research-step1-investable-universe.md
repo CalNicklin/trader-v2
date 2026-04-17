@@ -8,7 +8,7 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 ## Task status
 
 - [x] Task 1: Schema — investable_universe + universe_snapshots tables
-- [ ] Task 2: FMP Russell 1000 constituents fetcher
+- [x] Task 2: FMP Russell 1000 constituents fetcher
 - [ ] Task 3: FMP FTSE 350 + AIM constituents fetchers
 - [ ] Task 4: Liquidity filter pipeline
 - [ ] Task 5: Universe snapshot writer
@@ -47,3 +47,24 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 **Commit:** 37a7bf0 — Universe Step 1 Task 1: investable_universe + universe_snapshots schema
 
 **Next task:** Task 2 — FMP Russell 1000 constituents fetcher
+
+## Task 2: completed
+
+**Layer:** L1 (data layer)
+
+**Completed work:**
+- Created `src/universe/sources.ts` with `fetchRussell1000Constituents`
+- Created `tests/universe/sources.test.ts` with 3 tests
+
+**Exported contracts:**
+- `ConstituentRow` (interface: symbol, exchange, indexSource)
+- `fetchRussell1000Constituents(fetchImpl?): Promise<ConstituentRow[]>`
+
+**Verification:**
+- typecheck: pass
+- tests: 705/705 pass
+- lint: clean
+
+**Commit:** <sha> — Universe Step 1 Task 2: Russell 1000 constituents fetcher
+
+**Next task:** Task 3 — FTSE 350 + AIM constituents fetchers
