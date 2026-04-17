@@ -459,3 +459,54 @@ export const universeCache = sqliteTable("universe_cache", {
 	data: text("data").notNull(), // JSON blob
 	fetchedAt: integer("fetched_at").notNull(),
 });
+
+// ── Investable Universe ─────────────────────────────────────────────────────
+
+export const investableUniverse = sqliteTable(
+	"investable_universe",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		symbol: text("symbol").notNull(),
+		exchange: text("exchange").notNull(),
+		indexSource: text("index_source", {
+			enum: ["russell_1000", "ftse_350", "aim_allshare"],
+		}).notNull(),
+		marketCapUsd: real("market_cap_usd"),
+		avgDollarVolume: real("avg_dollar_volume"),
+		price: real("price"),
+		freeFloatUsd: real("free_float_usd"),
+		spreadBps: real("spread_bps"),
+		listingAgeDays: integer("listing_age_days"),
+		inclusionDate: text("inclusion_date")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+		lastRefreshed: text("last_refreshed")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+		active: integer("active", { mode: "boolean" }).notNull().default(true),
+	},
+	(table) => ({
+		symbolExchangeUnique: uniqueIndex("investable_universe_symbol_exchange_unique").on(
+			table.symbol,
+			table.exchange,
+		),
+	}),
+);
+
+export const universeSnapshots = sqliteTable(
+	"universe_snapshots",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		snapshotDate: text("snapshot_date").notNull(),
+		symbol: text("symbol").notNull(),
+		exchange: text("exchange").notNull(),
+		action: text("action", { enum: ["added", "removed", "unchanged"] }).notNull(),
+		reason: text("reason"),
+		createdAt: text("created_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => ({
+		dateIdx: index("universe_snapshots_date_idx").on(table.snapshotDate),
+	}),
+);
