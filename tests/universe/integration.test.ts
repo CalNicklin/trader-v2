@@ -61,4 +61,80 @@ describe("universe — end-to-end integration", () => {
 		expect(h.bySource.russell_1000).toBe(0);
 		expect(h.bySource.ftse_350).toBe(1);
 	});
+
+	test("full pipeline: US+UK candidates with quote data flow through refresh, get filtered, land in universe", async () => {
+		const { refreshInvestableUniverse } = await import("../../src/universe/refresh.ts");
+		const { enrichWithMetrics } = await import("../../src/universe/metrics-enricher.ts");
+		const { upsertProfiles } = await import("../../src/universe/profile-fetcher.ts");
+		const { getUniverseHealth } = await import("../../src/monitoring/health.ts");
+		const { getDb } = await import("../../src/db/client.ts");
+		const { quotesCache } = await import("../../src/db/schema.ts");
+
+		// Seed quote data for both US and UK symbols
+		await getDb()
+			.insert(quotesCache)
+			.values([
+				{
+					symbol: "AAPL",
+					exchange: "NASDAQ",
+					last: 200,
+					avgVolume: 50_000_000,
+					bid: 199.9,
+					ask: 200.1,
+					updatedAt: new Date().toISOString(),
+				},
+				{
+					symbol: "HSBA",
+					exchange: "LSE",
+					last: 700,
+					avgVolume: 10_000_000,
+					bid: 699.5,
+					ask: 700.5,
+					updatedAt: new Date().toISOString(),
+				},
+			]);
+
+		// Seed a fresh profile for AAPL so we don't need to mock fetch
+		await upsertProfiles([
+			{
+				symbol: "AAPL",
+				exchange: "NASDAQ",
+				marketCapUsd: 3e12,
+				sharesOutstanding: 15e9,
+				freeFloatShares: 14.9e9,
+				ipoDate: "1980-12-12",
+				fetchedAt: new Date().toISOString(),
+			},
+		]);
+
+		const fetchCandidates = async () =>
+			enrichWithMetrics(
+				[
+					{ symbol: "AAPL", exchange: "NASDAQ", indexSource: "russell_1000" as const },
+					{ symbol: "HSBA", exchange: "LSE", indexSource: "ftse_350" as const },
+				],
+				{
+					// Shouldn't fire since AAPL profile is fresh and HSBA is UK
+					fetchImpl: async () => ({
+						ok: false,
+						status: 500,
+						statusText: "Should not be called",
+						json: async () => [],
+					}),
+				},
+			);
+
+		const result = await refreshInvestableUniverse({
+			fetchCandidates,
+			snapshotDate: "2026-04-17",
+		});
+
+		expect(result.added).toBe(2);
+		expect(result.rejected).toBe(0);
+
+		const health = await getUniverseHealth();
+		expect(health.activeCount).toBe(2);
+		expect(health.bySource.russell_1000).toBe(1);
+		expect(health.bySource.ftse_350).toBe(1);
+	});
 });
