@@ -13,7 +13,7 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - [x] Task 4: Liquidity filter pipeline
 - [x] Task 5: Universe snapshot writer
 - [x] Task 6: Weekly refresh orchestrator
-- [ ] Task 7: Daily delta check (halt/bankrupt detection)
+- [x] Task 7: Daily delta check (halt/bankrupt detection)
 - [ ] Task 8: Cron job registration (weekly + daily)
 - [ ] Task 9: Health endpoint exposure
 - [ ] Task 10: Initial seed + verification
@@ -163,3 +163,26 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 **Fix commit:** 50610a0 — Transaction-wrap refresh + capture now once (wraps upsert/deactivate/snapshot in db.transaction; single `now` timestamp for all writes)
 
 **Next task:** Task 7 — Daily delta check
+
+## Task 7: completed
+
+**Layer:** L2 (orchestration)
+
+**Completed work:**
+- Created `src/universe/delta.ts` with `runDailyDeltaCheck`
+- Created `tests/universe/delta.test.ts` with 3 tests
+
+**Exported contracts:**
+- `DeltaFlag` interface: `{ symbol, exchange, reason }`
+- `DeltaCheckInput` interface: `{ checker, snapshotDate, exemptSymbols? }`
+- `DeltaCheckResult` interface: `{ demoted }`
+- `runDailyDeltaCheck(input): Promise<DeltaCheckResult>`
+
+**Verification:**
+- typecheck: pass
+- tests: 726/726 pass
+- lint: clean
+
+**Commit:** <sha>
+
+**Next task:** Task 8 — Cron wiring + source aggregator + metrics enricher + halt checker
