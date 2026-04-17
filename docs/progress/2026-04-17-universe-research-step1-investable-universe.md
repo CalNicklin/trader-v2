@@ -112,6 +112,6 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - tests: 717/717 pass
 - lint: clean
 
-**Commit:** <sha> — <message>
+**Commit:** 34d8678 — Universe Step 1 Task 4: liquidity filter pipeline
 
 **Next task:** Task 5 — Universe snapshot writer
