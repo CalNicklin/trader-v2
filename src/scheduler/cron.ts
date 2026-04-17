@@ -138,7 +138,7 @@ export function startScheduler(): void {
 	);
 	tasks.push(
 		cron.schedule("30 22 * * 1-5", () => runJob("universe_delta_daily"), {
-			timezone: "UTC",
+			timezone: "Europe/London",
 		}),
 	);
 

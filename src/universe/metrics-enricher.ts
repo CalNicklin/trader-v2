@@ -27,7 +27,9 @@ export async function enrichWithMetrics(rows: ConstituentRow[]): Promise<FilterC
 			price: q?.last ?? null,
 			freeFloatUsd: null,
 			spreadBps:
-				q?.bid != null && q?.ask != null && q.bid > 0 ? ((q.ask - q.bid) / q.bid) * 10_000 : null,
+				q?.bid != null && q?.ask != null && q.bid > 0 && q.ask > 0
+					? ((q.ask - q.bid) / ((q.ask + q.bid) / 2)) * 10_000
+					: null,
 			listingAgeDays: null,
 		};
 	});
