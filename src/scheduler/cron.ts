@@ -130,6 +130,18 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// ── Universe management ─────────────────────────────────────────────
+	tasks.push(
+		cron.schedule("0 3 * * 1", () => runJob("universe_refresh_weekly"), {
+			timezone: "UTC",
+		}),
+	);
+	tasks.push(
+		cron.schedule("30 22 * * 1-5", () => runJob("universe_delta_daily"), {
+			timezone: "UTC",
+		}),
+	);
+
 	// ── Pre-market & maintenance ────────────────────────────────────────
 	tasks.push(
 		cron.schedule("0 6 * * 1-5", () => runJob("earnings_calendar_sync"), {

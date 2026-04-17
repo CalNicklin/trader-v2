@@ -14,7 +14,7 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - [x] Task 5: Universe snapshot writer
 - [x] Task 6: Weekly refresh orchestrator
 - [x] Task 7: Daily delta check (halt/bankrupt detection)
-- [ ] Task 8: Cron job registration (weekly + daily)
+- [x] Task 8: Cron job registration (weekly + daily)
 - [ ] Task 9: Health endpoint exposure
 - [ ] Task 10: Initial seed + verification
 - [ ] Task 11: End-to-end integration test
@@ -186,3 +186,34 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 **Commit:** 6139bc7
 
 **Next task:** Task 8 — Cron wiring + source aggregator + metrics enricher + halt checker
+
+## Task 8: completed
+
+**Layer:** L3 (wiring)
+
+**Completed work:**
+- Added `getOpenPositionSymbols` to `src/paper/manager.ts` (not previously present)
+- Created `src/universe/metrics-enricher.ts` with `enrichWithMetrics`
+- Created `src/universe/source-aggregator.ts` with `fetchCandidatesFromAllSources`
+- Created `src/universe/halt-checker.ts` with v1 no-op `ibkrHaltChecker`
+- Created `src/scheduler/universe-jobs.ts` with `runWeeklyUniverseRefresh` and `runDailyUniverseDelta`
+- Registered 2 new job names in `src/scheduler/jobs.ts` (`universe_refresh_weekly`, `universe_delta_daily`)
+- Registered 2 new cron jobs in `src/scheduler/cron.ts` and mirrored in `src/monitoring/cron-schedule.ts`
+- Updated test count assertions from 30 to 32 in monitoring tests
+
+**Exported contracts:**
+- `getOpenPositionSymbols(): Promise<{symbol, exchange}[]>`
+- `enrichWithMetrics(rows): Promise<FilterCandidate[]>`
+- `fetchCandidatesFromAllSources(): Promise<FilterCandidate[]>`
+- `ibkrHaltChecker(): Promise<DeltaFlag[]>` (v1 no-op)
+- `runWeeklyUniverseRefresh(): Promise<void>`
+- `runDailyUniverseDelta(): Promise<void>`
+
+**Verification:**
+- typecheck: pass
+- tests: 726/726 pass
+- lint: clean
+
+**Commit:** TBD
+
+**Next task:** Task 9 — Health endpoint exposure
