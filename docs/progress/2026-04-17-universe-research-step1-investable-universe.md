@@ -44,6 +44,6 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - tests: 702/702 pass
 - lint: clean (2 pre-existing warnings in test stubs only)
 
-**Commit:** <sha> — Universe Step 1 Task 1: investable_universe + universe_snapshots schema
+**Commit:** 37a7bf0 — Universe Step 1 Task 1: investable_universe + universe_snapshots schema
 
 **Next task:** Task 2 — FMP Russell 1000 constituents fetcher
