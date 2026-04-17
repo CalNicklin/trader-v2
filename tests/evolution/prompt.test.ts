@@ -377,4 +377,72 @@ describe("parseEvolutionResponse", () => {
 		const result = parseEvolutionResponse('[{"parentId": 1, "type":');
 		expect(result).toEqual([]);
 	});
+
+	// signal_polarity categorical param handling
+	test("does NOT drop proposal containing signal_polarity alongside numeric params", () => {
+		const withCategorical = {
+			...validProposal,
+			parameters: { sentiment_threshold: 0.7, signal_polarity: "contrarian" },
+		};
+		const result = parseEvolutionResponse(JSON.stringify([withCategorical]));
+		expect(result).toHaveLength(1);
+	});
+
+	test("strips non-numeric params from proposal parameters, keeping only numeric entries", () => {
+		const withCategorical = {
+			...validProposal,
+			parameters: { sentiment_threshold: 0.7, signal_polarity: "contrarian" },
+		};
+		const result = parseEvolutionResponse(JSON.stringify([withCategorical]));
+		expect(result).toHaveLength(1);
+		expect(result[0]!.parameters).toEqual({ sentiment_threshold: 0.7 });
+		expect(result[0]!.parameters).not.toHaveProperty("signal_polarity");
+	});
+
+	test("keeps all-numeric params unchanged when no categorical params are present", () => {
+		const allNumeric = {
+			...validProposal,
+			parameters: { sentiment_threshold: 0.7, stop_loss_pct: 3, position_size_pct: 5 },
+		};
+		const result = parseEvolutionResponse(JSON.stringify([allNumeric]));
+		expect(result).toHaveLength(1);
+		expect(result[0]!.parameters).toEqual({
+			sentiment_threshold: 0.7,
+			stop_loss_pct: 3,
+			position_size_pct: 5,
+		});
+	});
+
+	test("drops proposals where ALL parameter values are non-numeric (no actionable params)", () => {
+		const allCategorical = {
+			...validProposal,
+			parameters: { signal_polarity: "contrarian", mode: "aggressive" },
+		};
+		const result = parseEvolutionResponse(JSON.stringify([allCategorical]));
+		expect(result).toHaveLength(0);
+	});
+
+	test("news_sentiment_mr_v1 with signal_polarity does not become evolution-dead — numeric params survive", () => {
+		const newsSentimentMR = {
+			parentId: 5,
+			type: "parameter_tweak" as const,
+			name: "news_sentiment_mr_v1-tweak",
+			description: "Tune sentiment threshold for mean reversion",
+			reasoning: "Higher threshold improves signal quality",
+			parameters: {
+				sentiment_threshold: 0.75,
+				stop_loss_pct: 4,
+				hold_days: 3,
+				signal_polarity: "contrarian",
+			},
+		};
+		const result = parseEvolutionResponse(JSON.stringify([newsSentimentMR]));
+		expect(result).toHaveLength(1);
+		expect(result[0]!.parameters).toEqual({
+			sentiment_threshold: 0.75,
+			stop_loss_pct: 4,
+			hold_days: 3,
+		});
+		expect(result[0]!.parameters).not.toHaveProperty("signal_polarity");
+	});
 });
