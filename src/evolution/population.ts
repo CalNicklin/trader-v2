@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { graduationEvents, strategies, strategyMetrics } from "../db/schema";
+import { closeAllPositions } from "../paper/manager";
 import { createChildLogger } from "../utils/logger";
 import { computeBackHalfPnl, MIN_CLOSED_TRADES_FOR_BACK_HALF } from "./back-half-pnl";
 import { hasStableEdge } from "./has-stable-edge";
@@ -17,22 +18,31 @@ export const MIN_TRADES_FOR_EVOLUTION = 15;
 
 async function retireStrategy(strategyId: number, reason: string): Promise<void> {
 	const db = getDb();
+	const killStart = Date.now();
+
+	const legsClosed = await closeAllPositions(strategyId, reason);
+
+	const killFillDurationMs = Date.now() - killStart;
 
 	await db
 		.update(strategies)
-		.set({
-			status: "retired" as const,
-			retiredAt: new Date().toISOString(),
-		})
+		.set({ status: "retired" as const, retiredAt: new Date().toISOString() })
 		.where(eq(strategies.id, strategyId));
 
 	await db.insert(graduationEvents).values({
 		strategyId,
 		event: "killed" as const,
-		evidence: JSON.stringify({ reason }),
+		evidence: JSON.stringify({
+			reason,
+			killFillDurationMs,
+			killLegsCount: legsClosed,
+		}),
 	});
 
-	log.warn(`Strategy ${strategyId} retired: ${reason}`);
+	log.warn(
+		{ strategyId, killFillDurationMs, killLegsCount: legsClosed },
+		`Strategy ${strategyId} retired: ${reason}`,
+	);
 }
 
 export async function checkDrawdowns(): Promise<number[]> {
