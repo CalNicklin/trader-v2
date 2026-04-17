@@ -11,8 +11,8 @@ export const MIN_SAMPLE_RETIRE = 20;
  * Shared sample-quality predicate used by both the graduation gate and the
  * expectancy-kill path. Requires the back-half of the trade history to
  * confirm the full-sample Sharpe sign — this blocks regime-lucky promotion
- * (e.g. strategy 3's n=3 AI-rally wins) and regime-unlucky retirement
- * (e.g. strategy 1's n=7 shorts-into-rally losses).
+ * (small-sample winners riding a transient tailwind) and regime-unlucky
+ * retirement (small-sample losers hit by a transient headwind).
  */
 export function hasStableEdge(input: StableEdgeInput, direction: "promote" | "retire"): boolean {
 	if (input.sharpeRatio == null) return false;

@@ -1,8 +1,9 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb } from "../db/client";
-import { graduationEvents, paperTrades, strategies, strategyMetrics } from "../db/schema";
+import { graduationEvents, strategies, strategyMetrics } from "../db/schema";
 import { createChildLogger } from "../utils/logger";
-import { hasStableEdge } from "./has-stable-edge.ts";
+import { computeBackHalfPnl, MIN_CLOSED_TRADES_FOR_BACK_HALF } from "./back-half-pnl";
+import { hasStableEdge } from "./has-stable-edge";
 
 const log = createChildLogger({ module: "evolution:population" });
 
@@ -100,15 +101,8 @@ export async function checkExpectancyKill(): Promise<number[]> {
 		if (!metrics || metrics.sharpeRatio == null) continue;
 		if (metrics.sharpeRatio >= EXPECTANCY_KILL_SHARPE_FLOOR) continue;
 
-		const trades = await db
-			.select({ pnl: paperTrades.pnl })
-			.from(paperTrades)
-			.where(and(eq(paperTrades.strategyId, strategy.id), isNotNull(paperTrades.pnl)))
-			.orderBy(paperTrades.createdAt);
-
-		if (trades.length === 0) continue;
-		const splitIdx = Math.floor(trades.length / 2);
-		const backHalfPnl = trades.slice(splitIdx).reduce((s, t) => s + (t.pnl ?? 0), 0);
+		const { closedTradeCount, backHalfPnl } = await computeBackHalfPnl(strategy.id);
+		if (closedTradeCount < MIN_CLOSED_TRADES_FOR_BACK_HALF) continue;
 
 		if (
 			hasStableEdge(

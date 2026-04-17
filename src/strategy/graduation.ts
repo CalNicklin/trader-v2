@@ -1,6 +1,7 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { graduationEvents, paperTrades, strategies, strategyMetrics } from "../db/schema.ts";
+import { computeBackHalfPnl, MIN_CLOSED_TRADES_FOR_BACK_HALF } from "../evolution/back-half-pnl.ts";
 import { hasStableEdge, MIN_SAMPLE_PROMOTE } from "../evolution/has-stable-edge.ts";
 import {
 	getPatternInsightsForStrategy,
@@ -98,56 +99,23 @@ export async function checkGraduation(strategyId: number): Promise<GraduationRes
 	}
 
 	// Back-half confirmation: recent 50% of closed trades must confirm full-sample Sharpe sign.
-	// Require >=5 closed trades before splitting — matches the old checkWalkForward guard and
-	// prevents promotion based on a tiny back-half sample when reported metrics.sampleSize
-	// is out of sync with actual closed trades.
-	const closedTrades = await getClosedTradeCount(strategyId);
-	if (closedTrades < 5) {
+	const { closedTradeCount, backHalfPnl } = await computeBackHalfPnl(strategyId);
+	if (closedTradeCount < MIN_CLOSED_TRADES_FOR_BACK_HALF) {
 		failures.push(
-			`hasStableEdge(promote) false — only ${closedTrades} closed trades, need >=5 to evaluate back-half`,
+			`hasStableEdge(promote) false — only ${closedTradeCount} closed trades, need >=${MIN_CLOSED_TRADES_FOR_BACK_HALF} to evaluate back-half`,
 		);
-	} else {
-		const backHalfPnl = await getBackHalfPnl(strategyId);
-		if (
-			!hasStableEdge(
-				{ sampleSize: metrics.sampleSize, sharpeRatio: metrics.sharpeRatio, backHalfPnl },
-				"promote",
-			)
-		) {
-			failures.push(
-				"hasStableEdge(promote) false — back-half P&L does not confirm full-sample Sharpe sign",
-			);
-		}
+	} else if (
+		!hasStableEdge(
+			{ sampleSize: metrics.sampleSize, sharpeRatio: metrics.sharpeRatio, backHalfPnl },
+			"promote",
+		)
+	) {
+		failures.push(
+			"hasStableEdge(promote) false — back-half P&L does not confirm full-sample Sharpe sign",
+		);
 	}
 
 	return { passes: failures.length === 0, failures };
-}
-
-async function getClosedTradeCount(strategyId: number): Promise<number> {
-	const db = getDb();
-	const trades = await db
-		.select({ pnl: paperTrades.pnl })
-		.from(paperTrades)
-		.where(and(eq(paperTrades.strategyId, strategyId), isNotNull(paperTrades.pnl)));
-	return trades.length;
-}
-
-/**
- * Returns the sum of PnL over the most recent 50% of closed trades for a strategy.
- * Used by the hasStableEdge predicate to confirm full-sample Sharpe sign.
- * Caller must check getClosedTradeCount() >= 5 before relying on this value.
- */
-async function getBackHalfPnl(strategyId: number): Promise<number> {
-	const db = getDb();
-	const trades = await db
-		.select({ pnl: paperTrades.pnl })
-		.from(paperTrades)
-		.where(and(eq(paperTrades.strategyId, strategyId), isNotNull(paperTrades.pnl)))
-		.orderBy(paperTrades.createdAt);
-
-	if (trades.length === 0) return 0;
-	const splitIdx = Math.floor(trades.length / 2);
-	return trades.slice(splitIdx).reduce((sum, t) => sum + (t.pnl ?? 0), 0);
 }
 
 /**
