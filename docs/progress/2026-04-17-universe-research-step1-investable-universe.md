@@ -17,7 +17,7 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - [x] Task 8: Cron job registration (weekly + daily)
 - [x] Task 9: Health endpoint exposure
 - [x] Task 10: Initial seed + verification
-- [ ] Task 11: End-to-end integration test
+- [x] Task 11: End-to-end integration test
 
 ## Completed tasks
 
@@ -258,3 +258,63 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 **Commit:** ad9980b
 
 **Next task:** Task 11 — End-to-end integration test
+
+## Task 11: completed
+
+**Layer:** L4 (rollout)
+
+**Completed work:**
+- Created `tests/universe/integration.test.ts` — end-to-end test covering refresh → delta → health
+
+**Verification:**
+- typecheck: pass
+- tests: 729/729 pass
+- lint: clean
+
+**Commit:** <sha>
+
+---
+
+## Final summary — all 11 tasks complete
+
+**Total tasks completed:** 11/11
+**Branch:** feat/universe-step1-investable-universe
+**Total tests added:** 27 (702 baseline → 729 total, +27 for this plan)
+**Total files touched:** (count from `git diff --stat main..HEAD`)
+
+**Files created:**
+- `drizzle/migrations/0014_*.sql` (schema migration)
+- `src/universe/constants.ts`
+- `src/universe/sources.ts` (Russell + FTSE + AIM fetchers)
+- `src/universe/filters.ts`
+- `src/universe/snapshots.ts`
+- `src/universe/repo.ts`
+- `src/universe/refresh.ts`
+- `src/universe/delta.ts`
+- `src/universe/source-aggregator.ts`
+- `src/universe/metrics-enricher.ts`
+- `src/universe/halt-checker.ts`
+- `src/scheduler/universe-jobs.ts`
+- `scripts/seed-universe.ts`
+- Six test files in `tests/universe/` + `tests/monitoring/health.test.ts`
+
+**Files modified:**
+- `src/db/schema.ts` (+2 tables)
+- `src/paper/manager.ts` (+ `getOpenPositionSymbols`)
+- `src/scheduler/cron.ts` (+2 jobs)
+- `src/scheduler/jobs.ts` (JobName union + lock category + executeJob switch)
+- `src/monitoring/cron-schedule.ts` (mirror +2 jobs, count 30→32)
+- `src/monitoring/health.ts` (+ `getUniverseHealth` + `universe` response field)
+- Two test fixtures updated for the new cron job count
+
+**Deferrals (documented in spec):**
+- Live halt detection — v1 is no-op; weekly refresh catches stale symbols
+- SPAC-merger exclusion (<90 days) — relying on `listingAgeDays` filter
+- Leveraged/inverse ETF exclusion — deferred
+- SEC-investigation flag — deferred
+- Learning-loop `exclude_from_universe` flag — deferred
+
+**What this delivers:**
+Pure additive infrastructure — zero trading behaviour change. Populates `investable_universe` table from Russell 1000 + FTSE 350 + AIM All-Share via weekly refresh. Filters by liquidity. Writes point-in-time snapshots. Daily delta check infrastructure for future halt detection. Health endpoint surfaces universe state. Strategies still read their static universe column (unchanged).
+
+**Next step:** Step 2 of the universe rollout (Active Watchlist) — separate plan.
