@@ -78,3 +78,74 @@ describe("applyLiquidityFilters", () => {
 		expect(result.rejected[0]?.reasons.length).toBeGreaterThan(1);
 	});
 });
+
+describe("applyLiquidityFilters — UK-shaped candidates without free-float", () => {
+	test("UK LSE candidate with null freeFloatUsd PASSES when other critical fields present", async () => {
+		const { applyLiquidityFilters } = await import("../../src/universe/filters.ts");
+		const candidate = {
+			symbol: "HSBA",
+			exchange: "LSE",
+			indexSource: "ftse_350" as const,
+			marketCapUsd: null,
+			avgDollarVolume: 5e9,
+			price: 700,
+			freeFloatUsd: null, // UK names systematically lack this
+			spreadBps: 4,
+			listingAgeDays: null,
+		};
+		const result = applyLiquidityFilters([candidate]);
+		expect(result.passed).toHaveLength(1);
+		expect(result.rejected).toHaveLength(0);
+	});
+
+	test("UK AIM candidate with null freeFloatUsd PASSES", async () => {
+		const { applyLiquidityFilters } = await import("../../src/universe/filters.ts");
+		const candidate = {
+			symbol: "GAW",
+			exchange: "AIM",
+			indexSource: "aim_allshare" as const,
+			marketCapUsd: null,
+			avgDollarVolume: 5e7,
+			price: 10000, // 100 GBP in pence
+			freeFloatUsd: null,
+			spreadBps: 10,
+			listingAgeDays: null,
+		};
+		const result = applyLiquidityFilters([candidate]);
+		expect(result.passed).toHaveLength(1);
+	});
+
+	test("candidate with null price still rejects as missing_data", async () => {
+		const { applyLiquidityFilters } = await import("../../src/universe/filters.ts");
+		const candidate = {
+			symbol: "BAD",
+			exchange: "NASDAQ",
+			indexSource: "russell_1000" as const,
+			marketCapUsd: 1e12,
+			avgDollarVolume: 1e10,
+			price: null,
+			freeFloatUsd: 1e11,
+			spreadBps: 2,
+			listingAgeDays: 5000,
+		};
+		const result = applyLiquidityFilters([candidate]);
+		expect(result.rejected[0]?.reasons).toContain("missing_data");
+	});
+
+	test("candidate with null avgDollarVolume still rejects as missing_data", async () => {
+		const { applyLiquidityFilters } = await import("../../src/universe/filters.ts");
+		const candidate = {
+			symbol: "BAD2",
+			exchange: "NASDAQ",
+			indexSource: "russell_1000" as const,
+			marketCapUsd: 1e12,
+			avgDollarVolume: null,
+			price: 100,
+			freeFloatUsd: 1e11,
+			spreadBps: 2,
+			listingAgeDays: 5000,
+		};
+		const result = applyLiquidityFilters([candidate]);
+		expect(result.rejected[0]?.reasons).toContain("missing_data");
+	});
+});

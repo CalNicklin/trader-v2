@@ -37,8 +37,12 @@ export function applyLiquidityFilters(candidates: FilterCandidate[]): FilterResu
 	for (const c of candidates) {
 		const reasons: RejectionReason[] = [];
 
-		// Missing-data check: if critical fields are null, we can't evaluate.
-		if (c.avgDollarVolume == null || c.price == null || c.freeFloatUsd == null) {
+		// Missing-data check: price and avgDollarVolume are the hard requirements —
+		// without them we can't evaluate liquidity at all. freeFloatUsd is NOT
+		// required because UK (LSE/AIM) candidates systematically lack this data
+		// (FMP profile coverage is US-only). Free-float still gets a threshold
+		// check below when present.
+		if (c.avgDollarVolume == null || c.price == null) {
 			reasons.push("missing_data");
 		}
 
