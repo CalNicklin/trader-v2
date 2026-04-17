@@ -2,7 +2,7 @@ import { eq, isNull } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { graduationEvents, strategies, strategyMetrics, strategyMutations } from "../db/schema";
 import { createChildLogger } from "../utils/logger";
-import { checkDrawdowns, checkExpectancyKill, enforcePopulationCap } from "./population";
+import { checkConsecutiveLossPause, checkDrawdowns, checkExpectancyKill, enforcePopulationCap } from "./population";
 import type { TournamentResult } from "./types";
 
 const log = createChildLogger({ module: "evolution:tournament" });
@@ -146,6 +146,14 @@ export async function runDailyTournaments(): Promise<void> {
 		log.info(
 			{ phase: "daily_tournament", kills: expectancyKilled.length },
 			"Expectancy kills executed",
+		);
+	}
+
+	const circuitBreakerPaused = await checkConsecutiveLossPause();
+	if (circuitBreakerPaused.length > 0) {
+		log.info(
+			{ phase: "daily_tournament", paused: circuitBreakerPaused.length },
+			"Circuit breaker pauses executed",
 		);
 	}
 
