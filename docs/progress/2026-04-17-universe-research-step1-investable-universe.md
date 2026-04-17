@@ -236,6 +236,6 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - tests: 728/728 pass
 - lint: clean
 
-**Commit:** <sha>
+**Commit:** 1dbb6a2
 
 **Next task:** Task 10 — Initial seed + verification
