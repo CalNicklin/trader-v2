@@ -183,6 +183,6 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - tests: 726/726 pass
 - lint: clean
 
-**Commit:** <sha>
+**Commit:** 6139bc7
 
 **Next task:** Task 8 — Cron wiring + source aggregator + metrics enricher + halt checker
