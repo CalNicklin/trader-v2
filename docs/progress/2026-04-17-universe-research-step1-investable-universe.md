@@ -10,7 +10,7 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - [x] Task 1: Schema — investable_universe + universe_snapshots tables
 - [x] Task 2: FMP Russell 1000 constituents fetcher
 - [x] Task 3: FMP FTSE 350 + AIM constituents fetchers
-- [ ] Task 4: Liquidity filter pipeline
+- [x] Task 4: Liquidity filter pipeline
 - [ ] Task 5: Universe snapshot writer
 - [ ] Task 6: Weekly refresh orchestrator
 - [ ] Task 7: Daily delta check (halt/bankrupt detection)
@@ -90,3 +90,28 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 **Commit:** 2cdabac — Universe Step 1 Task 3: FTSE 350 + AIM constituents fetchers
 
 **Next task:** Task 4 — Liquidity filter pipeline
+
+## Task 4: completed
+
+**Layer:** L1 (data layer)
+
+**Completed work:**
+- Created `src/universe/constants.ts` with 7 liquidity thresholds
+- Created `src/universe/filters.ts` with `applyLiquidityFilters`
+- Created `tests/universe/filters.test.ts` with 10 tests covering all rejection paths
+
+**Exported contracts:**
+- `MIN_AVG_DOLLAR_VOLUME_USD`, `MIN_PRICE_USD`, `MIN_PRICE_GBP_PENCE`, `MIN_FREE_FLOAT_USD`, `MAX_SPREAD_BPS`, `MIN_LISTING_AGE_DAYS`, `MAX_UNIVERSE_SIZE` (constants)
+- `FilterCandidate` (interface extending ConstituentRow with nullable metrics)
+- `RejectionReason` (union of 6 reason strings)
+- `FilterResult` (passed/rejected shape)
+- `applyLiquidityFilters(candidates): FilterResult`
+
+**Verification:**
+- typecheck: pass
+- tests: 717/717 pass
+- lint: clean
+
+**Commit:** <sha> — <message>
+
+**Next task:** Task 5 — Universe snapshot writer
