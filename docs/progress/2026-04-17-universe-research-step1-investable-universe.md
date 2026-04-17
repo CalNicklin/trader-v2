@@ -12,7 +12,7 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - [x] Task 3: FMP FTSE 350 + AIM constituents fetchers
 - [x] Task 4: Liquidity filter pipeline
 - [x] Task 5: Universe snapshot writer
-- [ ] Task 6: Weekly refresh orchestrator
+- [x] Task 6: Weekly refresh orchestrator
 - [ ] Task 7: Daily delta check (halt/bankrupt detection)
 - [ ] Task 8: Cron job registration (weekly + daily)
 - [ ] Task 9: Health endpoint exposure
@@ -137,3 +137,25 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 **Commit:** 637f632 — Universe Step 1 Task 5: daily snapshot writer
 
 **Next task:** Task 6 — Weekly refresh orchestrator
+
+## Task 6: completed
+
+**Layer:** L2 (orchestration)
+
+**Completed work:**
+- Created `src/universe/repo.ts` with `getActiveUniverseMembership`
+- Created `src/universe/refresh.ts` with `refreshInvestableUniverse`
+- Created `tests/universe/refresh.test.ts` with 3 tests
+
+**Exported contracts:**
+- `getActiveUniverseMembership(): Promise<SymbolRef[]>`
+- `RefreshInput` interface
+- `RefreshResult` interface: `{ added, removed, rejected }`
+- `refreshInvestableUniverse(input): Promise<RefreshResult>`
+
+**Verification:**
+- typecheck: pass
+- tests: 723/723 pass
+- lint: clean (2 pre-existing warnings in unrelated test stubs)
+
+**Next task:** Task 7 — Daily delta check
