@@ -255,6 +255,6 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - tests: 728/728 pass
 - lint: clean
 
-**Commit:** <sha>
+**Commit:** ad9980b
 
 **Next task:** Task 11 — End-to-end integration test
