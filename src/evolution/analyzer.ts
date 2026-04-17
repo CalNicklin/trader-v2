@@ -162,7 +162,7 @@ export async function getPerformanceLandscape(): Promise<PerformanceLandscape> {
 	const nonRetired = await db
 		.select()
 		.from(strategies)
-		.where(ne(strategies.status, "retired"))
+		.where(and(ne(strategies.status, "retired"), ne(strategies.status, "paused")))
 		.all();
 
 	// N+1 is acceptable here — population cap of 8 means max 24 queries

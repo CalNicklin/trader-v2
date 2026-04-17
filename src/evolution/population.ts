@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { graduationEvents, paperTrades, strategies, strategyMetrics, tradeInsights } from "../db/schema";
 import { closeAllPositions } from "../paper/manager";
@@ -16,7 +16,6 @@ export const RECOVERY_SPAWN_CAP = 2;
 export const DRAWDOWN_KILL_MIN_TRADES = 10;
 export const MIN_TRADES_FOR_EVOLUTION = 15;
 export const CONSECUTIVE_LOSS_PAUSE = 5;
-export const PAUSE_HOURS = 48;
 
 async function retireStrategy(strategyId: number, reason: string): Promise<void> {
 	const db = getDb();
@@ -185,7 +184,7 @@ async function pauseStrategy(strategyId: number, reason: string): Promise<void> 
 
 	await db
 		.update(strategies)
-		.set({ status: "paused" as const, retiredAt: new Date().toISOString() })
+		.set({ status: "paused" as const })
 		.where(eq(strategies.id, strategyId));
 
 	await db.insert(graduationEvents).values({
@@ -251,6 +250,8 @@ export async function checkConsecutiveLossPause(): Promise<number[]> {
 		}
 
 		// Condition C: pattern_analysis insight with filter_failure or recurring_failure tag, conf ≥ 0.85
+		// Only consider insights from the last 30 days to avoid stale signals permanently triggering pauses
+		const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 		const insights = await db
 			.select()
 			.from(tradeInsights)
@@ -258,6 +259,7 @@ export async function checkConsecutiveLossPause(): Promise<number[]> {
 				and(
 					eq(tradeInsights.strategyId, strategy.id),
 					eq(tradeInsights.insightType, "pattern_analysis"),
+					gte(tradeInsights.createdAt, thirtyDaysAgo),
 				),
 			)
 			.all();

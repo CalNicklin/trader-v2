@@ -1,4 +1,4 @@
-import { desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { dailySnapshots, quotesCache, strategies } from "../db/schema";
 import { getDailySpend } from "../utils/budget";
@@ -29,11 +29,11 @@ export function setPaused(paused: boolean): void {
 export async function getHealthData(): Promise<HealthData> {
 	const db = getDb();
 
-	// Active strategy count (non-retired)
+	// Active strategy count (non-retired, non-paused)
 	const activeResult = db
 		.select({ count: sql<number>`count(*)` })
 		.from(strategies)
-		.where(ne(strategies.status, "retired"))
+		.where(and(ne(strategies.status, "retired"), ne(strategies.status, "paused")))
 		.get();
 	const activeStrategies = activeResult?.count ?? 0;
 
