@@ -11,7 +11,7 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - [x] Task 2: FMP Russell 1000 constituents fetcher
 - [x] Task 3: FMP FTSE 350 + AIM constituents fetchers
 - [x] Task 4: Liquidity filter pipeline
-- [ ] Task 5: Universe snapshot writer
+- [x] Task 5: Universe snapshot writer
 - [ ] Task 6: Weekly refresh orchestrator
 - [ ] Task 7: Daily delta check (halt/bankrupt detection)
 - [ ] Task 8: Cron job registration (weekly + daily)
@@ -115,3 +115,25 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 **Commit:** 34d8678 — Universe Step 1 Task 4: liquidity filter pipeline
 
 **Next task:** Task 5 — Universe snapshot writer
+
+## Task 5: completed
+
+**Layer:** L2 (orchestration)
+
+**Completed work:**
+- Created `src/universe/snapshots.ts` with `writeDailySnapshot`
+- Created `tests/universe/snapshots.test.ts` with 3 tests
+
+**Exported contracts:**
+- `SymbolRef` interface: `{ symbol, exchange }`
+- `SnapshotInput` interface: `{ current, previous, removalReasons? }`
+- `writeDailySnapshot(date, input): Promise<{ added, removed }>`
+
+**Verification:**
+- typecheck: pass
+- tests: 720/720 pass
+- lint: clean
+
+**Commit:** <sha> — Universe Step 1 Task 5: daily snapshot writer
+
+**Next task:** Task 6 — Weekly refresh orchestrator
