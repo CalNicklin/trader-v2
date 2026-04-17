@@ -9,6 +9,7 @@ import {
 	getSymbolsOnCooldown,
 	type OpenPositionInput,
 	openPaperPosition,
+	WouldBreachCooldownError,
 } from "../paper/manager.ts";
 import { tickWouldBreachCap } from "../risk/basket-cap.ts";
 import { MAX_CONCURRENT_POSITIONS, STRATEGY_MIN_VIABLE_BALANCE } from "../risk/constants.ts";
@@ -312,9 +313,16 @@ async function fireProposedEntriesWithBasketCap(
 		try {
 			await openPaperPosition(params);
 			opened++;
-		} catch (error) {
+		} catch (err) {
+			if (err instanceof WouldBreachCooldownError) {
+				log.info(
+					{ strategy: strategy.name, symbol: params.symbol, err: err.message },
+					"lse_cooldown_block",
+				);
+				continue;
+			}
 			log.error(
-				{ strategy: strategy.name, symbol: params.symbol, error },
+				{ strategy: strategy.name, symbol: params.symbol, error: err },
 				"Error opening proposed paper position",
 			);
 		}

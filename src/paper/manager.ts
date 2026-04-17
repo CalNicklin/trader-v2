@@ -5,6 +5,17 @@ import { LOSS_COOLDOWN_HOURS } from "../risk/constants.ts";
 import { getTradeFriction } from "../utils/fx.ts";
 import { calcPnl } from "./pnl.ts";
 
+export const LSE_SAME_SYMBOL_BUY_COOLDOWN_HOURS = 4;
+
+export class WouldBreachCooldownError extends Error {
+	constructor(symbol: string, exchange: string, hoursRemaining: number) {
+		super(
+			`LSE cooldown: ${symbol}:${exchange} has ${hoursRemaining.toFixed(1)}h cooldown remaining`,
+		);
+		this.name = "WouldBreachCooldownError";
+	}
+}
+
 export interface OpenPositionInput {
 	strategyId: number;
 	symbol: string;
@@ -26,6 +37,33 @@ export interface ClosePositionInput {
 
 export async function openPaperPosition(input: OpenPositionInput): Promise<void> {
 	const db = getDb();
+
+	if (input.exchange === "LSE" && input.side === "BUY") {
+		const cutoff = new Date(
+			Date.now() - LSE_SAME_SYMBOL_BUY_COOLDOWN_HOURS * 60 * 60 * 1000,
+		).toISOString();
+		const [recent] = await db
+			.select({ createdAt: paperTrades.createdAt })
+			.from(paperTrades)
+			.where(
+				and(
+					eq(paperTrades.strategyId, input.strategyId),
+					eq(paperTrades.symbol, input.symbol),
+					eq(paperTrades.exchange, "LSE"),
+					eq(paperTrades.side, "BUY"),
+					gt(paperTrades.createdAt, cutoff),
+				),
+			)
+			.orderBy(paperTrades.createdAt)
+			.limit(1);
+
+		if (recent) {
+			const ageHours = (Date.now() - new Date(recent.createdAt).getTime()) / 3_600_000;
+			const remaining = LSE_SAME_SYMBOL_BUY_COOLDOWN_HOURS - ageHours;
+			throw new WouldBreachCooldownError(input.symbol, input.exchange, remaining);
+		}
+	}
+
 	const frictionPct = getTradeFriction(input.exchange, input.side);
 	const positionValue = input.quantity * input.price;
 	const friction = positionValue * frictionPct;
