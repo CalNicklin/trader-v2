@@ -76,7 +76,7 @@ describe("checkExpectancyKill", () => {
 
 	test("does NOT retire when back-half shows recovery", async () => {
 		const { checkExpectancyKill } = await import("../../src/evolution/population.ts");
-		const _id = await insertStrategyWithBackHalfPnl(-3, 25, 20);
+		await insertStrategyWithBackHalfPnl(-3, 25, 20);
 
 		const killed = await checkExpectancyKill();
 
@@ -85,7 +85,7 @@ describe("checkExpectancyKill", () => {
 
 	test("does NOT retire at n<20 even with bad Sharpe", async () => {
 		const { checkExpectancyKill } = await import("../../src/evolution/population.ts");
-		const _id = await insertStrategyWithBackHalfPnl(-15, 19, -50);
+		await insertStrategyWithBackHalfPnl(-15, 19, -50);
 
 		const killed = await checkExpectancyKill();
 
