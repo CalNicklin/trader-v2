@@ -1,4 +1,7 @@
+import { and, eq } from "drizzle-orm";
 import { getConfig } from "../config.ts";
+import { getDb } from "../db/client.ts";
+import { symbolProfiles } from "../db/schema.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import type { FetchLike } from "./sources.ts";
 
@@ -62,4 +65,53 @@ export async function fetchSymbolProfiles(
 		"FMP profile batch fetch complete",
 	);
 	return profiles;
+}
+
+export async function upsertProfiles(profiles: SymbolProfile[]): Promise<void> {
+	if (profiles.length === 0) return;
+	const db = getDb();
+	for (const p of profiles) {
+		await db
+			.insert(symbolProfiles)
+			.values({
+				symbol: p.symbol,
+				exchange: p.exchange,
+				marketCapUsd: p.marketCapUsd,
+				sharesOutstanding: p.sharesOutstanding,
+				freeFloatShares: p.freeFloatShares,
+				ipoDate: p.ipoDate,
+				fetchedAt: p.fetchedAt,
+			})
+			.onConflictDoUpdate({
+				target: [symbolProfiles.symbol, symbolProfiles.exchange],
+				set: {
+					marketCapUsd: p.marketCapUsd,
+					sharesOutstanding: p.sharesOutstanding,
+					freeFloatShares: p.freeFloatShares,
+					ipoDate: p.ipoDate,
+					fetchedAt: p.fetchedAt,
+				},
+			});
+	}
+}
+
+export async function getProfile(symbol: string, exchange: string): Promise<SymbolProfile | null> {
+	const db = getDb();
+	const rows = await db
+		.select()
+		.from(symbolProfiles)
+		.where(and(eq(symbolProfiles.symbol, symbol), eq(symbolProfiles.exchange, exchange)))
+		.limit(1)
+		.all();
+	const row = rows[0];
+	if (!row) return null;
+	return {
+		symbol: row.symbol,
+		exchange: row.exchange,
+		marketCapUsd: row.marketCapUsd,
+		sharesOutstanding: row.sharesOutstanding,
+		freeFloatShares: row.freeFloatShares,
+		ipoDate: row.ipoDate,
+		fetchedAt: row.fetchedAt,
+	};
 }

@@ -97,3 +97,78 @@ describe("fetchSymbolProfiles", () => {
 		await expect(fetchSymbolProfiles(["AAPL"], mockFetch)).rejects.toThrow();
 	});
 });
+
+describe("upsertProfiles + getProfile", () => {
+	beforeEach(async () => {
+		const { resetConfigForTesting } = await import("../../src/config.ts");
+		resetConfigForTesting();
+		const { closeDb, getDb } = await import("../../src/db/client.ts");
+		closeDb();
+		const db = getDb();
+		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
+		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+	});
+
+	test("upsertProfiles inserts new rows", async () => {
+		const { upsertProfiles, getProfile } = await import("../../src/universe/profile-fetcher.ts");
+
+		await upsertProfiles([
+			{
+				symbol: "AAPL",
+				exchange: "NASDAQ",
+				marketCapUsd: 3e12,
+				sharesOutstanding: 15e9,
+				freeFloatShares: 14.9e9,
+				ipoDate: "1980-12-12",
+				fetchedAt: "2026-04-17T00:00:00.000Z",
+			},
+		]);
+
+		const result = await getProfile("AAPL", "NASDAQ");
+		expect(result?.symbol).toBe("AAPL");
+		expect(result?.marketCapUsd).toBe(3e12);
+	});
+
+	test("upsertProfiles updates existing rows on conflict", async () => {
+		const { upsertProfiles, getProfile } = await import("../../src/universe/profile-fetcher.ts");
+
+		await upsertProfiles([
+			{
+				symbol: "AAPL",
+				exchange: "NASDAQ",
+				marketCapUsd: 3e12,
+				sharesOutstanding: 15e9,
+				freeFloatShares: 14.9e9,
+				ipoDate: "1980-12-12",
+				fetchedAt: "2026-04-01T00:00:00.000Z",
+			},
+		]);
+
+		await upsertProfiles([
+			{
+				symbol: "AAPL",
+				exchange: "NASDAQ",
+				marketCapUsd: 3.1e12,
+				sharesOutstanding: 15e9,
+				freeFloatShares: 14.9e9,
+				ipoDate: "1980-12-12",
+				fetchedAt: "2026-04-17T00:00:00.000Z",
+			},
+		]);
+
+		const result = await getProfile("AAPL", "NASDAQ");
+		expect(result?.marketCapUsd).toBe(3.1e12);
+		expect(result?.fetchedAt).toBe("2026-04-17T00:00:00.000Z");
+	});
+
+	test("getProfile returns null for unknown symbol", async () => {
+		const { getProfile } = await import("../../src/universe/profile-fetcher.ts");
+		const result = await getProfile("GHOST", "NASDAQ");
+		expect(result).toBeNull();
+	});
+
+	test("PROFILE_CACHE_TTL_DAYS is 30", async () => {
+		const { PROFILE_CACHE_TTL_DAYS } = await import("../../src/universe/profile-fetcher.ts");
+		expect(PROFILE_CACHE_TTL_DAYS).toBe(30);
+	});
+});
