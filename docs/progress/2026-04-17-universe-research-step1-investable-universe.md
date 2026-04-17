@@ -214,6 +214,6 @@ Baseline at start: 702 tests pass, 0 fail, typecheck clean.
 - tests: 726/726 pass
 - lint: clean
 
-**Commit:** TBD
+**Commit:** 378b7a0
 
 **Next task:** Task 9 — Health endpoint exposure
