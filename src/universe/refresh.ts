@@ -29,30 +29,25 @@ export async function refreshInvestableUniverse(input: RefreshInput): Promise<Re
 	const candidates = await input.fetchCandidates();
 	const { passed, rejected } = applyLiquidityFilters(candidates);
 
+	// Capture previous state before entering the transaction
 	const previous = await getActiveUniverseMembership();
 	const previousSet = new Set(previous.map((r) => `${r.symbol}:${r.exchange}`));
 	const passedSet = new Set(passed.map((p) => `${p.symbol}:${p.exchange}`));
 
-	// Upsert all passed candidates as active
-	for (const p of passed) {
-		await db
-			.insert(investableUniverse)
-			.values({
-				symbol: p.symbol,
-				exchange: p.exchange,
-				indexSource: p.indexSource,
-				marketCapUsd: p.marketCapUsd ?? null,
-				avgDollarVolume: p.avgDollarVolume ?? null,
-				price: p.price ?? null,
-				freeFloatUsd: p.freeFloatUsd ?? null,
-				spreadBps: p.spreadBps ?? null,
-				listingAgeDays: p.listingAgeDays ?? null,
-				active: true,
-				lastRefreshed: new Date().toISOString(),
-			})
-			.onConflictDoUpdate({
-				target: [investableUniverse.symbol, investableUniverse.exchange],
-				set: {
+	// Capture timestamp once so all rows in the batch share the same value
+	const now = new Date().toISOString();
+
+	const removedSymbols: { symbol: string; exchange: string }[] = [];
+	const addedSymbols = passed.filter((p) => !previousSet.has(`${p.symbol}:${p.exchange}`));
+
+	await db.transaction(async (tx) => {
+		// Upsert all passed candidates as active
+		for (const p of passed) {
+			await tx
+				.insert(investableUniverse)
+				.values({
+					symbol: p.symbol,
+					exchange: p.exchange,
 					indexSource: p.indexSource,
 					marketCapUsd: p.marketCapUsd ?? null,
 					avgDollarVolume: p.avgDollarVolume ?? null,
@@ -61,36 +56,48 @@ export async function refreshInvestableUniverse(input: RefreshInput): Promise<Re
 					spreadBps: p.spreadBps ?? null,
 					listingAgeDays: p.listingAgeDays ?? null,
 					active: true,
-					lastRefreshed: new Date().toISOString(),
-				},
-			});
-	}
+					lastRefreshed: now,
+				})
+				.onConflictDoUpdate({
+					target: [investableUniverse.symbol, investableUniverse.exchange],
+					set: {
+						indexSource: p.indexSource,
+						marketCapUsd: p.marketCapUsd ?? null,
+						avgDollarVolume: p.avgDollarVolume ?? null,
+						price: p.price ?? null,
+						freeFloatUsd: p.freeFloatUsd ?? null,
+						spreadBps: p.spreadBps ?? null,
+						listingAgeDays: p.listingAgeDays ?? null,
+						active: true,
+						lastRefreshed: now,
+					},
+				});
+		}
 
-	// Deactivate previous entries that aren't in the new passed set and aren't exempt
-	const removedSymbols: { symbol: string; exchange: string }[] = [];
-	for (const prev of previous) {
-		const k = `${prev.symbol}:${prev.exchange}`;
-		if (passedSet.has(k) || exempt.has(k)) continue;
-		await db
-			.update(investableUniverse)
-			.set({ active: false, lastRefreshed: new Date().toISOString() })
-			.where(
-				and(
-					eq(investableUniverse.symbol, prev.symbol),
-					eq(investableUniverse.exchange, prev.exchange),
-				),
-			);
-		removedSymbols.push(prev);
-	}
+		// Deactivate previous entries that aren't in the new passed set and aren't exempt
+		for (const prev of previous) {
+			const k = `${prev.symbol}:${prev.exchange}`;
+			if (passedSet.has(k) || exempt.has(k)) continue;
+			await tx
+				.update(investableUniverse)
+				.set({ active: false, lastRefreshed: now })
+				.where(
+					and(
+						eq(investableUniverse.symbol, prev.symbol),
+						eq(investableUniverse.exchange, prev.exchange),
+					),
+				);
+			removedSymbols.push(prev);
+		}
 
-	const addedSymbols = passed.filter((p) => !previousSet.has(`${p.symbol}:${p.exchange}`));
-
-	await writeDailySnapshot(input.snapshotDate, {
-		current: passed.map((p) => ({ symbol: p.symbol, exchange: p.exchange })),
-		previous,
-		removalReasons: Object.fromEntries(
-			removedSymbols.map((r) => [`${r.symbol}:${r.exchange}`, "filter_reject_or_delisted"]),
-		),
+		// Write snapshot inside the transaction so it's atomic with the universe writes
+		await writeDailySnapshot(input.snapshotDate, {
+			current: passed.map((p) => ({ symbol: p.symbol, exchange: p.exchange })),
+			previous,
+			removalReasons: Object.fromEntries(
+				removedSymbols.map((r) => [`${r.symbol}:${r.exchange}`, "filter_reject_or_delisted"]),
+			),
+		});
 	});
 
 	log.info(
