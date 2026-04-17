@@ -28,7 +28,9 @@ export type JobName =
 	| "daily_tournament"
 	| "missed_opportunity_daily"
 	| "missed_opportunity_weekly"
-	| "promotion_check";
+	| "promotion_check"
+	| "research_calibration_24h"
+	| "research_calibration_48h";
 
 const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	quote_refresh_uk: "quotes_uk",
@@ -56,6 +58,8 @@ const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	missed_opportunity_daily: "analysis",
 	missed_opportunity_weekly: "analysis",
 	promotion_check: "analysis",
+	research_calibration_24h: "analysis",
+	research_calibration_48h: "analysis",
 };
 
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
@@ -269,6 +273,18 @@ async function executeJob(name: JobName): Promise<void> {
 		case "promotion_check": {
 			const { runPromotionCheck } = await import("./promotion-job.ts");
 			await runPromotionCheck();
+			break;
+		}
+
+		case "research_calibration_24h": {
+			const { backfillOutcomes } = await import("../news/research-calibration.ts");
+			await backfillOutcomes({ window: "24h" });
+			break;
+		}
+
+		case "research_calibration_48h": {
+			const { backfillOutcomes } = await import("../news/research-calibration.ts");
+			await backfillOutcomes({ window: "48h" });
 			break;
 		}
 	}

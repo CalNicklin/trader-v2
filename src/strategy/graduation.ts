@@ -1,6 +1,8 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { graduationEvents, paperTrades, strategies, strategyMetrics } from "../db/schema.ts";
+import { computeBackHalfPnl, MIN_CLOSED_TRADES_FOR_BACK_HALF } from "../evolution/back-half-pnl.ts";
+import { hasStableEdge, MIN_SAMPLE_PROMOTE } from "../evolution/has-stable-edge.ts";
 import {
 	getPatternInsightsForStrategy,
 	reviewForGraduation,
@@ -11,14 +13,13 @@ const log = createChildLogger({ module: "graduation" });
 
 // Graduation thresholds from spec Section 4
 const CRITERIA = {
-	minSampleSize: 20,
+	minSampleSize: MIN_SAMPLE_PROMOTE,
 	minExpectancy: 0,
 	minProfitFactor: 1.5,
 	minSharpe: 0.7,
 	maxDrawdownPct: 15,
 	minConsistency: 3, // profitable in >= 3 of last 4 weeks
 	maxParameters: 5,
-	walkForwardSplit: 0.8, // 80/20 train/test split
 };
 
 export interface GraduationResult {
@@ -97,34 +98,24 @@ export async function checkGraduation(strategyId: number): Promise<GraduationRes
 		}
 	}
 
-	// Walk-forward validation: signal must be profitable on most recent 20% of trades
-	const walkForwardResult = await checkWalkForward(strategyId);
-	if (!walkForwardResult) {
-		failures.push("Walk-forward validation failed: not profitable on recent 20% of trades");
+	// Back-half confirmation: recent 50% of closed trades must confirm full-sample Sharpe sign.
+	const { closedTradeCount, backHalfPnl } = await computeBackHalfPnl(strategyId);
+	if (closedTradeCount < MIN_CLOSED_TRADES_FOR_BACK_HALF) {
+		failures.push(
+			`hasStableEdge(promote) false — only ${closedTradeCount} closed trades, need >=${MIN_CLOSED_TRADES_FOR_BACK_HALF} to evaluate back-half`,
+		);
+	} else if (
+		!hasStableEdge(
+			{ sampleSize: metrics.sampleSize, sharpeRatio: metrics.sharpeRatio, backHalfPnl },
+			"promote",
+		)
+	) {
+		failures.push(
+			"hasStableEdge(promote) false — back-half P&L does not confirm full-sample Sharpe sign",
+		);
 	}
 
 	return { passes: failures.length === 0, failures };
-}
-
-/**
- * Walk-forward validation: check that the strategy is profitable
- * on the most recent 20% of its trades (out-of-sample window).
- */
-async function checkWalkForward(strategyId: number): Promise<boolean> {
-	const db = getDb();
-	const trades = await db
-		.select({ pnl: paperTrades.pnl, createdAt: paperTrades.createdAt })
-		.from(paperTrades)
-		.where(and(eq(paperTrades.strategyId, strategyId), isNotNull(paperTrades.pnl)))
-		.orderBy(paperTrades.createdAt);
-
-	if (trades.length < 5) return false; // need at least 5 trades to split
-
-	const splitIdx = Math.floor(trades.length * CRITERIA.walkForwardSplit);
-	const recentTrades = trades.slice(splitIdx);
-	const recentPnl = recentTrades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
-
-	return recentPnl > 0;
 }
 
 /**

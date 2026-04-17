@@ -118,6 +118,18 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// Proposal #4 — research_outcome backfill (daily, post-close telemetry).
+	tasks.push(
+		cron.schedule("50 22 * * 1-5", () => runJob("research_calibration_24h"), {
+			timezone: "Europe/London",
+		}),
+	);
+	tasks.push(
+		cron.schedule("55 22 * * 1-5", () => runJob("research_calibration_48h"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	// ── Pre-market & maintenance ────────────────────────────────────────
 	tasks.push(
 		cron.schedule("0 6 * * 1-5", () => runJob("earnings_calendar_sync"), {

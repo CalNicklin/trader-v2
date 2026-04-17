@@ -51,6 +51,8 @@ export const CRON_SCHEDULE: Record<string, CronEntry> = {
 	daily_tournament: { cron: "35 22 * * 1-5" },
 	pattern_analysis: { cron: "45 22 * * 2,5" },
 	missed_opportunity_weekly: { cron: "45 22 * * 3" },
+	research_calibration_24h: { cron: "50 22 * * 1-5" },
+	research_calibration_48h: { cron: "55 22 * * 1-5" },
 
 	// Pre-market & maintenance
 	earnings_calendar_sync: { cron: "0 6 * * 1-5" },

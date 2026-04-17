@@ -84,7 +84,7 @@ describe("graduation gate", () => {
 
 		await db.insert(strategyMetrics).values({
 			strategyId: strat!.id,
-			sampleSize: 15,
+			sampleSize: 14,
 			winRate: 0.8,
 			expectancy: 50,
 			profitFactor: 3.0,
@@ -97,7 +97,7 @@ describe("graduation gate", () => {
 
 		const result = await checkGraduation(strat!.id);
 		expect(result.passes).toBe(false);
-		expect(result.failures.some((f) => f.includes("sample"))).toBe(true);
+		expect(result.failures.some((f) => f.includes("Insufficient sample size"))).toBe(true);
 	});
 
 	test("graduates strategy meeting reduced trade count with tighter thresholds", async () => {

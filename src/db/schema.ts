@@ -352,6 +352,35 @@ export const newsAnalyses = sqliteTable(
 	}),
 );
 
+// Proposal #4 — news_research calibration log.
+// Records every research call's prediction and T+24h / T+48h realised move so
+// precision can be computed across the FULL fired set, not just the surfaced
+// missed_opportunity subset.
+export const researchOutcome = sqliteTable(
+	"research_outcome",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		newsAnalysisId: integer("news_analysis_id").notNull(),
+		symbol: text("symbol").notNull(),
+		exchange: text("exchange").notNull(),
+		predictedDirection: text("predicted_direction", { enum: ["long", "short", "avoid"] }).notNull(),
+		confidence: real("confidence").notNull(),
+		eventType: text("event_type").notNull(),
+		priceAtCall: real("price_at_call"),
+		realisedMove24h: real("realised_move_24h"),
+		realisedMove48h: real("realised_move_48h"),
+		filled24hAt: text("filled_24h_at"),
+		filled48hAt: text("filled_48h_at"),
+		createdAt: text("created_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => ({
+		analysisIdx: index("research_outcome_analysis_idx").on(table.newsAnalysisId),
+		symbolIdx: index("research_outcome_symbol_idx").on(table.symbol, table.exchange),
+	}),
+);
+
 // ── Operational ─────────────────────────────────────────────────────────────
 
 export const tokenUsage = sqliteTable("token_usage", {

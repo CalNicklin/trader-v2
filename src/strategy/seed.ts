@@ -4,7 +4,7 @@ import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "seed" });
 
-const SEED_STRATEGIES = [
+export const SEED_STRATEGIES = [
 	{
 		name: "news_sentiment_mr_v1",
 		description:
@@ -32,6 +32,7 @@ const SEED_STRATEGIES = [
 			"JPM",
 			"V",
 			"JNJ",
+			"USO", // Proposal #8 — commodity/energy proxy
 			"SHEL:LSE",
 			"BP.:LSE",
 			"HSBA:LSE",
@@ -73,6 +74,7 @@ const SEED_STRATEGIES = [
 			"AMD",
 			"NFLX",
 			"CRM",
+			"USO", // Proposal #8 — commodity/energy proxy
 			"SHEL:LSE",
 			"BP.:LSE",
 			"HSBA:LSE",
@@ -117,6 +119,7 @@ const SEED_STRATEGIES = [
 			"NFLX",
 			"CRM",
 			"PYPL",
+			"USO", // Proposal #8 — commodity/energy proxy
 			"SHEL:LSE",
 			"BP.:LSE",
 			"HSBA:LSE",
