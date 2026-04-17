@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { getConfig } from "../config.ts";
 import { getDb } from "../db/client.ts";
 import { symbolProfiles } from "../db/schema.ts";
@@ -93,6 +93,35 @@ export async function upsertProfiles(profiles: SymbolProfile[]): Promise<void> {
 				},
 			});
 	}
+}
+
+export async function getProfiles(
+	refs: Array<{ symbol: string; exchange: string }>,
+): Promise<Map<string, SymbolProfile>> {
+	if (refs.length === 0) return new Map();
+	const db = getDb();
+	// Build a single query matching any of the (symbol, exchange) pairs.
+	const conditions = refs.map((r) =>
+		and(eq(symbolProfiles.symbol, r.symbol), eq(symbolProfiles.exchange, r.exchange)),
+	);
+	const rows = await db
+		.select()
+		.from(symbolProfiles)
+		.where(or(...conditions))
+		.all();
+	const map = new Map<string, SymbolProfile>();
+	for (const row of rows) {
+		map.set(`${row.symbol}:${row.exchange}`, {
+			symbol: row.symbol,
+			exchange: row.exchange,
+			marketCapUsd: row.marketCapUsd,
+			sharesOutstanding: row.sharesOutstanding,
+			freeFloatShares: row.freeFloatShares,
+			ipoDate: row.ipoDate,
+			fetchedAt: row.fetchedAt,
+		});
+	}
+	return map;
 }
 
 export async function getProfile(symbol: string, exchange: string): Promise<SymbolProfile | null> {

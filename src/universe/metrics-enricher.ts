@@ -5,7 +5,7 @@ import { createChildLogger } from "../utils/logger.ts";
 import type { FilterCandidate } from "./filters.ts";
 import {
 	fetchSymbolProfiles,
-	getProfile,
+	getProfiles,
 	PROFILE_CACHE_TTL_DAYS,
 	type SymbolProfile,
 	upsertProfiles,
@@ -54,8 +54,14 @@ function keyOf(symbol: string, exchange: string): string {
 	return `${symbol}:${exchange}`;
 }
 
+// Explicit allowlist — if a new indexSource is added to ConstituentRow that
+// needs FMP profile enrichment, add it here. Anything not listed is treated
+// as "skip profile fetch, rely on quotes_cache data only" (currently UK
+// markets, but safe default for any non-US index we might add).
+const US_PROFILE_INDEXES = new Set<ConstituentRow["indexSource"]>(["russell_1000"]);
+
 function isUsRow(r: ConstituentRow): boolean {
-	return r.indexSource === "russell_1000";
+	return US_PROFILE_INDEXES.has(r.indexSource);
 }
 
 async function resolveProfiles(
@@ -70,9 +76,13 @@ async function resolveProfiles(
 	const ttlMs = PROFILE_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 	const stale: string[] = [];
+	const cachedMap = await getProfiles(
+		usRows.map((r) => ({ symbol: r.symbol, exchange: r.exchange })),
+	);
 	for (const r of usRows) {
-		const cached = await getProfile(r.symbol, r.exchange);
-		if (cached) profiles.set(keyOf(r.symbol, r.exchange), cached);
+		const key = keyOf(r.symbol, r.exchange);
+		const cached = cachedMap.get(key);
+		if (cached) profiles.set(key, cached);
 		const isFresh = cached != null && now - Date.parse(cached.fetchedAt) <= ttlMs;
 		if (!isFresh) stale.push(r.symbol);
 	}

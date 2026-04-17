@@ -172,3 +172,56 @@ describe("upsertProfiles + getProfile", () => {
 		expect(PROFILE_CACHE_TTL_DAYS).toBe(30);
 	});
 });
+
+describe("getProfiles (bulk)", () => {
+	beforeEach(async () => {
+		const { resetConfigForTesting } = await import("../../src/config.ts");
+		resetConfigForTesting();
+		const { closeDb, getDb } = await import("../../src/db/client.ts");
+		closeDb();
+		const db = getDb();
+		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
+		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+	});
+
+	test("returns empty map for empty input", async () => {
+		const { getProfiles } = await import("../../src/universe/profile-fetcher.ts");
+		const result = await getProfiles([]);
+		expect(result.size).toBe(0);
+	});
+
+	test("returns map keyed by symbol:exchange for multiple cached rows", async () => {
+		const { upsertProfiles, getProfiles } = await import("../../src/universe/profile-fetcher.ts");
+		await upsertProfiles([
+			{
+				symbol: "AAPL",
+				exchange: "NASDAQ",
+				marketCapUsd: 3e12,
+				sharesOutstanding: 15e9,
+				freeFloatShares: 14.9e9,
+				ipoDate: "1980-12-12",
+				fetchedAt: new Date().toISOString(),
+			},
+			{
+				symbol: "MSFT",
+				exchange: "NASDAQ",
+				marketCapUsd: 2.8e12,
+				sharesOutstanding: 7.4e9,
+				freeFloatShares: 7.3e9,
+				ipoDate: "1986-03-13",
+				fetchedAt: new Date().toISOString(),
+			},
+		]);
+
+		const result = await getProfiles([
+			{ symbol: "AAPL", exchange: "NASDAQ" },
+			{ symbol: "MSFT", exchange: "NASDAQ" },
+			{ symbol: "GHOST", exchange: "NASDAQ" },
+		]);
+
+		expect(result.size).toBe(2);
+		expect(result.get("AAPL:NASDAQ")?.marketCapUsd).toBe(3e12);
+		expect(result.get("MSFT:NASDAQ")?.marketCapUsd).toBe(2.8e12);
+		expect(result.has("GHOST:NASDAQ")).toBe(false);
+	});
+});
