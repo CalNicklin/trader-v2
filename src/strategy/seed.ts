@@ -15,6 +15,7 @@ export const SEED_STRATEGIES = [
 			rsi_overbought: 70,
 			hold_days: 3,
 			position_size_pct: 10,
+			signal_polarity: "contrarian",
 		}),
 		signals: JSON.stringify({
 			entry_long: "news_sentiment > 0.7 AND rsi14 < 30 AND volume_ratio > 1.5",

@@ -92,6 +92,13 @@
       "when": 1776470400000,
       "tag": "0012_paused_status",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1776556800000,
+      "tag": "0013_pause_strategy4",
+      "breakpoints": true
     }
   ]
 }
