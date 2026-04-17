@@ -2,7 +2,7 @@ import { eq, isNull } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { graduationEvents, strategies, strategyMetrics, strategyMutations } from "../db/schema";
 import { createChildLogger } from "../utils/logger";
-import { checkDrawdowns, enforcePopulationCap } from "./population";
+import { checkDrawdowns, checkExpectancyKill, enforcePopulationCap } from "./population";
 import type { TournamentResult } from "./types";
 
 const log = createChildLogger({ module: "evolution:tournament" });
@@ -139,6 +139,14 @@ export async function runDailyTournaments(): Promise<void> {
 	const drawdownKills = await checkDrawdowns();
 	if (drawdownKills.length > 0) {
 		log.info({ phase: "daily_tournament", kills: drawdownKills.length }, "Drawdown kills executed");
+	}
+
+	const expectancyKilled = await checkExpectancyKill();
+	if (expectancyKilled.length > 0) {
+		log.info(
+			{ phase: "daily_tournament", kills: expectancyKilled.length },
+			"Expectancy kills executed",
+		);
 	}
 
 	const results = await runTournaments();

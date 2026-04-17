@@ -1,6 +1,7 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { graduationEvents, paperTrades, strategies, strategyMetrics } from "../db/schema.ts";
+import { hasStableEdge, MIN_SAMPLE_PROMOTE } from "../evolution/has-stable-edge.ts";
 import {
 	getPatternInsightsForStrategy,
 	reviewForGraduation,
@@ -11,14 +12,13 @@ const log = createChildLogger({ module: "graduation" });
 
 // Graduation thresholds from spec Section 4
 const CRITERIA = {
-	minSampleSize: 20,
+	minSampleSize: MIN_SAMPLE_PROMOTE,
 	minExpectancy: 0,
 	minProfitFactor: 1.5,
 	minSharpe: 0.7,
 	maxDrawdownPct: 15,
 	minConsistency: 3, // profitable in >= 3 of last 4 weeks
 	maxParameters: 5,
-	walkForwardSplit: 0.8, // 80/20 train/test split
 };
 
 export interface GraduationResult {
@@ -97,34 +97,37 @@ export async function checkGraduation(strategyId: number): Promise<GraduationRes
 		}
 	}
 
-	// Walk-forward validation: signal must be profitable on most recent 20% of trades
-	const walkForwardResult = await checkWalkForward(strategyId);
-	if (!walkForwardResult) {
-		failures.push("Walk-forward validation failed: not profitable on recent 20% of trades");
+	// Back-half confirmation: recent 50% of trades must confirm full-sample Sharpe sign
+	const backHalfPnl = await getBackHalfPnl(strategyId);
+	if (
+		!hasStableEdge(
+			{ sampleSize: metrics.sampleSize, sharpeRatio: metrics.sharpeRatio, backHalfPnl },
+			"promote",
+		)
+	) {
+		failures.push(
+			"hasStableEdge(promote) false — back-half P&L does not confirm full-sample Sharpe sign",
+		);
 	}
 
 	return { passes: failures.length === 0, failures };
 }
 
 /**
- * Walk-forward validation: check that the strategy is profitable
- * on the most recent 20% of its trades (out-of-sample window).
+ * Returns the sum of PnL over the most recent 50% of closed trades for a strategy.
+ * Used by the hasStableEdge predicate to confirm full-sample Sharpe sign.
  */
-async function checkWalkForward(strategyId: number): Promise<boolean> {
+async function getBackHalfPnl(strategyId: number): Promise<number> {
 	const db = getDb();
 	const trades = await db
-		.select({ pnl: paperTrades.pnl, createdAt: paperTrades.createdAt })
+		.select({ pnl: paperTrades.pnl })
 		.from(paperTrades)
 		.where(and(eq(paperTrades.strategyId, strategyId), isNotNull(paperTrades.pnl)))
 		.orderBy(paperTrades.createdAt);
 
-	if (trades.length < 5) return false; // need at least 5 trades to split
-
-	const splitIdx = Math.floor(trades.length * CRITERIA.walkForwardSplit);
-	const recentTrades = trades.slice(splitIdx);
-	const recentPnl = recentTrades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
-
-	return recentPnl > 0;
+	if (trades.length === 0) return 0;
+	const splitIdx = Math.floor(trades.length / 2);
+	return trades.slice(splitIdx).reduce((sum, t) => sum + (t.pnl ?? 0), 0);
 }
 
 /**
