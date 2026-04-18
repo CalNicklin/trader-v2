@@ -2,18 +2,12 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { catalystEvents } from "../db/schema.ts";
 
+export type CatalystEventType = typeof catalystEvents.$inferInsert["eventType"];
+
 export interface CatalystEventInput {
 	symbol: string;
 	exchange: string;
-	eventType:
-		| "news"
-		| "research"
-		| "earnings"
-		| "volume"
-		| "feedback"
-		| "insider_buy"
-		| "filing_8k"
-		| "rotation";
+	eventType: CatalystEventType;
 	source: string;
 	payload: unknown | null;
 }
