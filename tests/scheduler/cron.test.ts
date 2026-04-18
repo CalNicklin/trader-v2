@@ -35,3 +35,23 @@ describe("scheduler", () => {
 		expect(isLocked("quotes_uk")).toBe(true);
 	});
 });
+
+describe("watchlist cron registration", () => {
+	test("runJob accepts each new watchlist job name without throwing", async () => {
+		const { runJob } = await import("../../src/scheduler/jobs.ts");
+		// Each should run (or safely skip) without crashing the runner
+		// These calls may run actual job bodies in-memory DB; errors inside the
+		// job are caught by runJob. We only assert no uncaught throws.
+		await runJob("volume_catalyst_us");
+		await runJob("volume_catalyst_uk");
+		await runJob("watchlist_demote");
+		await runJob("watchlist_enrich");
+	});
+
+	test("cron-schedule mirror contains watchlist entries", async () => {
+		const { CRON_SCHEDULE } = await import("../../src/monitoring/cron-schedule.ts");
+		expect(CRON_SCHEDULE.earnings_catalyst).toBeDefined();
+		expect(CRON_SCHEDULE.watchlist_demote).toBeDefined();
+		expect(CRON_SCHEDULE.watchlist_enrich_post_close).toBeDefined();
+	});
+});

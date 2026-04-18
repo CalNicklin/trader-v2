@@ -162,10 +162,10 @@ describe("getDashboardData", () => {
 		expect(data.recentLogs[0]!.message).toBe("Orphaned position found");
 	});
 
-	test("cronJobs has 32 entries sorted by nextRun", async () => {
+	test("cronJobs has 41 entries sorted by nextRun", async () => {
 		const { getDashboardData } = await import("../../src/monitoring/dashboard-data.ts");
 		const data = await getDashboardData();
-		expect(data.cronJobs.length).toBe(32);
+		expect(data.cronJobs.length).toBe(41);
 		for (let i = 1; i < data.cronJobs.length; i++) {
 			expect(new Date(data.cronJobs[i]!.nextRun).getTime()).toBeGreaterThanOrEqual(
 				new Date(data.cronJobs[i - 1]!.nextRun).getTime(),

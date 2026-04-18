@@ -32,7 +32,12 @@ export type JobName =
 	| "research_calibration_24h"
 	| "research_calibration_48h"
 	| "universe_refresh_weekly"
-	| "universe_delta_daily";
+	| "universe_delta_daily"
+	| "earnings_catalyst"
+	| "volume_catalyst_us"
+	| "volume_catalyst_uk"
+	| "watchlist_enrich"
+	| "watchlist_demote";
 
 const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	quote_refresh_uk: "quotes_uk",
@@ -64,6 +69,11 @@ const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	research_calibration_48h: "analysis",
 	universe_refresh_weekly: "analysis",
 	universe_delta_daily: "analysis",
+	earnings_catalyst: "analysis",
+	volume_catalyst_us: "catalyst_us",
+	volume_catalyst_uk: "catalyst_uk",
+	watchlist_enrich: "enrichment",
+	watchlist_demote: "demotion",
 };
 
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
@@ -301,6 +311,37 @@ async function executeJob(name: JobName): Promise<void> {
 		case "universe_delta_daily": {
 			const { runDailyUniverseDelta } = await import("./universe-jobs.ts");
 			await runDailyUniverseDelta();
+			break;
+		}
+
+		case "earnings_catalyst": {
+			const { runEarningsCatalystJob } = await import("./earnings-catalyst-job.ts");
+			const { getConfig } = await import("../config.ts");
+			await runEarningsCatalystJob({ apiKey: getConfig().FMP_API_KEY, now: new Date() });
+			break;
+		}
+
+		case "volume_catalyst_us": {
+			const { runVolumeCatalystJob } = await import("./volume-catalyst-job.ts");
+			await runVolumeCatalystJob({ scope: "us", now: new Date() });
+			break;
+		}
+
+		case "volume_catalyst_uk": {
+			const { runVolumeCatalystJob } = await import("./volume-catalyst-job.ts");
+			await runVolumeCatalystJob({ scope: "uk", now: new Date() });
+			break;
+		}
+
+		case "watchlist_enrich": {
+			const { runWatchlistEnrichJob } = await import("./watchlist-enrich-job.ts");
+			await runWatchlistEnrichJob();
+			break;
+		}
+
+		case "watchlist_demote": {
+			const { runWatchlistDemoteJob } = await import("./watchlist-demote-job.ts");
+			await runWatchlistDemoteJob();
 			break;
 		}
 	}

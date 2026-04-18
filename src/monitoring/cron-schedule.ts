@@ -62,6 +62,17 @@ export const CRON_SCHEDULE: Record<string, CronEntry> = {
 	universe_refresh_weekly: { cron: "0 3 * * 1" },
 	universe_delta_daily: { cron: "30 22 * * 1-5" },
 
+	// Watchlist
+	earnings_catalyst: { cron: "45 22 * * 1-5" },
+	volume_catalyst_uk_open: { cron: "5 8 * * 1-5" },
+	volume_catalyst_us_open: { cron: "35 14 * * 1-5" },
+	volume_catalyst_uk_close: { cron: "35 14 * * 1-5" },
+	volume_catalyst_us_uk_close: { cron: "35 16 * * 1-5" },
+	volume_catalyst_us_afternoon: { cron: "0 18 * * 1-5" },
+	watchlist_enrich_sessions: { cron: "*/15 8-20 * * 1-5" },
+	watchlist_enrich_post_close: { cron: "50 22 * * 1-5" },
+	watchlist_demote: { cron: "55 22 * * 1-5" },
+
 	// Weekend
 	weekly_digest: { cron: "30 17 * * 0" },
 	strategy_evolution: { cron: "0 18 * * 0" },
