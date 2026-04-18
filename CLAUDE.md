@@ -32,6 +32,7 @@ Execute in dependency order. Phases 5, 6, 9 can run in parallel. Phase 7 depends
 | Dashboard Tabs | `docs/plans/2026-04-07-dashboard-subsystem-tabs.md` | **Done** | Subsystem tabs for monitoring dashboard |
 | Session-Aware Scheduling | `docs/plans/2026-04-07-session-aware-scheduling.md` | **Done** | Per-market UK/US pipelines, session boundaries, parallel job locks |
 | Learning Loop Feedback | `docs/plans/2026-04-07-learning-loop-feedback.md` | **Done** | Structured insight actions in evolution/self-improvement prompts, `ledToImprovement` tracking, Opus for heavy reasoning |
+| Universe Rollout | `docs/superpowers/specs/2026-04-17-universe-research-architecture-design.md` | **In progress** — see `docs/universe-rollout-status.md` | 5-step rollout replacing static seed universes with catalyst-driven 4-tier architecture. Steps 1, 1a, 2 shipped; Step 3 pending (blocked on issue #32). |
 
 Plans are task-by-task with full code, TDD steps, and exact file paths. An agent can execute a plan by reading it and following the tasks sequentially.
 
