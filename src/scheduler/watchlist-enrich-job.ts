@@ -4,6 +4,7 @@ import { getConfig } from "../config.ts";
 import { getDb } from "../db/client.ts";
 import { watchlist } from "../db/schema.ts";
 import { canAffordCall } from "../utils/budget.ts";
+import { recordUsage } from "../utils/token-tracker.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { ENRICH_BATCH_SIZE, ENRICHMENT_RETRY_HOURS } from "../watchlist/constants.ts";
 import { enrichOne, type LLMCall } from "../watchlist/enrich.ts";
@@ -92,6 +93,7 @@ function defaultOpusLlm(): LLMCall {
 			max_tokens: 1024,
 			messages: [{ role: "user", content: prompt }],
 		});
+		await recordUsage("watchlist_enrich", msg.usage.input_tokens, msg.usage.output_tokens);
 		const textBlock = msg.content.find((b) => b.type === "text");
 		const text = textBlock?.type === "text" ? textBlock.text : "";
 		return text;
