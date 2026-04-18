@@ -2,11 +2,18 @@ import Anthropic from "@anthropic-ai/sdk";
 import { and, desc, eq, gte } from "drizzle-orm";
 import { getConfig } from "../config.ts";
 import { getDb } from "../db/client.ts";
-import { paperTrades, strategies, tradeInsights } from "../db/schema.ts";
+import { investableUniverse, paperTrades, strategies, tradeInsights } from "../db/schema.ts";
 import { canAffordCall } from "../utils/budget.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
 import { recordUsage } from "../utils/token-tracker.ts";
+import { markLedToPromotion, writeCatalystEvent } from "../watchlist/catalyst-events.ts";
+import {
+	FEEDBACK_INSIGHT_THRESHOLD,
+	FEEDBACK_INSIGHT_WINDOW_DAYS,
+	FEEDBACK_MIN_CONFIDENCE,
+} from "../watchlist/constants.ts";
+import { promoteToWatchlist } from "../watchlist/promote.ts";
 import { getActivePrompt } from "./prompts.ts";
 import type { PatternObservation, UniverseSuggestion } from "./types.ts";
 
@@ -287,9 +294,90 @@ export async function runPatternAnalysis(): Promise<{
 		}
 
 		log.info({ count: observations.length }, "Pattern analysis complete");
+
+		// Feedback-driven watchlist promotions
+		try {
+			const fb = await checkFeedbackPromotions();
+			log.info({ promoted: fb.promoted }, "Feedback watchlist promotions complete");
+		} catch (err) {
+			log.error({ err }, "Feedback watchlist promotions failed");
+		}
+
 		return { observations: observations.length, skippedBudget: false };
 	} catch (error) {
 		log.error({ error }, "Pattern analysis API call failed");
 		return { observations: 0, skippedBudget: false };
 	}
+}
+
+// Scans tradeInsights (insightType="missed_opportunity") from the last
+// FEEDBACK_INSIGHT_WINDOW_DAYS. For each symbol (parsed from tags[2]) with
+// >= FEEDBACK_INSIGHT_THRESHOLD insights at confidence >= FEEDBACK_MIN_CONFIDENCE,
+// writes a catalyst event and promotes to the watchlist.
+export async function checkFeedbackPromotions(): Promise<{ promoted: number }> {
+	const db = getDb();
+	const cutoff = new Date(Date.now() - FEEDBACK_INSIGHT_WINDOW_DAYS * 86_400_000).toISOString();
+
+	const rows = db
+		.select({ tags: tradeInsights.tags })
+		.from(tradeInsights)
+		.where(
+			and(
+				eq(tradeInsights.insightType, "missed_opportunity"),
+				gte(tradeInsights.confidence, FEEDBACK_MIN_CONFIDENCE),
+				gte(tradeInsights.createdAt, cutoff),
+			),
+		)
+		.all();
+
+	const symbolCounts = new Map<string, number>();
+	for (const row of rows) {
+		if (!row.tags) continue;
+		let tags: unknown;
+		try {
+			tags = JSON.parse(row.tags);
+		} catch {
+			continue;
+		}
+		if (!Array.isArray(tags) || tags.length < 3) continue;
+		const symbol = tags[2];
+		if (typeof symbol !== "string" || !symbol) continue;
+		symbolCounts.set(symbol, (symbolCounts.get(symbol) ?? 0) + 1);
+	}
+
+	let promoted = 0;
+	for (const [symbol, count] of symbolCounts) {
+		if (count < FEEDBACK_INSIGHT_THRESHOLD) continue;
+
+		// Resolve exchange via investable_universe (must be unique + active)
+		const universeRows = db
+			.select({ exchange: investableUniverse.exchange })
+			.from(investableUniverse)
+			.where(and(eq(investableUniverse.symbol, symbol), eq(investableUniverse.active, true)))
+			.all();
+		if (universeRows.length !== 1) continue; // skip ambiguous / unknown
+		const exchange = universeRows[0]!.exchange;
+
+		const eventId = writeCatalystEvent({
+			symbol,
+			exchange,
+			eventType: "feedback",
+			source: "pattern_analysis",
+			payload: { insightCount: count },
+		});
+
+		const result = await promoteToWatchlist({
+			symbol,
+			exchange,
+			reason: "feedback",
+			payload: { insightCount: count },
+		});
+
+		if (result.status === "inserted" || result.status === "updated") {
+			markLedToPromotion(eventId);
+			promoted++;
+		}
+	}
+
+	return { promoted };
 }
