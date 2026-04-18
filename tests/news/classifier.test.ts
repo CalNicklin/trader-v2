@@ -1,4 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { closeDb, getDb } from "../../src/db/client.ts";
+import { catalystEvents, investableUniverse, watchlist } from "../../src/db/schema.ts";
+import { onTradeableClassification } from "../../src/news/classifier.ts";
 
 describe("news classifier", () => {
 	test("buildClassificationPrompt returns valid prompt", async () => {
@@ -150,5 +155,95 @@ describe("news classifier", () => {
 		const result = parseClassificationResponse(response);
 		expect(result).not.toBeNull();
 		expect(result!.signals!.catalystType).toBe("other");
+	});
+});
+
+describe("watchlist wiring", () => {
+	beforeEach(() => {
+		closeDb();
+		process.env.DB_PATH = ":memory:";
+		migrate(getDb(), { migrationsFolder: "./drizzle/migrations" });
+		getDb()
+			.insert(investableUniverse)
+			.values({
+				symbol: "AAPL",
+				exchange: "NASDAQ",
+				indexSource: "russell_1000",
+				active: true,
+				lastRefreshed: new Date().toISOString(),
+			})
+			.run();
+	});
+	afterEach(() => closeDb());
+
+	test("tradeable classification promotes to watchlist", async () => {
+		await onTradeableClassification({
+			newsEventId: 42,
+			symbol: "AAPL",
+			exchange: "NASDAQ",
+			classification: { tradeable: true, urgency: "medium", sentiment: 0.7, confidence: 0.8 },
+			headline: "Apple announces partnership",
+		});
+		const rows = getDb().select().from(watchlist).where(eq(watchlist.symbol, "AAPL")).all();
+		expect(rows.length).toBe(1);
+		expect(rows[0]?.promotionReasons).toBe("news");
+	});
+
+	test("tradeable classification writes catalyst event with ledToPromotion=true", async () => {
+		await onTradeableClassification({
+			newsEventId: 42,
+			symbol: "AAPL",
+			exchange: "NASDAQ",
+			classification: { tradeable: true, urgency: "medium", sentiment: 0.7, confidence: 0.8 },
+			headline: "Apple announces partnership",
+		});
+		const events = getDb()
+			.select()
+			.from(catalystEvents)
+			.where(eq(catalystEvents.symbol, "AAPL"))
+			.all();
+		expect(events.length).toBe(1);
+		expect(events[0]?.eventType).toBe("news");
+		expect(events[0]?.ledToPromotion).toBe(true);
+	});
+
+	test("non-tradeable classification does not promote", async () => {
+		await onTradeableClassification({
+			newsEventId: 42,
+			symbol: "AAPL",
+			exchange: "NASDAQ",
+			classification: { tradeable: false, urgency: "low", sentiment: 0.1, confidence: 0.5 },
+			headline: "Minor news",
+		});
+		const rows = getDb().select().from(watchlist).all();
+		expect(rows.length).toBe(0);
+		const events = getDb().select().from(catalystEvents).all();
+		expect(events.length).toBe(0);
+	});
+
+	test("low-urgency tradeable classification does not promote", async () => {
+		await onTradeableClassification({
+			newsEventId: 42,
+			symbol: "AAPL",
+			exchange: "NASDAQ",
+			classification: { tradeable: true, urgency: "low", sentiment: 0.7, confidence: 0.8 },
+			headline: "Low-urgency news",
+		});
+		expect(getDb().select().from(watchlist).all().length).toBe(0);
+		expect(getDb().select().from(catalystEvents).all().length).toBe(0);
+	});
+
+	test("symbol not in investable_universe: catalyst event still written but ledToPromotion=false", async () => {
+		await onTradeableClassification({
+			newsEventId: 42,
+			symbol: "ZZZZZ",
+			exchange: "NASDAQ",
+			classification: { tradeable: true, urgency: "medium", sentiment: 0.7, confidence: 0.8 },
+			headline: "Unknown symbol news",
+		});
+		expect(getDb().select().from(watchlist).all().length).toBe(0);
+		const events = getDb().select().from(catalystEvents).all();
+		expect(events.length).toBe(1);
+		expect(events[0]?.ledToPromotion).toBe(false);
 	});
 });

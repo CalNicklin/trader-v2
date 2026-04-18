@@ -3,7 +3,7 @@ import { getDb } from "../db/client.ts";
 import { newsEvents } from "../db/schema.ts";
 import { injectSymbol } from "../strategy/universe.ts";
 import { createChildLogger } from "../utils/logger.ts";
-import type { ClassificationResult } from "./classifier.ts";
+import { type ClassificationResult, onTradeableClassification } from "./classifier.ts";
 import type { NewsArticle } from "./finnhub.ts";
 import { shouldClassify } from "./pre-filter.ts";
 import { runResearchAnalysis } from "./research-agent.ts";
@@ -93,6 +93,27 @@ export async function processArticle(
 		urgency: result.urgency,
 		signals: result.signals,
 	});
+
+	// Fire-and-forget watchlist promotion per affected symbol
+	for (const symbol of article.symbols) {
+		onTradeableClassification({
+			newsEventId,
+			symbol,
+			exchange,
+			classification: {
+				tradeable: result.tradeable,
+				urgency: result.urgency,
+				sentiment: result.sentiment,
+				confidence: result.confidence,
+			},
+			headline: article.headline,
+		}).catch((err) =>
+			log.error(
+				{ err, symbol, headline: article.headline.slice(0, 60) },
+				"Watchlist promotion failed",
+			),
+		);
+	}
 
 	// Inject high-urgency symbols into all strategy universes temporarily
 	if (result.tradeable && result.urgency === "high") {
