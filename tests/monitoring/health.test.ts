@@ -1,5 +1,11 @@
-import { beforeEach, describe, expect, test } from "bun:test";
-import { dailySnapshots, quotesCache, strategies, tokenUsage } from "../../src/db/schema";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import {
+	dailySnapshots,
+	quotesCache,
+	strategies,
+	tokenUsage,
+	watchlist,
+} from "../../src/db/schema";
 
 describe("health data collector", () => {
 	beforeEach(async () => {
@@ -162,5 +168,58 @@ describe("getUniverseHealth", () => {
 		expect(result.activeCount).toBe(2);
 		expect(result.bySource.russell_1000).toBe(1);
 		expect(result.bySource.ftse_350).toBe(1);
+	});
+});
+
+describe("watchlist section", () => {
+	beforeEach(async () => {
+		const { resetConfigForTesting } = await import("../../src/config.ts");
+		resetConfigForTesting();
+		const { closeDb, getDb } = await import("../../src/db/client.ts");
+		closeDb();
+		const db = getDb();
+		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
+		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+	});
+	afterEach(async () => {
+		const { closeDb } = await import("../../src/db/client.ts");
+		closeDb();
+	});
+
+	test("exposes activeCount, byReason, unenrichedCount, enrichmentFailedCount, oldestPromotionHours", async () => {
+		const { getDb } = await import("../../src/db/client.ts");
+		const { getHealthData } = await import("../../src/monitoring/health");
+		const now = new Date().toISOString();
+		getDb()
+			.insert(watchlist)
+			.values({
+				symbol: "AAPL",
+				exchange: "NASDAQ",
+				promotionReasons: "news,earnings",
+				promotedAt: now,
+				lastCatalystAt: now,
+				expiresAt: new Date(Date.now() + 72 * 3600_000).toISOString(),
+			})
+			.run();
+		getDb()
+			.insert(watchlist)
+			.values({
+				symbol: "MSFT",
+				exchange: "NASDAQ",
+				promotionReasons: "research",
+				promotedAt: now,
+				lastCatalystAt: now,
+				expiresAt: new Date(Date.now() + 72 * 3600_000).toISOString(),
+			})
+			.run();
+
+		const h = await getHealthData();
+		expect(h.watchlist.activeCount).toBe(2);
+		expect(h.watchlist.byReason.news).toBe(1);
+		expect(h.watchlist.byReason.earnings).toBe(1);
+		expect(h.watchlist.byReason.research).toBe(1);
+		expect(h.watchlist.unenrichedCount).toBe(2);
+		expect(h.watchlist.enrichmentFailedCount).toBe(0);
+		expect(h.watchlist.oldestPromotionHours).not.toBeNull();
 	});
 });

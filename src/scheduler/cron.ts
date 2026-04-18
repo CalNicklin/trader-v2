@@ -142,6 +142,57 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// ── Watchlist jobs ──────────────────────────────────────────────────
+	// Earnings catalyst — daily post-close
+	tasks.push(
+		cron.schedule("45 22 * * 1-5", () => runJob("earnings_catalyst"), {
+			timezone: "Europe/London",
+		}),
+	);
+	// Volume catalyst — per session boundary, UK at 08:05 + 14:35, US at 14:35 + 16:35 + 18:00
+	tasks.push(
+		cron.schedule("5 8 * * 1-5", () => runJob("volume_catalyst_uk"), {
+			timezone: "Europe/London",
+		}),
+	);
+	tasks.push(
+		cron.schedule("35 14 * * 1-5", () => runJob("volume_catalyst_us"), {
+			timezone: "Europe/London",
+		}),
+	);
+	tasks.push(
+		cron.schedule("35 14 * * 1-5", () => runJob("volume_catalyst_uk"), {
+			timezone: "Europe/London",
+		}),
+	);
+	tasks.push(
+		cron.schedule("35 16 * * 1-5", () => runJob("volume_catalyst_us"), {
+			timezone: "Europe/London",
+		}),
+	);
+	tasks.push(
+		cron.schedule("0 18 * * 1-5", () => runJob("volume_catalyst_us"), {
+			timezone: "Europe/London",
+		}),
+	);
+	// Enrichment — every 15min during sessions + post-close sweep
+	tasks.push(
+		cron.schedule("*/15 8-20 * * 1-5", () => runJob("watchlist_enrich"), {
+			timezone: "Europe/London",
+		}),
+	);
+	tasks.push(
+		cron.schedule("50 22 * * 1-5", () => runJob("watchlist_enrich"), {
+			timezone: "Europe/London",
+		}),
+	);
+	// Demotion — after enrichment post-close
+	tasks.push(
+		cron.schedule("55 22 * * 1-5", () => runJob("watchlist_demote"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	// ── Pre-market & maintenance ────────────────────────────────────────
 	tasks.push(
 		cron.schedule("0 6 * * 1-5", () => runJob("earnings_calendar_sync"), {

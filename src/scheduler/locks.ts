@@ -7,7 +7,11 @@ export type LockCategory =
 	| "dispatch"
 	| "analysis"
 	| "risk"
-	| "maintenance";
+	| "maintenance"
+	| "catalyst_us"
+	| "catalyst_uk"
+	| "enrichment"
+	| "demotion";
 
 const locks = new Map<LockCategory, boolean>();
 

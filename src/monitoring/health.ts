@@ -1,6 +1,12 @@
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { getDb } from "../db/client";
-import { dailySnapshots, investableUniverse, quotesCache, strategies } from "../db/schema";
+import {
+	dailySnapshots,
+	investableUniverse,
+	quotesCache,
+	strategies,
+	watchlist,
+} from "../db/schema";
 import { getDailySpend } from "../utils/budget";
 
 export interface HealthData {
@@ -17,6 +23,13 @@ export interface HealthData {
 		activeCount: number;
 		lastRefreshed: string | null;
 		bySource: { russell_1000: number; ftse_350: number; aim_allshare: number };
+	};
+	watchlist: {
+		activeCount: number;
+		byReason: Record<string, number>;
+		unenrichedCount: number;
+		oldestPromotionHours: number | null;
+		enrichmentFailedCount: number;
 	};
 }
 
@@ -83,6 +96,26 @@ export async function getHealthData(): Promise<HealthData> {
 		// Broker module not loaded
 	}
 
+	// Watchlist stats
+	const wlRows = db.select().from(watchlist).where(isNull(watchlist.demotedAt)).all();
+
+	const byReason: Record<string, number> = {};
+	let unenrichedCount = 0;
+	let enrichmentFailedCount = 0;
+	let oldestMs: number | null = null;
+	const nowMs = Date.now();
+	for (const r of wlRows) {
+		for (const reason of r.promotionReasons.split(",")) {
+			if (reason) byReason[reason] = (byReason[reason] ?? 0) + 1;
+		}
+		if (r.enrichedAt == null && r.enrichmentFailedAt == null) unenrichedCount++;
+		if (r.enrichmentFailedAt != null) enrichmentFailedCount++;
+		const promotedMs = Date.parse(r.promotedAt);
+		if (oldestMs == null || promotedMs < oldestMs) oldestMs = promotedMs;
+	}
+
+	const oldestPromotionHours = oldestMs == null ? null : (nowMs - oldestMs) / 3600_000;
+
 	return {
 		status,
 		uptime: process.uptime(),
@@ -94,6 +127,13 @@ export async function getHealthData(): Promise<HealthData> {
 		paused: _paused,
 		ibkrConnected,
 		universe: await getUniverseHealth(),
+		watchlist: {
+			activeCount: wlRows.length,
+			byReason,
+			unenrichedCount,
+			oldestPromotionHours,
+			enrichmentFailedCount,
+		},
 	};
 }
 

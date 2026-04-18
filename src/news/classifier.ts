@@ -4,6 +4,8 @@ import { canAffordCall } from "../utils/budget.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
 import { recordUsage } from "../utils/token-tracker.ts";
+import { markLedToPromotion, writeCatalystEvent } from "../watchlist/catalyst-events.ts";
+import { promoteToWatchlist } from "../watchlist/promote.ts";
 
 const log = createChildLogger({ module: "news-classifier" });
 
@@ -195,5 +197,49 @@ export async function classifyHeadline(
 	} catch (error) {
 		log.error({ headline, error }, "Classification API call failed");
 		return null;
+	}
+}
+
+export interface TradeableClassificationInput {
+	newsEventId: number;
+	symbol: string;
+	exchange: string;
+	classification: {
+		tradeable: boolean;
+		urgency: "low" | "medium" | "high";
+		sentiment: number;
+		confidence: number;
+	};
+	headline: string;
+}
+
+export async function onTradeableClassification(
+	input: TradeableClassificationInput,
+): Promise<void> {
+	if (!input.classification.tradeable) return;
+	if (input.classification.urgency === "low") return;
+
+	const eventId = writeCatalystEvent({
+		symbol: input.symbol,
+		exchange: input.exchange,
+		eventType: "news",
+		source: `news_event_${input.newsEventId}`,
+		payload: {
+			headline: input.headline,
+			urgency: input.classification.urgency,
+			sentiment: input.classification.sentiment,
+			confidence: input.classification.confidence,
+		},
+	});
+
+	const result = await promoteToWatchlist({
+		symbol: input.symbol,
+		exchange: input.exchange,
+		reason: "news",
+		payload: { headline: input.headline, urgency: input.classification.urgency },
+	});
+
+	if (result.status === "inserted" || result.status === "updated") {
+		markLedToPromotion(eventId);
 	}
 }

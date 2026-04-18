@@ -3,12 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, mock, test } from "bun:tes
 import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { closeDb, getDb } from "../../src/db/client.ts";
-import { strategies } from "../../src/db/schema.ts";
+import { catalystEvents, investableUniverse, strategies, watchlist } from "../../src/db/schema.ts";
 import type { ResearchAnalysis } from "../../src/news/research-agent.ts";
 import {
 	_test_filterAndPin,
 	buildResearchPrompt,
 	buildUniverseWhitelist,
+	onResearchResult,
 	parseResearchResponse,
 } from "../../src/news/research-agent.ts";
 
@@ -384,5 +385,75 @@ describe("filterAndPin", () => {
 		} finally {
 			delete process.env.RESEARCH_WHITELIST_ENFORCE;
 		}
+	});
+});
+
+describe("watchlist wiring", () => {
+	beforeEach(() => {
+		closeDb();
+		process.env.DB_PATH = ":memory:";
+		migrate(getDb(), { migrationsFolder: "./drizzle/migrations" });
+		getDb()
+			.insert(investableUniverse)
+			.values({
+				symbol: "AAPL",
+				exchange: "NASDAQ",
+				indexSource: "russell_1000",
+				active: true,
+				lastRefreshed: new Date().toISOString(),
+			})
+			.run();
+	});
+	afterEach(() => closeDb());
+
+	test("research result with confidence >= 0.75 promotes with reason=research and writes catalyst event", async () => {
+		await onResearchResult({
+			newsEventId: 42,
+			symbol: "AAPL",
+			exchange: "NASDAQ",
+			confidence: 0.8,
+			eventType: "earnings_beat",
+			summary: "Apple beat Q2 estimates",
+		});
+		const rows = getDb().select().from(watchlist).where(eq(watchlist.symbol, "AAPL")).all();
+		expect(rows.length).toBe(1);
+		expect(rows[0]?.promotionReasons).toBe("research");
+
+		const events = getDb()
+			.select()
+			.from(catalystEvents)
+			.where(eq(catalystEvents.symbol, "AAPL"))
+			.all();
+		expect(events.length).toBe(1);
+		expect(events[0]?.eventType).toBe("research");
+		expect(events[0]?.ledToPromotion).toBe(true);
+	});
+
+	test("research result with confidence < 0.75 does NOT promote and writes no catalyst event", async () => {
+		await onResearchResult({
+			newsEventId: 42,
+			symbol: "AAPL",
+			exchange: "NASDAQ",
+			confidence: 0.6,
+			eventType: "analyst_upgrade",
+			summary: "Low-confidence analysis",
+		});
+		expect(getDb().select().from(watchlist).all().length).toBe(0);
+		expect(getDb().select().from(catalystEvents).all().length).toBe(0);
+	});
+
+	test("symbol not in investable_universe: catalyst event still written but ledToPromotion=false", async () => {
+		await onResearchResult({
+			newsEventId: 42,
+			symbol: "ZZZZZ",
+			exchange: "NASDAQ",
+			confidence: 0.9,
+			eventType: "earnings_beat",
+			summary: "Unknown symbol",
+		});
+		expect(getDb().select().from(watchlist).all().length).toBe(0);
+		const events = getDb().select().from(catalystEvents).all();
+		expect(events.length).toBe(1);
+		expect(events[0]?.ledToPromotion).toBe(false);
 	});
 });
