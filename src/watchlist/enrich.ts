@@ -1,3 +1,6 @@
+import { and, desc, eq, gte } from "drizzle-orm";
+import { getDb } from "../db/client.ts";
+import { catalystEvents, watchlist } from "../db/schema.ts";
 import type { WatchlistRow } from "./repo.ts";
 
 export interface CatalystContext {
@@ -116,4 +119,68 @@ function unwrapJson(raw: string): string | null {
 	const end = trimmed.lastIndexOf("}");
 	if (start >= 0 && end > start) return trimmed.slice(start, end + 1);
 	return null;
+}
+
+export type LLMCall = (prompt: string) => Promise<string>;
+
+export type EnrichResult =
+	| { status: "enriched" }
+	| { status: "parse_failed"; error: string }
+	| { status: "llm_failed"; error: string };
+
+const RECENT_EVENTS_LOOKBACK_HOURS = 72;
+const RECENT_EVENTS_LIMIT = 10;
+
+export async function enrichOne(row: WatchlistRow, llm: LLMCall): Promise<EnrichResult> {
+	const db = getDb();
+	const cutoff = new Date(Date.now() - RECENT_EVENTS_LOOKBACK_HOURS * 3600_000).toISOString();
+	const recentRaw = db
+		.select()
+		.from(catalystEvents)
+		.where(
+			and(
+				eq(catalystEvents.symbol, row.symbol),
+				eq(catalystEvents.exchange, row.exchange),
+				gte(catalystEvents.firedAt, cutoff),
+			),
+		)
+		.orderBy(desc(catalystEvents.firedAt))
+		.limit(RECENT_EVENTS_LIMIT)
+		.all();
+
+	const recent: CatalystContext[] = recentRaw.map((e) => ({
+		symbol: e.symbol,
+		exchange: e.exchange,
+		eventType: e.eventType,
+		source: e.source,
+		payload: e.payload ? JSON.parse(e.payload) : null,
+		firedAt: e.firedAt,
+	}));
+
+	const prompt = buildEnrichmentPrompt(row, recent);
+
+	let rawResponse: string;
+	try {
+		rawResponse = await llm(prompt);
+	} catch (err) {
+		return { status: "llm_failed", error: err instanceof Error ? err.message : String(err) };
+	}
+
+	const parsed = parseEnrichmentResponse(rawResponse);
+	if (!parsed.ok) {
+		return { status: "parse_failed", error: parsed.error };
+	}
+
+	db.update(watchlist)
+		.set({
+			catalystSummary: parsed.value.catalystSummary,
+			directionalBias: parsed.value.directionalBias,
+			horizon: parsed.value.horizon,
+			researchPayload: JSON.stringify(parsed.value),
+			enrichedAt: new Date().toISOString(),
+		})
+		.where(eq(watchlist.id, row.id))
+		.run();
+
+	return { status: "enriched" };
 }

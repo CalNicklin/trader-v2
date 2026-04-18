@@ -1,5 +1,13 @@
-import { describe, expect, test } from "bun:test";
-import { buildEnrichmentPrompt, parseEnrichmentResponse } from "../../src/watchlist/enrich.ts";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { closeDb, getDb } from "../../src/db/client.ts";
+import { watchlist } from "../../src/db/schema.ts";
+import {
+	buildEnrichmentPrompt,
+	enrichOne,
+	parseEnrichmentResponse,
+} from "../../src/watchlist/enrich.ts";
 import type { WatchlistRow } from "../../src/watchlist/repo.ts";
 
 function fakeRow(overrides: Partial<WatchlistRow> = {}): WatchlistRow {
@@ -116,5 +124,96 @@ describe("parseEnrichmentResponse", () => {
 		});
 		const result = parseEnrichmentResponse(raw);
 		expect(result.ok).toBe(false);
+	});
+});
+
+describe("enrichOne", () => {
+	beforeEach(() => {
+		closeDb();
+		process.env.DB_PATH = ":memory:";
+		migrate(getDb(), { migrationsFolder: "./drizzle/migrations" });
+	});
+	afterEach(() => closeDb());
+
+	function insert() {
+		const db = getDb();
+		const now = new Date().toISOString();
+		const inserted = db
+			.insert(watchlist)
+			.values({
+				symbol: "AAPL",
+				exchange: "NASDAQ",
+				promotionReasons: "news",
+				promotedAt: now,
+				lastCatalystAt: now,
+				expiresAt: new Date(Date.now() + 72 * 3600_000).toISOString(),
+			})
+			.returning({ id: watchlist.id })
+			.get();
+		return inserted?.id ?? 0;
+	}
+
+	test("on success: writes research_payload, directional_bias, horizon, catalyst_summary, enriched_at", async () => {
+		const id = insert();
+		const row = getDb().select().from(watchlist).where(eq(watchlist.id, id)).get();
+		const llm = async () =>
+			JSON.stringify({
+				catalyst_summary: "Strong Q2",
+				directional_bias: "long",
+				horizon: "days",
+				status: "active",
+			});
+		const result = await enrichOne(row!, llm);
+		expect(result.status).toBe("enriched");
+
+		const after = getDb().select().from(watchlist).where(eq(watchlist.id, id)).get();
+		expect(after?.catalystSummary).toBe("Strong Q2");
+		expect(after?.directionalBias).toBe("long");
+		expect(after?.horizon).toBe("days");
+		expect(after?.enrichedAt).not.toBeNull();
+		expect(JSON.parse(after?.researchPayload ?? "null").status).toBe("active");
+	});
+
+	test("on malformed LLM response: row stays unenriched (no enriched_at), returns parse_failed", async () => {
+		const id = insert();
+		const row = getDb().select().from(watchlist).where(eq(watchlist.id, id)).get();
+		const llm = async () => "not json";
+		const result = await enrichOne(row!, llm);
+		expect(result.status).toBe("parse_failed");
+
+		const after = getDb().select().from(watchlist).where(eq(watchlist.id, id)).get();
+		expect(after?.enrichedAt).toBeNull();
+		expect(after?.enrichmentFailedAt).toBeNull();
+	});
+
+	test("on LLM throw: returns llm_failed, row unchanged", async () => {
+		const id = insert();
+		const row = getDb().select().from(watchlist).where(eq(watchlist.id, id)).get();
+		const llm = async () => {
+			throw new Error("503 unavailable");
+		};
+		const result = await enrichOne(row!, llm);
+		expect(result.status).toBe("llm_failed");
+
+		const after = getDb().select().from(watchlist).where(eq(watchlist.id, id)).get();
+		expect(after?.enrichedAt).toBeNull();
+	});
+
+	test("passes recent events into the prompt", async () => {
+		const id = insert();
+		const row = getDb().select().from(watchlist).where(eq(watchlist.id, id)).get();
+		let seenPrompt = "";
+		const llm = async (prompt: string) => {
+			seenPrompt = prompt;
+			return JSON.stringify({
+				catalyst_summary: "x",
+				directional_bias: "long",
+				horizon: "days",
+				status: "active",
+			});
+		};
+		await enrichOne(row!, llm);
+		expect(seenPrompt).toContain("AAPL");
+		expect(seenPrompt).toContain("news");
 	});
 });
