@@ -10,6 +10,9 @@ import { canAffordCall } from "../utils/budget.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
 import { recordUsage } from "../utils/token-tracker.ts";
+import { markLedToPromotion, writeCatalystEvent } from "../watchlist/catalyst-events.ts";
+import { RESEARCH_MIN_CONFIDENCE } from "../watchlist/constants.ts";
+import { promoteToWatchlist } from "../watchlist/promote.ts";
 import { type ParseDeps, parseUniverseSpec } from "./exchange-resolver.ts";
 import { recordOutcome } from "./research-calibration.ts";
 
@@ -408,6 +411,20 @@ export async function runResearchAnalysis(
 						"High-confidence symbol injected with 24h TTL",
 					);
 				}
+				// Fire-and-forget watchlist promotion
+				onResearchResult({
+					newsEventId,
+					symbol: analysis.symbol,
+					exchange: analysis.exchange,
+					confidence: analysis.confidence,
+					eventType: analysis.eventType,
+					summary: analysis.tradeThesis,
+				}).catch((err) =>
+					log.error(
+						{ err, symbol: analysis.symbol, exchange: analysis.exchange },
+						"Research watchlist promotion failed",
+					),
+				);
 			} else {
 				log.warn(
 					{ symbol: analysis.symbol, exchange: analysis.exchange },
@@ -429,5 +446,37 @@ export async function runResearchAnalysis(
 	} catch (error) {
 		log.error({ error, headline: input.headline.slice(0, 60) }, "Research analysis failed");
 		return { analyses: 0, skippedBudget: false };
+	}
+}
+
+export interface ResearchResultInput {
+	newsEventId: number;
+	symbol: string;
+	exchange: string;
+	confidence: number;
+	eventType: string;
+	summary: string;
+}
+
+export async function onResearchResult(input: ResearchResultInput): Promise<void> {
+	if (input.confidence < RESEARCH_MIN_CONFIDENCE) return;
+
+	const eventId = writeCatalystEvent({
+		symbol: input.symbol,
+		exchange: input.exchange,
+		eventType: "research",
+		source: `research_event_${input.newsEventId}`,
+		payload: { confidence: input.confidence, eventType: input.eventType, summary: input.summary },
+	});
+
+	const result = await promoteToWatchlist({
+		symbol: input.symbol,
+		exchange: input.exchange,
+		reason: "research",
+		payload: { confidence: input.confidence, summary: input.summary },
+	});
+
+	if (result.status === "inserted" || result.status === "updated") {
+		markLedToPromotion(eventId);
 	}
 }
