@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
 	index,
 	integer,
@@ -532,5 +533,76 @@ export const symbolProfiles = sqliteTable(
 			table.symbol,
 			table.exchange,
 		),
+	}),
+);
+
+// ── Universe Step 2 — Active Watchlist ──────────────────────────────────────
+
+export const watchlist = sqliteTable(
+	"watchlist",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		symbol: text("symbol").notNull(),
+		exchange: text("exchange").notNull(),
+		promotedAt: text("promoted_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+		lastCatalystAt: text("last_catalyst_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+		promotionReasons: text("promotion_reasons").notNull(), // comma-joined
+		catalystSummary: text("catalyst_summary"),
+		directionalBias: text("directional_bias", {
+			enum: ["long", "short", "ambiguous"],
+		}),
+		horizon: text("horizon", { enum: ["intraday", "days", "weeks"] }),
+		researchPayload: text("research_payload"), // JSON
+		enrichedAt: text("enriched_at"),
+		enrichmentFailedAt: text("enrichment_failed_at"),
+		expiresAt: text("expires_at").notNull(),
+		demotedAt: text("demoted_at"),
+		demotionReason: text("demotion_reason"),
+	},
+	(table) => ({
+		activeUnique: uniqueIndex("watchlist_active_symbol_exchange_unique")
+			.on(table.symbol, table.exchange)
+			.where(sql`${table.demotedAt} IS NULL`),
+		demotedIdx: index("watchlist_demoted_at_idx").on(table.demotedAt),
+		enrichedIdx: index("watchlist_enriched_at_idx").on(table.enrichedAt),
+	}),
+);
+
+export const catalystEvents = sqliteTable(
+	"catalyst_events",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		symbol: text("symbol").notNull(),
+		exchange: text("exchange").notNull(),
+		eventType: text("event_type", {
+			enum: [
+				"news",
+				"research",
+				"earnings",
+				"volume",
+				"feedback",
+				"insider_buy",
+				"filing_8k",
+				"rotation",
+			],
+		}).notNull(),
+		source: text("source").notNull(),
+		payload: text("payload"), // JSON, nullable
+		firedAt: text("fired_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+		ledToPromotion: integer("led_to_promotion", { mode: "boolean" }).notNull().default(false),
+	},
+	(table) => ({
+		symbolExchangeFiredIdx: index("catalyst_events_symbol_exchange_fired_idx").on(
+			table.symbol,
+			table.exchange,
+			table.firedAt,
+		),
+		typeFiredIdx: index("catalyst_events_type_fired_idx").on(table.eventType, table.firedAt),
 	}),
 );
