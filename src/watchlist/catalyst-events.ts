@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { catalystEvents } from "../db/schema.ts";
 
-export type CatalystEventType = typeof catalystEvents.$inferInsert["eventType"];
+export type CatalystEventType = (typeof catalystEvents.$inferInsert)["eventType"];
 
 export interface CatalystEventInput {
 	symbol: string;
