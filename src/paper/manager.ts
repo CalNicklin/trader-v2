@@ -1,6 +1,6 @@
 import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
-import { paperPositions, paperTrades, strategies } from "../db/schema.ts";
+import { paperPositions, paperTrades, quotesCache, strategies } from "../db/schema.ts";
 import { LOSS_COOLDOWN_HOURS } from "../risk/constants.ts";
 import { getTradeFriction } from "../utils/fx.ts";
 import { calcPnl } from "./pnl.ts";
@@ -221,6 +221,49 @@ export async function getOpenPositionSymbols(): Promise<{ symbol: string; exchan
 		distinct.push(r);
 	}
 	return distinct;
+}
+
+export async function markPositionsToMarket(): Promise<number> {
+	const db = getDb();
+
+	const openPos = await db.select().from(paperPositions).where(isNull(paperPositions.closedAt));
+
+	if (openPos.length === 0) return 0;
+
+	let updated = 0;
+	for (const pos of openPos) {
+		const [quote] = await db
+			.select({ last: quotesCache.last })
+			.from(quotesCache)
+			.where(and(eq(quotesCache.symbol, pos.symbol), eq(quotesCache.exchange, pos.exchange)))
+			.limit(1);
+
+		if (!quote?.last) continue;
+
+		const side = pos.side as "BUY" | "SELL";
+		const unrealizedPnl =
+			side === "BUY"
+				? (quote.last - pos.entryPrice) * pos.quantity
+				: (pos.entryPrice - quote.last) * pos.quantity;
+
+		const newHwm =
+			side === "BUY"
+				? Math.max(quote.last, pos.highWaterMark ?? pos.entryPrice)
+				: Math.min(quote.last, pos.highWaterMark ?? pos.entryPrice);
+
+		await db
+			.update(paperPositions)
+			.set({
+				currentPrice: quote.last,
+				unrealizedPnl,
+				highWaterMark: newHwm,
+			})
+			.where(eq(paperPositions.id, pos.id));
+
+		updated++;
+	}
+
+	return updated;
 }
 
 /** Returns a Set of "symbol:exchange" keys that had a losing exit within the cooldown window. */

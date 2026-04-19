@@ -45,9 +45,12 @@ export async function refreshQuotesForAllCached(exchanges?: Exchange[]): Promise
 		}
 	}
 
+	const { markPositionsToMarket } = await import("../paper/manager.ts");
+	const marked = await markPositionsToMarket();
+
 	await backfillSentimentPrices();
 	await pruneDeadSymbols();
-	log.info({ total: cached.length, refreshed }, "Quote refresh complete");
+	log.info({ total: cached.length, refreshed, positionsMarked: marked }, "Quote refresh complete");
 }
 
 /** Delete quotesCache rows with null price older than 7 days */
