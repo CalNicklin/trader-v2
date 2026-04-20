@@ -17,31 +17,53 @@ Four-tier architecture replacing hand-picked 25-symbol seed universes. **Steps 1
 
 ## Prerequisites before starting Step 3
 
-1. ✅ **PR [#36](https://github.com/CalNicklin/trader-v2/pull/36) — fail-partial aggregator.** Merged 2026-04-20. Single source failures no longer abort the whole refresh; rows from failed sources are not deactivated.
-2. ✅ **PR [#37](https://github.com/CalNicklin/trader-v2/pull/37) — free-hybrid data stack.** Merged 2026-04-20. Closes issue #33 (FMP 403). UK + US constituents now sourced from iShares CSVs + Wikipedia; UK price/volume from Yahoo chart; FX from Frankfurter. Full details in §Free Hybrid Stack below.
-3. **Review issue [#32](https://github.com/CalNicklin/trader-v2/issues/32)** — Drizzle `migrate()` silently skipped migrations 0014–0016 on prod. Hotfixed manually. Not blocking Step 3, but the next migration attempt will reveal whether the root cause remains. Consider adding a post-migrate assertion before any schema change in Step 3.
-4. **Populate the universe in prod** — deploy happens automatically on merge to main; SSH to VPS and trigger `runWeeklyUniverseRefresh` once (or wait for Monday 03:00 UTC cron) to backfill `investable_universe`. Verify `/health` `universe.bySource` shows populated counts.
-5. **Let Step 2 bake for ~10 trading days** (per spec §rollout) — collect data on promotion quality, enrichment cost, demotion rates. Skipping this gate ships watchlist-dependent strategy behaviour without real-world validation.
+1. ✅ **PR [#36](https://github.com/CalNicklin/trader-v2/pull/36) — fail-partial aggregator.** Merged 2026-04-20.
+2. ✅ **PR [#37](https://github.com/CalNicklin/trader-v2/pull/37) — free-hybrid data stack (UK).** Merged 2026-04-20. Closes issue #33.
+3. ✅ **PR [#40 / #42 / #43](https://github.com/CalNicklin/trader-v2/pull/43) — US profile enricher.** EDGAR shares frames + Yahoo US composer replaces FMP `/v3/profile`.
+4. ✅ **PR [#44](https://github.com/CalNicklin/trader-v2/pull/44) — FMP removal.** Merged 2026-04-20. Zero FMP dependency: iShares + Wikipedia + Yahoo + Frankfurter + EDGAR + Finnhub + IBKR. FMP subscription can be cancelled.
+5. ✅ **PR [#45](https://github.com/CalNicklin/trader-v2/pull/45) — classifier backfill playbook.** Merged 2026-04-20. Handles `classified_at IS NULL` recovery after credit-exhaustion or outage windows.
+6. 🟡 **PR [#46](https://github.com/CalNicklin/trader-v2/pull/46) — spread filter fix.** **Open.** Critical: without this the universe silently drops 50+ US mega-caps (NFLX/AAPL/NVDA/META/GOOGL) on every refresh.
+7. **Review issue [#32](https://github.com/CalNicklin/trader-v2/issues/32)** — Drizzle `migrate()` silently skipped migrations 0014–0016 on prod. Hotfixed manually. Not blocking Step 3, but consider adding a post-migrate assertion before any schema change.
+8. **Let Step 2 bake for ~10 trading days** (per spec §rollout) — collect data on promotion quality, enrichment cost, demotion rates.
 
-## Free Hybrid Stack (shipped)
+## Current prod state (2026-04-20, post-fix)
 
-Full research in `docs/research/2026-04-20-data-provider-alternatives.md`. Chose Option 3 from that report: **free sources for constituents + Yahoo for UK quotes + keep FMP for US profile/news/quotes**. Cost: $0 incremental.
+- `investable_universe` active: **1,190** (988 Russell + 200 FTSE + 2 AIM)
+- `watchlist` active: **22** (20 news, 5 research; some symbols carry both)
+- API spend today: ~$0.64 (within budget)
+- News pipeline: polling Finnhub + Yahoo RSS, 635/636 dedup on recent poll (normal)
+- Classifier: healthy post credit refill
+- No FMP imports anywhere in codebase
+
+## Free Hybrid Stack (shipped + extended)
+
+Full research in `docs/research/2026-04-20-data-provider-alternatives.md`. Shipped in two waves:
+
+- **Wave 1 (PR #37)** — free sources for UK constituents + Yahoo for UK quotes + FMP kept for US.
+- **Wave 2 (PR #44, same day)** — FMP removed entirely. US profile composed from SEC EDGAR + Yahoo v8. US news from Finnhub. UK quotes via IBKR (fallback Yahoo). FX via Frankfurter.
+
+Cost: $0 incremental. Finnhub free tier + IBKR paper subscription already in place.
 
 Verified live (2026-04-20):
 
 | Need | Source | Status |
 |---|---|---|
-| Russell 1000 constituents | iShares IWB CSV | ✅ ~1010 holdings |
+| Russell 1000 constituents | iShares IWB CSV | ✅ ~1004 holdings |
 | FTSE 100 constituents | iShares ISF CSV | ✅ ~100 holdings |
-| FTSE 250 constituents | Wikipedia scrape | ✅ ~248 tickers |
+| FTSE 250 constituents | Wikipedia scrape | ✅ ~247 tickers |
 | AIM All-Share constituents | **hand-curated** | ⚠️ 5 names (GAW, FDEV, TET, JET2, BOWL) — no free source for full list |
+| US shares outstanding | SEC EDGAR `/api/xbrl/frames/` | ✅ ~4,000 tickers per quarter; marketCap = shares × price |
+| US ticker→CIK map | SEC EDGAR `company_tickers.json` | ✅ ~10,000 rows, cached in `symbol_ciks` |
+| US quotes (price + 30d avg vol + $ADV) | Yahoo v8 chart | ✅ `last` only — **bid/ask NOT published** |
 | UK quotes (price + 30d avg vol) | Yahoo chart API | ✅ anonymous, AIM works too |
-| UK news | Yahoo RSS per `.L` symbol | ✅ (not wired yet — see follow-ups) |
+| UK live bid/ask | IBKR (via `@stoqey/ib`) | ✅ feeds spread filter — UK-only |
+| US news | Finnhub | ✅ free tier, US-only |
+| UK news | Yahoo RSS per `.L` symbol | ✅ wired in PR #44 |
 | GBP→USD FX | Frankfurter.dev | ✅ no key, ECB data |
-| US profile / quotes / news / earnings | FMP (existing) | ✅ still works for US |
+| US earnings calendar | Finnhub | ✅ swapped from FMP in PR #44 |
+| UK earnings calendar | — | ❌ no free source, null for UK |
 | US insider (Form 4) | SEC EDGAR direct | ✅ not wired yet (wishlist) |
-| UK fundamentals (mkt cap, free float, IPO date) | Yahoo v10 quoteSummary | ⚠️ crumb-protected, null for UK rows in v1 |
-| UK earnings calendar | — | ❌ no free source, null for UK in v1 |
+| UK fundamentals (mkt cap, free float, IPO date) | Yahoo v10 quoteSummary | ⚠️ crumb-protected, null for UK rows |
 
 **Dry-run scripts** (still available for diagnostics):
 
@@ -90,11 +112,25 @@ Current (2026-04-20):
 - #32: Infrastructure — Drizzle migration pipeline silently skipping migrations. Hotfixed; needs root-cause fix before next schema change.
 - ~~#33: Infrastructure — FTSE/LSE FMP paywall~~ — **closed 2026-04-20** via PR #37 (bypassed FMP with free-hybrid stack).
 
-## Related PRs / branches (all merged)
+## Related PRs / branches
 
 - **PR #34** — this status doc (merged 2026-04-20).
 - **PR #36** — `fix/universe-fail-partial`: fail-partial source aggregator. Merged 2026-04-20.
 - **PR #37** — `feat/free-hybrid-data-stack`: replaces FMP UK fetchers with iShares/Wikipedia/Yahoo/Frankfurter. Merged 2026-04-20. Closes #33.
+- **PR #40 / #42 / #43** — US profile enricher (EDGAR shares frames + Yahoo US). Shipped 2026-04-20 after revert-of-revert (see §Post-FMP-removal below).
+- **PR #44** — `refactor/remove-fmp`: removed FMP entirely (Yahoo/Frankfurter/EDGAR/Finnhub + IBKR-only for UK quotes). Merged 2026-04-20.
+- **PR #45** — `scripts/backfill-news-classifications`: one-shot backfill for `classified_at IS NULL` rows. Merged 2026-04-20. Ran on VPS today to classify 440 stuck rows from the credit-exhaustion window (439 classified, 60 tradeable, 60 promotion attempts).
+- **PR #46** — `fix/universe-us-spread-filter`: ignore stale US bid/ask in spread filter. **Open 2026-04-20.** Root cause of only 79→988 Russell gap (see below).
+
+## Post-FMP-removal production issues (2026-04-20)
+
+Both issues surfaced after PR #44 merged and were fixed same-day.
+
+1. **Universe stuck at 281 active after FMP removal.** Weekly refresh at 03:00 UTC ran on old FMP code (merge landed later that morning). Triggered manual `runWeeklyUniverseRefresh` → expanded to 1,137 active. Root cause was a deploy-timing artefact, not a code bug. Weekly cron will be correct going forward.
+
+2. **50+ US mega-caps silently rejected** (NFLX, AAPL, NVDA, META, GOOGL, AMD, V, JNJ, PYPL etc.). Root cause: Yahoo v8 chart doesn't publish bid/ask, so `quotes_cache.bid/ask` for NASDAQ/NYSE rows were stale pre-FMP-removal artefacts feeding garbage `spreadBps` into the `MAX_SPREAD_BPS=25` filter. Fix in PR #46 gates spread computation to UK rows only (where IBKR refreshes bid/ask during the UK quote job). Prod hotfix: `UPDATE quotes_cache SET bid=NULL, ask=NULL WHERE exchange IN ('NASDAQ','NYSE')` (196 rows) + re-run refresh + run `scripts/repromote-tradeable-news.ts` (11 missed promotions). Watchlist: 11 → 22 active.
+
+**Lesson:** PR #44 smoke test checked end-to-end universe population but didn't verify specific mega-caps were present. Worth adding to the smoke test: assert `NFLX, AAPL, NVDA, META, GOOGL` all appear in the resulting universe — they're canary tickers that no legitimate liquidity filter should reject.
 
 ## Progress logs (per PR)
 
