@@ -44,7 +44,7 @@ const EXPECTED_MIN = {
 // is empty — so the smoke test naturally shows the "US only passes if
 // enriched elsewhere" failure mode.
 const EXPECTED_MIN_AFTER_FILTER = {
-	russell_1000: 0, // Without quotes_cache seeding OR an alt profile source, US rejects
+	russell_1000: 700, // With EDGAR+Yahoo enrichment, most Russell 1000 names pass the $5M $ADV filter
 	ftse_350: 150, // Yahoo enrichment covers UK; at $5M $ADV, ~half of FTSE 350 passes
 	aim_allshare: 1, // At least one AIM curated name (GAW) should pass
 };
@@ -58,6 +58,12 @@ async function main() {
 	const db = getDb();
 	migrate(db, { migrationsFolder: "./drizzle/migrations" });
 	console.log("✓ Migrations applied");
+
+	// STAGE 0: Seed the CIK map so the US profile enricher can resolve tickers.
+	console.log("\n── Stage 0: Seed CIK map ──");
+	const { refreshCikMap } = await import("../src/universe/ciks/edgar-ticker-map.ts");
+	const cikCount = await refreshCikMap();
+	console.log(`  ${cikCount} CIK entries loaded from SEC`);
 
 	// STAGE 1: Raw aggregator — which sources actually respond?
 	console.log("\n── Stage 1: Source aggregator ──");
