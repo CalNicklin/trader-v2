@@ -108,10 +108,21 @@ describe("universe — end-to-end integration", () => {
 		]);
 
 		const fetchCandidates = async () =>
-			enrichWithMetrics([
-				{ symbol: "AAPL", exchange: "NASDAQ", indexSource: "russell_1000" as const },
-				{ symbol: "HSBA", exchange: "LSE", indexSource: "ftse_350" as const },
-			]);
+			enrichWithMetrics(
+				[
+					{ symbol: "AAPL", exchange: "NASDAQ", indexSource: "russell_1000" as const },
+					{ symbol: "HSBA", exchange: "LSE", indexSource: "ftse_350" as const },
+				],
+				{
+					// Shouldn't fire since AAPL profile is fresh and HSBA is UK
+					fetchImpl: async () => ({
+						ok: false,
+						status: 500,
+						statusText: "Should not be called",
+						json: async () => [],
+					}),
+				},
+			);
 
 		const result = await refreshInvestableUniverse({
 			fetchCandidates,
