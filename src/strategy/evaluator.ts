@@ -21,7 +21,7 @@ import { checkTradeRiskGate } from "../risk/gate.ts";
 import { isTradingHalted, isWeeklyDrawdownActive } from "../risk/guardian.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { buildSignalContext, type QuoteFields } from "./context.ts";
-import { clearDispatchDecisions, getLatestDispatchDecisions } from "./dispatch.ts";
+import { getActiveDecisions } from "./dispatch-store.ts";
 import { evalExpr } from "./expr-eval.ts";
 import type { SymbolIndicators } from "./historical.ts";
 import { buildEffectiveUniverse, filterByLiquidity } from "./universe.ts";
@@ -526,7 +526,7 @@ export async function evaluateAllStrategies(
 	}
 
 	// ── Graduated strategies (dispatch-filtered) ────────────────────────────
-	const dispatchDecisions = getLatestDispatchDecisions();
+	const dispatchDecisions = await getActiveDecisions();
 
 	const graduatedStatuses = ["probation", "active", "core"] as const;
 	const graduatedStrategies = await db
@@ -535,7 +535,6 @@ export async function evaluateAllStrategies(
 		.where(inArray(strategies.status, [...graduatedStatuses]));
 
 	if (graduatedStrategies.length === 0) {
-		clearDispatchDecisions();
 		return;
 	}
 
@@ -691,6 +690,4 @@ export async function evaluateAllStrategies(
 			}
 		}
 	}
-
-	clearDispatchDecisions();
 }
