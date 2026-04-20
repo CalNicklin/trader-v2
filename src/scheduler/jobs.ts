@@ -315,9 +315,14 @@ async function executeJob(name: JobName): Promise<void> {
 		}
 
 		case "earnings_catalyst": {
-			const { runEarningsCatalystJob } = await import("./earnings-catalyst-job.ts");
 			const { getConfig } = await import("../config.ts");
-			await runEarningsCatalystJob({ apiKey: getConfig().FMP_API_KEY, now: new Date() });
+			const finnhubKey = getConfig().FINNHUB_API_KEY;
+			if (!finnhubKey) {
+				log.warn("FINNHUB_API_KEY not set — skipping earnings_catalyst");
+				break;
+			}
+			const { runEarningsCatalystJob } = await import("./earnings-catalyst-job.ts");
+			await runEarningsCatalystJob({ finnhubApiKey: finnhubKey, now: new Date() });
 			break;
 		}
 

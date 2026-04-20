@@ -32,9 +32,17 @@ describe("runEarningsCatalystJob", () => {
 		const inThreeDays = new Date(today.getTime() + 3 * 86400_000).toISOString().slice(0, 10);
 
 		const fetchImpl = async (_url: string) =>
-			new Response(JSON.stringify([{ symbol: "AAPL", date: inThreeDays, epsEstimate: 1.5 }]));
+			new Response(
+				JSON.stringify({
+					earningsCalendar: [{ symbol: "AAPL", date: inThreeDays, epsEstimate: 1.5 }],
+				}),
+			);
 
-		const result = await runEarningsCatalystJob({ fetchImpl, apiKey: "test-key", now: today });
+		const result = await runEarningsCatalystJob({
+			fetchImpl,
+			finnhubApiKey: "test-key",
+			now: today,
+		});
 		expect(result.promoted).toBe(1);
 
 		const rows = getDb().select().from(watchlist).where(eq(watchlist.symbol, "AAPL")).all();
@@ -49,22 +57,26 @@ describe("runEarningsCatalystJob", () => {
 		seedUniverse("AAPL");
 		const farFuture = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
 		const fetchImpl = async (_url: string) =>
-			new Response(JSON.stringify([{ symbol: "AAPL", date: farFuture, epsEstimate: 1.5 }]));
+			new Response(
+				JSON.stringify({
+					earningsCalendar: [{ symbol: "AAPL", date: farFuture, epsEstimate: 1.5 }],
+				}),
+			);
 		const result = await runEarningsCatalystJob({
 			fetchImpl,
-			apiKey: "test-key",
+			finnhubApiKey: "test-key",
 			now: new Date(),
 		});
 		expect(result.promoted).toBe(0);
 	});
 
-	test("FMP fetch failure logs but does not throw", async () => {
+	test("Finnhub fetch failure logs but does not throw", async () => {
 		const fetchImpl = async (_url: string): Promise<Response> => {
 			throw new Error("network");
 		};
 		const result = await runEarningsCatalystJob({
 			fetchImpl,
-			apiKey: "test-key",
+			finnhubApiKey: "test-key",
 			now: new Date(),
 		});
 		expect(result.promoted).toBe(0);
