@@ -224,4 +224,25 @@ describe("getProfiles (bulk)", () => {
 		expect(result.get("MSFT:NASDAQ")?.marketCapUsd).toBe(2.8e12);
 		expect(result.has("GHOST:NASDAQ")).toBe(false);
 	});
+
+	test("handles >1000 refs without SQLite expression-tree overflow", async () => {
+		const { upsertProfiles, getProfiles } = await import("../../src/universe/profile-fetcher.ts");
+		// Seed 1100 profiles (above SQLite's 1000-depth limit for a single OR)
+		const now = new Date().toISOString();
+		const seeds = Array.from({ length: 1100 }, (_, i) => ({
+			symbol: `SYM${i.toString().padStart(4, "0")}`,
+			exchange: "NASDAQ",
+			marketCapUsd: 1e9,
+			sharesOutstanding: null,
+			freeFloatShares: null,
+			ipoDate: null,
+			fetchedAt: now,
+		}));
+		await upsertProfiles(seeds);
+
+		// Query all 1100 at once — must not throw
+		const refs = seeds.map((s) => ({ symbol: s.symbol, exchange: s.exchange }));
+		const result = await getProfiles(refs);
+		expect(result.size).toBe(1100);
+	});
 });

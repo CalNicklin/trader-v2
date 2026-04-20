@@ -100,26 +100,32 @@ export async function getProfiles(
 ): Promise<Map<string, SymbolProfile>> {
 	if (refs.length === 0) return new Map();
 	const db = getDb();
-	// Build a single query matching any of the (symbol, exchange) pairs.
-	const conditions = refs.map((r) =>
-		and(eq(symbolProfiles.symbol, r.symbol), eq(symbolProfiles.exchange, r.exchange)),
-	);
-	const rows = await db
-		.select()
-		.from(symbolProfiles)
-		.where(or(...conditions))
-		.all();
+	// Batch into chunks to stay under SQLite's max-expression-depth of 1000.
+	// Each `and(eq, eq)` node is 3 expressions; with the `or` wrapper a batch
+	// of 100 refs produces ~304 expressions, comfortably under the limit.
+	const BATCH = 100;
 	const map = new Map<string, SymbolProfile>();
-	for (const row of rows) {
-		map.set(`${row.symbol}:${row.exchange}`, {
-			symbol: row.symbol,
-			exchange: row.exchange,
-			marketCapUsd: row.marketCapUsd,
-			sharesOutstanding: row.sharesOutstanding,
-			freeFloatShares: row.freeFloatShares,
-			ipoDate: row.ipoDate,
-			fetchedAt: row.fetchedAt,
-		});
+	for (let i = 0; i < refs.length; i += BATCH) {
+		const batch = refs.slice(i, i + BATCH);
+		const conditions = batch.map((r) =>
+			and(eq(symbolProfiles.symbol, r.symbol), eq(symbolProfiles.exchange, r.exchange)),
+		);
+		const rows = await db
+			.select()
+			.from(symbolProfiles)
+			.where(or(...conditions))
+			.all();
+		for (const row of rows) {
+			map.set(`${row.symbol}:${row.exchange}`, {
+				symbol: row.symbol,
+				exchange: row.exchange,
+				marketCapUsd: row.marketCapUsd,
+				sharesOutstanding: row.sharesOutstanding,
+				freeFloatShares: row.freeFloatShares,
+				ipoDate: row.ipoDate,
+				fetchedAt: row.fetchedAt,
+			});
+		}
 	}
 	return map;
 }
