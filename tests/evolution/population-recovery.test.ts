@@ -190,7 +190,7 @@ describe("population recovery mode", () => {
 		const { strategies } = await import("../../src/db/schema.ts");
 		const { runEvolutionCycle } = await import("../../src/evolution/index.ts");
 
-		// Insert 3 strategies with 0 trades (at MIN_POPULATION=3, NOT in recovery)
+		// Insert 4 strategies with 0 trades (at MIN_POPULATION=4, NOT in recovery)
 		await db.insert(strategies).values([
 			{
 				name: "normal-1",
@@ -220,6 +220,17 @@ describe("population recovery mode", () => {
 				parameters: JSON.stringify({ stop_loss_pct: 5 }),
 				signals: JSON.stringify({ entry_long: "rsi14 < 20", exit: "hold_days >= 7" }),
 				universe: JSON.stringify(["GOOGL"]),
+				status: "paper" as const,
+				virtualBalance: 10000,
+				generation: 1,
+				createdBy: "seed",
+			},
+			{
+				name: "normal-4",
+				description: "Strategy 4",
+				parameters: JSON.stringify({ stop_loss_pct: 6 }),
+				signals: JSON.stringify({ entry_long: "rsi14 < 35", exit: "hold_days >= 4" }),
+				universe: JSON.stringify(["AMZN"]),
 				status: "paper" as const,
 				virtualBalance: 10000,
 				generation: 1,
