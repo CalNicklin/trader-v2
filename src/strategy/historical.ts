@@ -1,4 +1,5 @@
-import { fmpHistorical } from "../data/fmp.ts";
+import { ibkrHistorical } from "../broker/market-data.ts";
+import { yahooUsHistorical } from "../data/yahoo-us.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { type Candle, calcATR, calcRSI, calcVolumeRatio } from "./indicators.ts";
 
@@ -30,9 +31,12 @@ export async function getIndicators(symbol: string, exchange: string): Promise<S
 	}
 
 	try {
-		const data = await fmpHistorical(symbol, exchange, 90);
+		const isUk = exchange === "LSE" || exchange === "AIM";
+		const data = isUk
+			? await ibkrHistorical(symbol, exchange, 90)
+			: await yahooUsHistorical(symbol, exchange, 90);
 		if (!data || data.length === 0) {
-			log.warn({ symbol, exchange }, "No historical data from FMP");
+			log.warn({ symbol, exchange }, "No historical data");
 			return { rsi14: null, atr14: null, volume_ratio: null };
 		}
 
