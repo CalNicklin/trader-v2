@@ -95,6 +95,33 @@ Current (2026-04-20):
 - **PR #34** — this status doc (merged 2026-04-20).
 - **PR #36** — `fix/universe-fail-partial`: fail-partial source aggregator. Merged 2026-04-20.
 - **PR #37** — `feat/free-hybrid-data-stack`: replaces FMP UK fetchers with iShares/Wikipedia/Yahoo/Frankfurter. Merged 2026-04-20. Closes #33.
+- **PR #39** — `fix/get-profiles-batch-sqlite-limit`: batches getProfiles to avoid expression-tree overflow (>1000 symbols). Merged 2026-04-20.
+- **PR #40** — `feat/us-profile-enricher`: SEC EDGAR + Yahoo US composer for Russell 1000 profile data. Merged 2026-04-20.
+- **PR #41** — `test/uk-pipeline-smoke`: UK-only smoke test script. Merged 2026-04-20.
+- **PR #43** — `restore/pr-40-us-profile-enricher`: re-applied PR #40 after a mistaken revert. Merged 2026-04-20.
+- **PR #44** — `refactor/remove-fmp`: removes FMP entirely; all call sites migrated to Yahoo/IBKR/EDGAR/Frankfurter/Finnhub. **Merged 2026-04-20.** FMP subscription can now be cancelled.
+
+## Current data stack (post-PR #44)
+
+| Need | Source | Notes |
+|---|---|---|
+| Russell 1000 constituents | iShares IWB CSV | ~1004 names daily |
+| FTSE 350 constituents | iShares ISF CSV + Wikipedia FTSE 250 | ~347 names combined |
+| AIM All-Share constituents | hand-curated whitelist | 5 names (GAW, FDEV, TET, JET2, BOWL) |
+| US profile (market cap, shares, IPO date) | SEC EDGAR `company_tickers.json` + `/api/xbrl/frames/` | free, official, no auth |
+| US price + avg volume | Yahoo v8 chart | `query1.finance.yahoo.com/v8/finance/chart/{symbol}` |
+| UK price + avg volume | Yahoo v8 chart + Frankfurter FX | `.L` suffix, GBp→USD conversion |
+| UK news | Yahoo RSS per `.L` | `finance.yahoo.com/rss/headline?s=BP.L` |
+| US news | Finnhub `/company-news` | unchanged, existing subscription |
+| US earnings calendar | Finnhub `/calendar/earnings` | swapped from FMP in PR #44 |
+| UK earnings calendar | **GAP** | no free source; same gap as before |
+| US insider (Form 4) | **available via SEC EDGAR** | not yet wired; wishlist |
+| FX (GBP/USD) | Frankfurter.dev | ECB data, no auth |
+| US quotes (runtime) | Yahoo v8 chart | was FMP `/stable/quote`; swapped in PR #44 |
+| UK quotes (runtime) | IBKR via `broker/market-data` | unchanged |
+| Historical bars | Yahoo v8 chart (US) + IBKR (UK) | was FMP in PR #44 |
+
+**Zero FMP dependency.** Full refresh takes ~39s (iShares + Wikipedia + EDGAR + Yahoo enrichment, throttled).
 
 ## Progress logs (per PR)
 
