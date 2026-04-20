@@ -5,7 +5,7 @@ import { createChildLogger } from "../utils/logger.ts";
 import { fetchUsProfiles, type UsProfile } from "./enrichers/us-profile.ts";
 import { fetchYahooUkQuotes, type YahooUkQuote } from "./enrichers/yahoo-uk.ts";
 import type { FilterCandidate } from "./filters.ts";
-import type { ConstituentRow, FetchLike } from "./sources.ts";
+import type { ConstituentRow } from "./sources.ts";
 
 const log = createChildLogger({ module: "universe-metrics-enricher" });
 
@@ -23,7 +23,6 @@ const log = createChildLogger({ module: "universe-metrics-enricher" });
 //     prefers quotes_cache for price/spread (live) and Yahoo for $ADV
 //     (30-day averaged).
 export interface EnrichOptions {
-	fetchImpl?: FetchLike;
 	// Override Yahoo UK enricher; defaults to live Yahoo chart API.
 	// Tests pass `() => new Map()` to disable the enricher entirely.
 	yahooUkEnricher?: (rows: ConstituentRow[]) => Promise<Map<string, YahooUkQuote>>;
