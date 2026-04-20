@@ -65,3 +65,48 @@ describe("catalyst-dispatcher gate logic", () => {
 		expect(m1.lastDispatchedAt).toBe(new Date(now).toISOString());
 	});
 });
+
+describe("catalyst-dispatcher enqueue/debounce", () => {
+	beforeEach(async () => {
+		const mod = await import("../../src/strategy/catalyst-dispatcher.ts");
+		mod.resetCatalystStateForTesting();
+	});
+
+	test("enqueue collapses multiple same-symbol triggers into one dispatch", async () => {
+		const { enqueueCatalystDispatch } = await import("../../src/strategy/catalyst-dispatcher.ts");
+		const runs: number[] = [];
+		const fakeRunner = async (_symbol: string, _exchange: string, newsEventId: number) => {
+			runs.push(newsEventId);
+		};
+		enqueueCatalystDispatch("AAPL", "NASDAQ", 1, { _runner: fakeRunner, _debounceMs: 50 });
+		enqueueCatalystDispatch("AAPL", "NASDAQ", 2, { _runner: fakeRunner, _debounceMs: 50 });
+		enqueueCatalystDispatch("AAPL", "NASDAQ", 3, { _runner: fakeRunner, _debounceMs: 50 });
+		await Bun.sleep(120);
+		expect(runs).toEqual([3]);
+	});
+
+	test("enqueue respects cooldown before starting debounce timer", async () => {
+		const { enqueueCatalystDispatch, markDispatched } = await import(
+			"../../src/strategy/catalyst-dispatcher.ts"
+		);
+		markDispatched("AAPL", Date.now());
+		const runs: number[] = [];
+		const fakeRunner = async (_s: string, _e: string, id: number) => {
+			runs.push(id);
+		};
+		enqueueCatalystDispatch("AAPL", "NASDAQ", 42, { _runner: fakeRunner, _debounceMs: 10 });
+		await Bun.sleep(30);
+		expect(runs).toEqual([]);
+	});
+
+	test("enqueue fires runner after debounce window", async () => {
+		const { enqueueCatalystDispatch } = await import("../../src/strategy/catalyst-dispatcher.ts");
+		const runs: string[] = [];
+		const fakeRunner = async (symbol: string, _e: string, _id: number) => {
+			runs.push(symbol);
+		};
+		enqueueCatalystDispatch("AAPL", "NASDAQ", 1, { _runner: fakeRunner, _debounceMs: 20 });
+		await Bun.sleep(40);
+		expect(runs).toEqual(["AAPL"]);
+	});
+});
