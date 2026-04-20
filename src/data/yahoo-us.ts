@@ -51,7 +51,7 @@ export interface YahooFetchDeps {
 	fetchImpl?: typeof fetch;
 }
 
-// US quote — mirrors the fields downstream expects from fmpQuote. UK callers
+// US quote — returns the standard quote shape downstream expects. UK callers
 // already route to IBKR via broker/market-data.ts; this module is US-only.
 export async function yahooUsQuote(
 	symbol: string,
@@ -98,7 +98,7 @@ export async function yahooUsQuote(
 	}
 }
 
-// US historical bars — mirrors FmpHistoricalBar shape for drop-in replacement.
+// US historical bars — mirrors HistoricalBar shape for drop-in replacement.
 // Returns newest-last (chronological) to match existing expectations.
 export async function yahooUsHistorical(
 	symbol: string,

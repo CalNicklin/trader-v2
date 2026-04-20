@@ -1,12 +1,31 @@
 import { type Bar, BarSizeSetting, IBApiTickType } from "@stoqey/ib";
-import type { FmpHistoricalBar, FmpQuoteData } from "../data/fmp.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { getApi, isConnected } from "./connection.ts";
 import { getContract } from "./contracts.ts";
 
 const log = createChildLogger({ module: "broker-market-data" });
 
-export async function ibkrQuote(symbol: string, exchange: string): Promise<FmpQuoteData | null> {
+export interface QuoteData {
+	symbol: string;
+	exchange: string;
+	last: number | null;
+	bid: number | null;
+	ask: number | null;
+	volume: number | null;
+	avgVolume: number | null;
+	changePercent: number | null;
+}
+
+export interface HistoricalBar {
+	date: string;
+	open: number;
+	high: number;
+	low: number;
+	close: number;
+	volume: number;
+}
+
+export async function ibkrQuote(symbol: string, exchange: string): Promise<QuoteData | null> {
 	if (!isConnected()) {
 		log.warn({ symbol, exchange }, "IBKR not connected, skipping quote");
 		return null;
@@ -62,7 +81,7 @@ export async function ibkrHistorical(
 	symbol: string,
 	exchange: string,
 	days = 90,
-): Promise<FmpHistoricalBar[] | null> {
+): Promise<HistoricalBar[] | null> {
 	if (!isConnected()) {
 		log.warn({ symbol, exchange }, "IBKR not connected, skipping historical");
 		return null;
