@@ -37,7 +37,8 @@ export type JobName =
 	| "volume_catalyst_us"
 	| "volume_catalyst_uk"
 	| "watchlist_enrich"
-	| "watchlist_demote";
+	| "watchlist_demote"
+	| "dispatch_decisions_cleanup";
 
 const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	quote_refresh_uk: "quotes_uk",
@@ -74,6 +75,7 @@ const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	volume_catalyst_uk: "catalyst_uk",
 	watchlist_enrich: "enrichment",
 	watchlist_demote: "demotion",
+	dispatch_decisions_cleanup: "maintenance",
 };
 
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
@@ -347,6 +349,13 @@ async function executeJob(name: JobName): Promise<void> {
 		case "watchlist_demote": {
 			const { runWatchlistDemoteJob } = await import("./watchlist-demote-job.ts");
 			await runWatchlistDemoteJob();
+			break;
+		}
+
+		case "dispatch_decisions_cleanup": {
+			const { cleanupExpiredDecisions } = await import("../strategy/dispatch-store.ts");
+			const deleted = await cleanupExpiredDecisions();
+			log.info({ job: name, deleted }, "Cleanup of expired dispatch decisions");
 			break;
 		}
 	}
