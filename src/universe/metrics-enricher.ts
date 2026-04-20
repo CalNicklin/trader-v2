@@ -2,23 +2,17 @@ import { inArray } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { quotesCache } from "../db/schema.ts";
 import { createChildLogger } from "../utils/logger.ts";
+import { fetchUsProfiles, type UsProfile } from "./enrichers/us-profile.ts";
 import { fetchYahooUkQuotes, type YahooUkQuote } from "./enrichers/yahoo-uk.ts";
 import type { FilterCandidate } from "./filters.ts";
-import {
-	fetchSymbolProfiles,
-	getProfiles,
-	PROFILE_CACHE_TTL_DAYS,
-	type SymbolProfile,
-	upsertProfiles,
-} from "./profile-fetcher.ts";
 import type { ConstituentRow, FetchLike } from "./sources.ts";
 
 const log = createChildLogger({ module: "universe-metrics-enricher" });
 
 // Enriches constituents with market-cap, free-float, price, volume, and spread.
 // Strategy:
-//   - US candidates (russell_1000): fetch FMP profile for market-cap + free-float
-//     + listing-age, with a `symbol_profiles` cache (last-known-good on failure).
+//   - US candidates (russell_1000): compose profile from EDGAR shares frames +
+//     Yahoo US chart (price, $ADV, IPO date). No FMP calls.
 //   - UK candidates (ftse_350, aim_allshare): at refresh time, quotes_cache is
 //     usually empty for fresh candidates, so we pull price + 30d avg volume
 //     from Yahoo chart and compute avg-dollar-volume with GBP→USD FX. No FMP
@@ -33,6 +27,9 @@ export interface EnrichOptions {
 	// Override Yahoo UK enricher; defaults to live Yahoo chart API.
 	// Tests pass `() => new Map()` to disable the enricher entirely.
 	yahooUkEnricher?: (rows: ConstituentRow[]) => Promise<Map<string, YahooUkQuote>>;
+	// Override US profile enricher; defaults to live EDGAR + Yahoo US composer.
+	// Tests pass `() => new Map()` to disable the enricher entirely.
+	usProfileEnricher?: (rows: ConstituentRow[]) => Promise<Map<string, UsProfile>>;
 }
 
 interface QuoteRow {
@@ -50,11 +47,11 @@ export async function enrichWithMetrics(
 ): Promise<FilterCandidate[]> {
 	if (rows.length === 0) return [];
 
-	const profiles = await resolveProfiles(rows, options.fetchImpl ?? fetch);
+	const usProfiles = await safeUsProfiles(rows, options.usProfileEnricher);
 	const quotes = await loadQuotes(rows);
 	const yahooUk = await safeYahooUk(rows, options.yahooUkEnricher);
 
-	return rows.map((r) => enrichOne(r, profiles, quotes, yahooUk));
+	return rows.map((r) => enrichOne(r, usProfiles, quotes, yahooUk));
 }
 
 // Wrap Yahoo enrichment in a try/catch so the refresh as a whole survives a
@@ -77,74 +74,26 @@ async function safeYahooUk(
 	}
 }
 
+async function safeUsProfiles(
+	rows: ConstituentRow[],
+	override?: (rows: ConstituentRow[]) => Promise<Map<string, UsProfile>>,
+): Promise<Map<string, UsProfile>> {
+	const enricher = override ?? fetchUsProfiles;
+	try {
+		return await enricher(rows);
+	} catch (err) {
+		log.warn(
+			{ err: err instanceof Error ? err.message : String(err) },
+			"US profile enrichment failed — US rows will lack market cap / IPO date",
+		);
+		return new Map();
+	}
+}
+
 // ---- helpers ----
 
 function keyOf(symbol: string, exchange: string): string {
 	return `${symbol}:${exchange}`;
-}
-
-// Explicit allowlist — if a new indexSource is added to ConstituentRow that
-// needs FMP profile enrichment, add it here. Anything not listed is treated
-// as "skip profile fetch, rely on quotes_cache data only" (currently UK
-// markets, but safe default for any non-US index we might add).
-const US_PROFILE_INDEXES = new Set<ConstituentRow["indexSource"]>(["russell_1000"]);
-
-function isUsRow(r: ConstituentRow): boolean {
-	return US_PROFILE_INDEXES.has(r.indexSource);
-}
-
-async function resolveProfiles(
-	rows: ConstituentRow[],
-	fetchImpl: FetchLike,
-): Promise<Map<string, SymbolProfile>> {
-	const profiles = new Map<string, SymbolProfile>();
-	const usRows = rows.filter(isUsRow);
-	if (usRows.length === 0) return profiles;
-
-	const now = Date.now();
-	const ttlMs = PROFILE_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000;
-
-	const stale: string[] = [];
-	const cachedMap = await getProfiles(
-		usRows.map((r) => ({ symbol: r.symbol, exchange: r.exchange })),
-	);
-	for (const r of usRows) {
-		const key = keyOf(r.symbol, r.exchange);
-		const cached = cachedMap.get(key);
-		if (cached) profiles.set(key, cached);
-		const isFresh = cached != null && now - Date.parse(cached.fetchedAt) <= ttlMs;
-		if (!isFresh) stale.push(r.symbol);
-	}
-
-	if (stale.length === 0) return profiles;
-
-	try {
-		const fresh = await fetchSymbolProfiles(stale, fetchImpl);
-		// FMP returns the symbol's primary exchange string; align each fresh
-		// profile with the constituent row's exchange (NASDAQ/NYSE) so cache
-		// keys stay consistent.
-		const rowBySymbol = new Map(usRows.map((r) => [r.symbol, r]));
-		const aligned: SymbolProfile[] = fresh.map((p) => {
-			const r = rowBySymbol.get(p.symbol);
-			return { ...p, exchange: r?.exchange ?? p.exchange };
-		});
-
-		await upsertProfiles(aligned);
-		for (const p of aligned) {
-			profiles.set(keyOf(p.symbol, p.exchange), p);
-		}
-	} catch (err) {
-		log.warn(
-			{
-				err: err instanceof Error ? err.message : String(err),
-				staleCount: stale.length,
-			},
-			"Profile fetch failed; using last-known-good cache where available",
-		);
-		// On fetch failure, any cached profile (even stale) remains in the map.
-	}
-
-	return profiles;
 }
 
 async function loadQuotes(rows: ConstituentRow[]): Promise<Map<string, QuoteRow>> {
@@ -161,26 +110,26 @@ async function loadQuotes(rows: ConstituentRow[]): Promise<Map<string, QuoteRow>
 
 function enrichOne(
 	row: ConstituentRow,
-	profiles: Map<string, SymbolProfile>,
+	usProfiles: Map<string, UsProfile>,
 	quotes: Map<string, QuoteRow>,
 	yahooUk: Map<string, YahooUkQuote>,
 ): FilterCandidate {
 	const key = keyOf(row.symbol, row.exchange);
-	const profile = profiles.get(key) ?? null;
+	const usProfile = usProfiles.get(key) ?? null;
 	const quote = quotes.get(key) ?? null;
-	const yahoo = yahooUk.get(key) ?? null;
+	const yahooUkQ = yahooUk.get(key) ?? null;
 
-	// Price priority: live quotes_cache > Yahoo 30d last close.
-	const price = quote?.last ?? yahoo?.priceGbpPence ?? null;
+	// Price priority: live quotes_cache > US profile (Yahoo) > UK pence.
+	const price = quote?.last ?? usProfile?.priceUsd ?? yahooUkQ?.priceGbpPence ?? null;
 
-	// avgDollarVolume: for UK rows prefer Yahoo's pre-computed USD value (handles
-	// GBp→USD FX correctly). For US rows (or UK rows with quotes_cache data) fall
-	// back to the native-unit computation. Note: the native-unit fallback is only
-	// correct for USD-denominated rows (russell_1000); UK rows without Yahoo data
-	// will have nonsense dollar volume and get filtered out as low_dollar_volume,
-	// which is the desired safe-default behaviour.
+	// avgDollarVolume priority:
+	//  - Yahoo UK (FX-converted USD) for UK rows
+	//  - Yahoo US (native USD) for US rows
+	//  - quotes_cache fallback (native × volume; correct for US, wrong for UK
+	//    — but UK always has a yahooUkQ hit so the fallback is US-only in practice)
 	const avgDollarVolume =
-		yahoo?.avgDollarVolumeUsd ??
+		yahooUkQ?.avgDollarVolumeUsd ??
+		usProfile?.avgDollarVolumeUsd ??
 		(quote?.avgVolume != null && quote?.last != null ? quote.avgVolume * quote.last : null);
 
 	const spreadBps =
@@ -188,24 +137,22 @@ function enrichOne(
 			? ((quote.ask - quote.bid) / ((quote.ask + quote.bid) / 2)) * 10_000
 			: null;
 
-	// freeFloatUsd: floatShares × price if available, else sharesOutstanding × price
-	// as overestimate fallback. See spec for rationale.
+	// Free-float proxy: US rows derive from sharesOutstanding × priceUsd as an
+	// overestimate (same fallback FMP profile used when floatShares was null).
+	// UK rows have no free-float source in v1 — stays null. The liquidity filter
+	// treats freeFloatUsd as optional, so null doesn't reject.
 	let freeFloatUsd: number | null = null;
-	if (profile != null && price != null) {
-		if (profile.freeFloatShares != null) {
-			freeFloatUsd = profile.freeFloatShares * price;
-		} else if (profile.sharesOutstanding != null) {
-			freeFloatUsd = profile.sharesOutstanding * price;
-		}
+	if (usProfile?.sharesOutstanding != null && usProfile?.priceUsd != null) {
+		freeFloatUsd = usProfile.sharesOutstanding * usProfile.priceUsd;
 	}
 
-	const listingAgeDays = profile?.ipoDate
-		? Math.floor((Date.now() - Date.parse(profile.ipoDate)) / 86_400_000)
+	const listingAgeDays = usProfile?.ipoDate
+		? Math.floor((Date.now() - Date.parse(usProfile.ipoDate)) / 86_400_000)
 		: null;
 
 	return {
 		...row,
-		marketCapUsd: profile?.marketCapUsd ?? null,
+		marketCapUsd: usProfile?.marketCapUsd ?? null,
 		avgDollarVolume,
 		price,
 		freeFloatUsd,
