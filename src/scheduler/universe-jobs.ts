@@ -12,13 +12,29 @@ export async function runWeeklyUniverseRefresh(): Promise<void> {
 	const start = Date.now();
 	const openPositions = await getOpenPositionSymbols();
 	const exemptSymbols = openPositions.map((p) => `${p.symbol}:${p.exchange}`);
+
+	// Fetch once, capture failed sources so refresh doesn't purge their rows.
+	const aggregate = await fetchCandidatesFromAllSources();
+	if (aggregate.failedIndexSources.length > 0) {
+		log.warn(
+			{ failedIndexSources: aggregate.failedIndexSources },
+			"Partial universe fetch — skipping deactivation for failed sources",
+		);
+	}
+
 	const result = await refreshInvestableUniverse({
-		fetchCandidates: fetchCandidatesFromAllSources,
+		fetchCandidates: async () => aggregate.candidates,
 		snapshotDate: new Date().toISOString().slice(0, 10),
 		exemptSymbols,
+		skipDeactivationForIndexSources: aggregate.failedIndexSources,
 	});
 	log.info(
-		{ job: "universe_refresh_weekly", durationMs: Date.now() - start, ...result },
+		{
+			job: "universe_refresh_weekly",
+			durationMs: Date.now() - start,
+			failedIndexSources: aggregate.failedIndexSources,
+			...result,
+		},
 		"Job completed",
 	);
 }
