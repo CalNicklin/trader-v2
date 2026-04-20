@@ -10,7 +10,6 @@
  */
 
 process.env.DB_PATH = ":memory:";
-process.env.FMP_API_KEY ??= "removed-but-config-still-requires";
 process.env.RESEND_API_KEY ??= "smoke";
 process.env.ALERT_EMAIL_TO ??= "smoke@example.com";
 process.env.ANTHROPIC_API_KEY ??= "smoke";
