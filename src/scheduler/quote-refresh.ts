@@ -1,7 +1,6 @@
 import { and, eq, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import type { Exchange } from "../broker/contracts.ts";
-import { fmpBatchQuotes } from "../data/fmp.ts";
-import { upsertQuote } from "../data/quotes.ts";
+import { refreshQuote } from "../data/quotes.ts";
 import { getDb } from "../db/client.ts";
 import { newsEvents, quotesCache } from "../db/schema.ts";
 import { createChildLogger } from "../utils/logger.ts";
@@ -26,7 +25,7 @@ export async function getSymbolsToRefresh(
 		.from(quotesCache);
 }
 
-/** Refresh quotes for all symbols currently in the cache using FMP batch endpoint */
+/** Refresh quotes for all symbols currently in the cache using Yahoo (US) or IBKR (UK) */
 export async function refreshQuotesForAllCached(exchanges?: Exchange[]): Promise<void> {
 	const cached = await getSymbolsToRefresh(exchanges);
 
@@ -35,14 +34,12 @@ export async function refreshQuotesForAllCached(exchanges?: Exchange[]): Promise
 		return;
 	}
 
-	const batchResults = await fmpBatchQuotes(cached);
-
+	// Sequential loop — each refreshQuote routes to Yahoo (US) or IBKR (UK).
+	// Yahoo is throttled per-request; IBKR uses the existing pacing in @stoqey/ib.
 	let refreshed = 0;
-	for (const [_symbol, quote] of batchResults) {
-		if (quote.last != null) {
-			await upsertQuote(quote);
-			refreshed++;
-		}
+	for (const s of cached) {
+		const quote = await refreshQuote(s.symbol, s.exchange);
+		if (quote?.last != null) refreshed++;
 	}
 
 	const { markPositionsToMarket } = await import("../paper/manager.ts");
