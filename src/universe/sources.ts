@@ -1,7 +1,7 @@
-import { getConfig } from "../config.ts";
-import { createChildLogger } from "../utils/logger.ts";
-
-const log = createChildLogger({ module: "universe-sources" });
+// Type declarations for universe sources. The concrete fetchers live in
+// src/universe/sources/ and are wired through src/universe/source-aggregator.ts.
+// This file used to also host FMP-based fetchers (Russell, FTSE, AIM); those
+// were removed during FMP removal — see git history (pre-April 2026).
 
 export interface ConstituentRow {
 	symbol: string;
@@ -12,69 +12,3 @@ export interface ConstituentRow {
 export type FetchLike = (
 	url: string,
 ) => Promise<Pick<Response, "ok" | "status" | "statusText" | "json">>;
-
-interface FmpConstituent {
-	symbol: string;
-	name?: string;
-	sector?: string;
-	exchange?: string;
-}
-
-export async function fetchRussell1000Constituents(
-	fetchImpl: FetchLike = fetch,
-): Promise<ConstituentRow[]> {
-	const config = getConfig();
-	const url = `https://financialmodelingprep.com/api/v3/russell-1000-constituent?apikey=${config.FMP_API_KEY}`;
-	const res = await fetchImpl(url);
-	if (!res.ok) {
-		throw new Error(`FMP russell-1000 request failed: ${res.status} ${res.statusText}`);
-	}
-	const rows = (await res.json()) as FmpConstituent[];
-	log.info({ count: rows.length }, "Russell 1000 constituents fetched");
-	return rows.map((r) => ({
-		symbol: r.symbol,
-		exchange: r.exchange ?? "NASDAQ",
-		indexSource: "russell_1000" as const,
-	}));
-}
-
-// FMP returns LSE symbols with ".L" suffix (e.g. "HSBA.L"); normalise to bare ticker.
-function normaliseLondonSymbol(fmpSymbol: string): string {
-	return fmpSymbol.endsWith(".L") ? fmpSymbol.slice(0, -2) : fmpSymbol;
-}
-
-export async function fetchFtse350Constituents(
-	fetchImpl: FetchLike = fetch,
-): Promise<ConstituentRow[]> {
-	const config = getConfig();
-	const url = `https://financialmodelingprep.com/api/v3/symbol/FTSE?apikey=${config.FMP_API_KEY}`;
-	const res = await fetchImpl(url);
-	if (!res.ok) {
-		throw new Error(`FMP FTSE 350 request failed: ${res.status} ${res.statusText}`);
-	}
-	const rows = (await res.json()) as FmpConstituent[];
-	log.info({ count: rows.length }, "FTSE 350 constituents fetched");
-	return rows.map((r) => ({
-		symbol: normaliseLondonSymbol(r.symbol),
-		exchange: "LSE",
-		indexSource: "ftse_350" as const,
-	}));
-}
-
-export async function fetchAimAllShareConstituents(
-	fetchImpl: FetchLike = fetch,
-): Promise<ConstituentRow[]> {
-	const config = getConfig();
-	const url = `https://financialmodelingprep.com/api/v3/symbol/AIM?apikey=${config.FMP_API_KEY}`;
-	const res = await fetchImpl(url);
-	if (!res.ok) {
-		throw new Error(`FMP AIM request failed: ${res.status} ${res.statusText}`);
-	}
-	const rows = (await res.json()) as FmpConstituent[];
-	log.info({ count: rows.length }, "AIM All-Share constituents fetched");
-	return rows.map((r) => ({
-		symbol: normaliseLondonSymbol(r.symbol),
-		exchange: "AIM",
-		indexSource: "aim_allshare" as const,
-	}));
-}

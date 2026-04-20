@@ -8,4 +8,3 @@ process.env.IBKR_HOST = "127.0.0.1";
 process.env.IBKR_PORT = "4002";
 process.env.IBKR_CLIENT_ID = "99";
 process.env.LIVE_TRADING_ENABLED = "false";
-process.env.FMP_API_KEY = "test-fmp-key";

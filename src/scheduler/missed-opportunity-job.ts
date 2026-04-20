@@ -26,10 +26,17 @@ async function getCurrentPrice(symbol: string, exchange: string): Promise<number
 		}
 	}
 
-	// Fallback: FMP single quote
+	// Fallback: Yahoo (US) or IBKR (UK)
 	try {
-		const { fmpQuote } = await import("../data/fmp.ts");
-		const quote = await fmpQuote(symbol, exchange);
+		const isUk = exchange === "LSE" || exchange === "AIM";
+		let quote: { last: number | null } | null;
+		if (isUk) {
+			const { ibkrQuote } = await import("../broker/market-data.ts");
+			quote = await ibkrQuote(symbol, exchange);
+		} else {
+			const { yahooUsQuote } = await import("../data/yahoo-us.ts");
+			quote = await yahooUsQuote(symbol, exchange);
+		}
 		return quote?.last ?? null;
 	} catch {
 		return cached?.last ?? null;

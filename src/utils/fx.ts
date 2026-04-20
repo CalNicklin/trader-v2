@@ -1,4 +1,3 @@
-import { fmpFxRate } from "../data/fmp.ts";
 import { createChildLogger } from "./logger.ts";
 
 const log = createChildLogger({ module: "fx" });
@@ -11,6 +10,13 @@ interface FxCache {
 const cache = new Map<string, FxCache>();
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+interface FrankfurterResponse {
+	amount: number;
+	base: string;
+	date: string;
+	rates: Record<string, number>;
+}
+
 export async function getExchangeRate(from: string, to: string): Promise<number> {
 	if (from === to) return 1;
 
@@ -21,16 +27,22 @@ export async function getExchangeRate(from: string, to: string): Promise<number>
 	}
 
 	try {
-		const rate = await fmpFxRate(from, to);
-		if (rate != null && rate > 0) {
-			cache.set(key, { rate, timestamp: Date.now() });
-			return rate;
+		const res = await fetch(
+			`https://api.frankfurter.dev/v1/latest?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+		);
+		if (res.ok) {
+			const data = (await res.json()) as FrankfurterResponse;
+			const rate = data.rates[to];
+			if (rate != null && rate > 0) {
+				cache.set(key, { rate, timestamp: Date.now() });
+				return rate;
+			}
 		}
 	} catch (error) {
-		log.warn({ from, to, error }, "FX rate fetch failed, using fallback");
+		log.warn({ from, to, error }, "Frankfurter FX fetch failed, using fallback");
 	}
 
-	// Hardcoded fallback rates
+	// Hardcoded fallback rates — only hit if Frankfurter is down.
 	const fallbacks: Record<string, number> = {
 		GBPUSD: 1.27,
 		USDGBP: 0.79,
@@ -43,7 +55,6 @@ export async function convertCurrency(amount: number, from: string, to: string):
 	return amount * rate;
 }
 
-/** Get the friction cost for a round-trip trade on a given exchange */
 export function getTradeFriction(exchange: string, side: "BUY" | "SELL"): number {
 	switch (exchange) {
 		case "LSE":

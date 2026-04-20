@@ -15,7 +15,6 @@
  */
 
 process.env.DB_PATH = ":memory:";
-process.env.FMP_API_KEY ??= "test-smoke-test"; // will 403 — that's the point
 process.env.RESEND_API_KEY ??= "test-smoke-test";
 process.env.ALERT_EMAIL_TO ??= "test@example.com";
 process.env.ANTHROPIC_API_KEY ??= "test-smoke-test";

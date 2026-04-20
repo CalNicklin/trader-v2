@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { getDb } from "../../src/db/client.ts";
 import { strategies } from "../../src/db/schema.ts";
+import type { YahooRssItem } from "../../src/news/yahoo-rss-uk.ts";
 import { runNewsPoll } from "../../src/scheduler/news-poll-job.ts";
 
-describe("runNewsPoll LSE branch (FMP)", () => {
+describe("runNewsPoll LSE branch (Yahoo RSS)", () => {
 	beforeEach(async () => {
 		const { resetConfigForTesting } = await import("../../src/config.ts");
 		resetConfigForTesting();
@@ -22,27 +23,28 @@ describe("runNewsPoll LSE branch (FMP)", () => {
 		});
 	});
 
-	test("calls fetchFmpCompanyNews once per LSE symbol and routes to processArticle", async () => {
-		const fmpCalls: Array<{ symbol: string; exchange: string }> = [];
+	test("calls fetchYahooRssUk once per LSE symbol and routes adapted article to processArticle", async () => {
+		const yahooCalls: Array<{ symbol: string; exchange: string }> = [];
 		const processCalls: Array<{ headline: string; exchange: string }> = [];
 
+		const fetchYahooRssStub = async (symbol: string, exchange: string): Promise<YahooRssItem[]> => {
+			yahooCalls.push({ symbol, exchange });
+			if (symbol === "SHEL") {
+				return [
+					{
+						title: `Shell news ${Date.now()}-${Math.random()}`,
+						pubDate: "Mon, 20 Apr 2026 10:00:00 +0000",
+						link: "https://example.com/a",
+						description: "Shell Q1 results beat expectations",
+						source: "yahoo_rss",
+					},
+				];
+			}
+			return [];
+		};
+
 		await runNewsPoll({
-			fetchFmpCompanyNews: async (symbol, exchange) => {
-				fmpCalls.push({ symbol, exchange });
-				if (symbol === "SHEL") {
-					return [
-						{
-							headline: `Shell news ${Date.now()}-${Math.random()}`,
-							symbols: ["SHEL"],
-							url: "https://example.com/a",
-							source: "reuters.com",
-							publishedAt: new Date(),
-							finnhubId: null,
-						},
-					];
-				}
-				return [];
-			},
+			fetchYahooRssUk: fetchYahooRssStub,
 			fetchCompanyNews: async () => [],
 			processArticle: async (article, exchange) => {
 				processCalls.push({ headline: article.headline, exchange });
@@ -50,7 +52,7 @@ describe("runNewsPoll LSE branch (FMP)", () => {
 			},
 		});
 
-		expect(fmpCalls).toEqual([
+		expect(yahooCalls).toEqual([
 			{ symbol: "SHEL", exchange: "LSE" },
 			{ symbol: "BP.", exchange: "LSE" },
 		]);

@@ -2,10 +2,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { and, eq } from "drizzle-orm";
 import { getConfig } from "../config.ts";
-import { fmpValidateSymbol } from "../data/fmp.ts";
 import { getDb } from "../db/client.ts";
 import { newsAnalyses, quotesCache, strategies } from "../db/schema.ts";
 import { getInjectedSymbols, injectSymbol } from "../strategy/universe.ts";
+import { getCikForSymbol } from "../universe/ciks/edgar-ticker-map.ts";
 import { canAffordCall } from "../utils/budget.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
@@ -188,6 +188,27 @@ async function isSymbolInUniverse(symbol: string, exchange: string): Promise<boo
 	return injected.some((i) => i.symbol === symbol && i.exchange === exchange);
 }
 
+// Validates whether a ticker is safe to act on. Replaces FMP's
+// isActivelyTrading check. Logic:
+//   - If in investable_universe → trust it (universe refresh already
+//     filtered for actively-trading symbols).
+//   - Else if US (NASDAQ/NYSE) → check SEC EDGAR CIK presence. A symbol
+//     with a CIK is a real SEC filer; actively-trading is inferred.
+//   - Else (UK without universe hit) → reject. We have no cheap validator
+//     for uncatalogued UK symbols, and the research agent may occasionally
+//     hallucinate them; better to skip than chase ghosts.
+async function isTickerValid(symbol: string, exchange: string): Promise<boolean> {
+	const inUniverse = await isSymbolInUniverse(symbol, exchange);
+	if (inUniverse) return true;
+
+	if (exchange === "NASDAQ" || exchange === "NYSE") {
+		const cik = await getCikForSymbol(symbol, exchange);
+		return cik != null;
+	}
+
+	return false;
+}
+
 export async function buildUniverseWhitelist(
 	deps: ParseDeps = {},
 ): Promise<Array<{ symbol: string; exchange: string }>> {
@@ -232,10 +253,16 @@ async function getPriceForSymbol(symbol: string, exchange: string): Promise<numb
 
 	if (cached?.last != null) return cached.last;
 
-	// Fallback: FMP single quote for newly-discovered symbols
+	// Fallback: Yahoo chart for US, IBKR for UK.
 	try {
-		const { fmpQuote } = await import("../data/fmp.ts");
-		const quote = await fmpQuote(symbol, exchange);
+		const isUk = exchange === "LSE" || exchange === "AIM";
+		if (isUk) {
+			const { ibkrQuote } = await import("../broker/market-data.ts");
+			const quote = await ibkrQuote(symbol, exchange);
+			return quote?.last ?? null;
+		}
+		const { yahooUsQuote } = await import("../data/yahoo-us.ts");
+		const quote = await yahooUsQuote(symbol, exchange);
 		return quote?.last ?? null;
 	} catch {
 		return null;
@@ -339,7 +366,7 @@ export async function runResearchAnalysis(
 		const db = getDb();
 		for (const analysis of analyses) {
 			const inUniverse = await isSymbolInUniverse(analysis.symbol, analysis.exchange);
-			const isValidTicker = await fmpValidateSymbol(analysis.symbol, analysis.exchange);
+			const isValidTicker = await isTickerValid(analysis.symbol, analysis.exchange);
 			const priceAtAnalysis = isValidTicker
 				? await getPriceForSymbol(analysis.symbol, analysis.exchange)
 				: null;

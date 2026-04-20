@@ -48,7 +48,7 @@ async function timed<T>(fn: () => Promise<T>): Promise<{ value: T; tookMs: numbe
 
 // ── Option 1: FMP /v3/profile (baseline, expected 403) ────────────────────────
 async function probeFmp() {
-	const endpoint = `https://financialmodelingprep.com/api/v3/profile/AAPL?apikey=${process.env.FMP_API_KEY ?? "no-key"}`;
+	const endpoint = `https://financialmodelingprep.com/api/v3/profile/AAPL?apikey=no-key`;
 	try {
 		const { value, tookMs } = await timed(async () => {
 			const res = await fetch(endpoint);

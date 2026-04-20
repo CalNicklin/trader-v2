@@ -1,12 +1,7 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { _resetExchangeResolverCache } from "../../src/data/fmp.ts";
+import { describe, expect, mock, test } from "bun:test";
 import { parseUniverseSpec } from "../../src/news/exchange-resolver.ts";
 
 describe("parseUniverseSpec", () => {
-	beforeEach(() => {
-		_resetExchangeResolverCache();
-	});
-
 	test("explicit exchange suffix wins (no FMP call)", async () => {
 		const resolver = mock(async () => "NASDAQ" as const);
 		const result = await parseUniverseSpec("SHEL:LSE", { resolver });

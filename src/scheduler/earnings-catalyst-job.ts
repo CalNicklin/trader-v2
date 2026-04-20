@@ -9,7 +9,7 @@ type FetchLike = (url: string) => Promise<Pick<Response, "ok" | "status" | "json
 
 export interface EarningsCatalystJobInput {
 	fetchImpl?: FetchLike;
-	apiKey: string;
+	finnhubApiKey: string;
 	now: Date;
 }
 
@@ -19,10 +19,10 @@ export interface EarningsCatalystJobResult {
 	error?: string;
 }
 
-interface FmpEarningRow {
+interface FinnhubEarningRow {
 	symbol: string;
 	date: string; // YYYY-MM-DD
-	epsEstimate?: number | null;
+	epsEstimate: number | null;
 }
 
 export async function runEarningsCatalystJob(
@@ -35,13 +35,14 @@ export async function runEarningsCatalystJob(
 	const toMs = now.getTime() + EARNINGS_LOOKAHEAD_DAYS * 1.5 * 86400_000;
 	const to = new Date(toMs).toISOString().slice(0, 10);
 
-	let rows: FmpEarningRow[];
+	let rows: FinnhubEarningRow[];
 	try {
 		const res = await f(
-			`https://financialmodelingprep.com/api/v3/earning_calendar?from=${from}&to=${to}&apikey=${input.apiKey}`,
+			`https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&token=${input.finnhubApiKey}`,
 		);
-		if (!res.ok) throw new Error(`FMP ${res.status}`);
-		rows = (await res.json()) as FmpEarningRow[];
+		if (!res.ok) throw new Error(`Finnhub ${res.status}`);
+		const body = (await res.json()) as { earningsCalendar?: FinnhubEarningRow[] };
+		rows = body.earningsCalendar ?? [];
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
 		log.warn({ err: msg }, "Earnings calendar fetch failed");
@@ -59,14 +60,14 @@ export async function runEarningsCatalystJob(
 			continue;
 		}
 
-		// FMP doesn't always return exchange. For v1 we attempt NASDAQ then NYSE.
+		// Finnhub doesn't always return exchange. For v1 we attempt NASDAQ then NYSE.
 		// promoteToWatchlist rejects if not in investable_universe on a given exchange.
 		for (const exchange of ["NASDAQ", "NYSE"]) {
 			const eventId = writeCatalystEvent({
 				symbol: row.symbol,
 				exchange,
 				eventType: "earnings",
-				source: "fmp_earning_calendar",
+				source: "finnhub_earning_calendar",
 				payload: { date: row.date, epsEstimate: row.epsEstimate ?? null },
 			});
 

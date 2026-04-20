@@ -3,9 +3,9 @@ import { getConfig } from "../config.ts";
 import { getDb } from "../db/client.ts";
 import { strategies } from "../db/schema.ts";
 import { classifyHeadline } from "../news/classifier.ts";
-import { fetchCompanyNews } from "../news/finnhub.ts";
-import { fetchFmpCompanyNews } from "../news/fmp-news.ts";
+import { fetchCompanyNews, type NewsArticle } from "../news/finnhub.ts";
 import { processArticle } from "../news/ingest.ts";
+import { fetchYahooRssUk, type YahooRssItem } from "../news/yahoo-rss-uk.ts";
 import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "news-poll-job" });
@@ -56,14 +56,26 @@ function finnhubSymbol(symbol: string, exchange: string): string {
 
 export interface NewsPollDeps {
 	fetchCompanyNews?: typeof fetchCompanyNews;
-	fetchFmpCompanyNews?: typeof fetchFmpCompanyNews;
+	fetchYahooRssUk?: typeof fetchYahooRssUk;
 	processArticle?: typeof processArticle;
+}
+
+function yahooItemToArticle(item: YahooRssItem, symbol: string): NewsArticle {
+	const published = Number.isNaN(Date.parse(item.pubDate)) ? new Date() : new Date(item.pubDate);
+	return {
+		headline: item.title,
+		symbols: [symbol],
+		url: item.link,
+		source: "yahoo_rss",
+		publishedAt: published,
+		finnhubId: null,
+	};
 }
 
 export async function runNewsPoll(deps: NewsPollDeps = {}): Promise<void> {
 	const config = getConfig();
 	const fetchUs = deps.fetchCompanyNews ?? fetchCompanyNews;
-	const fetchFmp = deps.fetchFmpCompanyNews ?? fetchFmpCompanyNews;
+	const fetchUk = deps.fetchYahooRssUk ?? fetchYahooRssUk;
 	const ingest = deps.processArticle ?? processArticle;
 
 	const watchlist = await getWatchlistSymbols();
@@ -104,14 +116,16 @@ export async function runNewsPoll(deps: NewsPollDeps = {}): Promise<void> {
 		}
 	}
 
-	// Non-US stocks (LSE, AIM): FMP /news/stock, per-symbol
+	// Non-US stocks (LSE, AIM): Yahoo RSS per-symbol. FMP UK news returns []
+	// on our tier, so we use Yahoo RSS as the authoritative UK feed.
 	const nonUsSymbols = watchlist.filter((s) => s.exchange === "LSE" || s.exchange === "AIM");
 	if (nonUsSymbols.length > 0) {
 		let lseArticles = 0;
-		log.info({ symbolCount: nonUsSymbols.length }, "Polling FMP news per symbol for LSE/AIM");
+		log.info({ symbolCount: nonUsSymbols.length }, "Polling Yahoo RSS per symbol for LSE/AIM");
 		for (const { symbol, exchange } of nonUsSymbols) {
-			const articles = await fetchFmp(symbol, exchange);
-			for (const article of articles) {
+			const items = await fetchUk(symbol, exchange);
+			for (const item of items) {
+				const article = yahooItemToArticle(item, symbol);
 				totalArticles++;
 				lseArticles++;
 				const result = await ingest(article, exchange, classifyHeadline);
@@ -119,12 +133,12 @@ export async function runNewsPoll(deps: NewsPollDeps = {}): Promise<void> {
 				else if (result === "filtered") filtered++;
 				else if (result === "duplicate") duplicates++;
 			}
-			// Soft pacing against FMP rate limit (hard limit is in fmpFetch)
+			// Polite pacing — Yahoo isn't as strict as FMP but 200ms is fine.
 			await Bun.sleep(200);
 		}
 		log.info(
 			{ exchange: "LSE", symbols: nonUsSymbols.length, articles: lseArticles },
-			"FMP news poll complete",
+			"Yahoo RSS news poll complete",
 		);
 	}
 

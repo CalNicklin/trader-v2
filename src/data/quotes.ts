@@ -1,8 +1,9 @@
 import { and, eq } from "drizzle-orm";
+import { ibkrQuote } from "../broker/market-data.ts";
 import { getDb } from "../db/client.ts";
 import { quotesCache } from "../db/schema.ts";
 import { createChildLogger } from "../utils/logger.ts";
-import { fmpQuote } from "./fmp.ts";
+import { yahooUsQuote } from "./yahoo-us.ts";
 
 const log = createChildLogger({ module: "quotes" });
 
@@ -67,15 +68,16 @@ export async function getQuoteFromCache(
 	return rows[0] ?? null;
 }
 
-/** Fetch a fresh quote from FMP and update the cache */
+/** Fetch a fresh quote from Yahoo (US) or IBKR (UK) and update the cache */
 export async function refreshQuote(symbol: string, exchange: string): Promise<QuoteData | null> {
 	try {
-		const quote = await fmpQuote(symbol, exchange);
+		// US: Yahoo chart. UK: IBKR (connection managed by running service).
+		const isUk = exchange === "LSE" || exchange === "AIM";
+		const quote = isUk ? await ibkrQuote(symbol, exchange) : await yahooUsQuote(symbol, exchange);
 		if (!quote || quote.last == null) {
-			log.warn({ symbol, exchange }, "No quote data from FMP");
+			log.warn({ symbol, exchange }, "No quote data");
 			return null;
 		}
-
 		const data: QuoteData = {
 			symbol,
 			exchange,
@@ -86,11 +88,10 @@ export async function refreshQuote(symbol: string, exchange: string): Promise<Qu
 			avgVolume: quote.avgVolume,
 			changePercent: quote.changePercent,
 		};
-
 		await upsertQuote(data);
 		return data;
 	} catch (error) {
-		log.error({ symbol, exchange, error }, "Failed to refresh quote from FMP");
+		log.error({ symbol, exchange, error }, "Failed to refresh quote");
 		return null;
 	}
 }
