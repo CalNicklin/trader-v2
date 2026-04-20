@@ -114,6 +114,99 @@ describe("dispatch-store", () => {
 		expect(result[0]!.reasoning).toBe("newer catalyst");
 	});
 
+	test("writeScheduledDecisions inserts rows with source=scheduled", async () => {
+		const { writeScheduledDecisions } = await import(
+			"../../src/strategy/dispatch-store.ts"
+		);
+		const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+		await writeScheduledDecisions(
+			[
+				{ strategyId: 1, symbol: "AAPL", action: "activate", reasoning: "x" },
+				{ strategyId: 1, symbol: "MSFT", action: "skip", reasoning: "y" },
+			],
+			expiresAt,
+		);
+		const rows = await getActiveDecisions();
+		expect(rows.length).toBe(2);
+		expect(rows.every((r) => r.source === "scheduled")).toBe(true);
+	});
+
+	test("writeScheduledDecisions with empty array is a no-op", async () => {
+		const { writeScheduledDecisions } = await import(
+			"../../src/strategy/dispatch-store.ts"
+		);
+		await writeScheduledDecisions([], new Date(Date.now() + 60_000).toISOString());
+		const rows = await getActiveDecisions();
+		expect(rows).toEqual([]);
+	});
+
+	test("writeCatalystDecisions inserts rows with source=catalyst and news event id", async () => {
+		const { writeCatalystDecisions } = await import(
+			"../../src/strategy/dispatch-store.ts"
+		);
+		const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+		await writeCatalystDecisions(
+			[{ strategyId: 1, symbol: "AAPL", action: "activate", reasoning: "x" }],
+			expiresAt,
+			42,
+		);
+		const rows = await getActiveDecisions();
+		expect(rows.length).toBe(1);
+		expect(rows[0]!.source).toBe("catalyst");
+		expect(rows[0]!.sourceNewsEventId).toBe(42);
+	});
+
+	test("expireScheduledDecisions expires scheduled rows but leaves catalyst rows untouched", async () => {
+		const { writeScheduledDecisions, writeCatalystDecisions, expireScheduledDecisions } =
+			await import("../../src/strategy/dispatch-store.ts");
+		const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+		await writeScheduledDecisions(
+			[{ strategyId: 1, symbol: "AAPL", action: "activate", reasoning: "sched" }],
+			expiresAt,
+		);
+		await writeCatalystDecisions(
+			[{ strategyId: 2, symbol: "AAPL", action: "activate", reasoning: "cat" }],
+			expiresAt,
+			1,
+		);
+		await expireScheduledDecisions();
+		const rows = await getActiveDecisions();
+		expect(rows.length).toBe(1);
+		expect(rows[0]!.source).toBe("catalyst");
+	});
+
+	test("cleanupExpiredDecisions deletes rows with expires_at older than 24h ago", async () => {
+		const db = getDb();
+		const { cleanupExpiredDecisions } = await import(
+			"../../src/strategy/dispatch-store.ts"
+		);
+		const veryOld = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+		const recentExpired = new Date(Date.now() - 60 * 1000).toISOString();
+		await db.insert(dispatchDecisions).values([
+			{
+				strategyId: 1,
+				symbol: "AAPL",
+				action: "skip",
+				reasoning: "old",
+				source: "scheduled",
+				expiresAt: veryOld,
+			},
+			{
+				strategyId: 2,
+				symbol: "AAPL",
+				action: "skip",
+				reasoning: "recent",
+				source: "scheduled",
+				expiresAt: recentExpired,
+			},
+		]);
+		const deleted = await cleanupExpiredDecisions();
+		expect(deleted).toBe(1);
+		const remaining = await db.select().from(dispatchDecisions);
+		expect(remaining.length).toBe(1);
+		expect(remaining[0]!.reasoning).toBe("recent");
+	});
+
 	test("returns separate rows for different (strategy, symbol) pairs", async () => {
 		const db = getDb();
 		const futureExpiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
