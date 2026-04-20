@@ -17,9 +17,59 @@ Four-tier architecture replacing hand-picked 25-symbol seed universes. **Steps 1
 
 ## Prerequisites before starting Step 3
 
-1. **Resolve issue [#32](https://github.com/CalNicklin/trader-v2/issues/32)** — FMP paywalled the LSE/FTSE endpoints; `investable_universe` is empty in prod. Until this is fixed, no strategy can benefit from the watchlist because promotions reject with `rejected_not_in_universe`. Options are tracked in the issue (upgrade FMP plan, relax fail-whole and ship US-only, swap sources, drop UK scope).
-2. **Review issue [#33](https://github.com/CalNicklin/trader-v2/issues/33)** — Drizzle `migrate()` silently skipped migrations 0014–0016 on prod. Hotfixed manually. Not blocking, but the next migration attempt will reveal whether the root cause remains. Consider adding a post-migrate assertion before Step 3.
-3. **Let Step 2 bake for ~10 trading days** (per spec §rollout) — collect data on promotion quality, enrichment cost, demotion rates. Skipping this gate ships watchlist-dependent strategy behaviour without real-world validation.
+1. **Merge PR [#36](https://github.com/CalNicklin/trader-v2/pull/36)** — `fix(universe): fail-partial when a constituent source is blocked`. Generic fix: any source failure no longer aborts the whole refresh, and rows from failed sources are not deactivated. Needed for both the current FMP path and the planned free hybrid stack below. **Status: open, ready to merge.**
+2. **Resolve issue [#32](https://github.com/CalNicklin/trader-v2/issues/32)** — FMP paywalled LSE/FTSE endpoints post-Aug-2025; `investable_universe` is empty in prod. Research report: `docs/research/2026-04-20-data-provider-alternatives.md`. **Chosen path: free hybrid stack** (see below). Integration PoC on branch `poc/free-data-sources`.
+3. **Review issue [#33](https://github.com/CalNicklin/trader-v2/issues/33)** — Drizzle `migrate()` silently skipped migrations 0014–0016 on prod. Hotfixed manually. Not blocking, but the next migration attempt will reveal whether the root cause remains. Consider adding a post-migrate assertion before Step 3.
+4. **Let Step 2 bake for ~10 trading days** (per spec §rollout) — collect data on promotion quality, enrichment cost, demotion rates. Skipping this gate ships watchlist-dependent strategy behaviour without real-world validation. **Gated on #32 resolution** — no promotions until the universe populates.
+
+## Resolution path for #32: Free Hybrid Stack
+
+Full research in `docs/research/2026-04-20-data-provider-alternatives.md`. Chose Option 3 from that report: **free sources for constituents + Yahoo for UK quotes/news + keep FMP for everything still working**. Cost: $0 incremental.
+
+**PoC on branch `poc/free-data-sources`** — two dry-run scripts verify every endpoint works end-to-end:
+
+```bash
+bun scripts/free-sources-dryrun.ts    # raw endpoint probes (9/10 pass)
+bun scripts/free-hybrid-dryrun.ts     # end-to-end UK universe simulation
+```
+
+Verified live (2026-04-20):
+
+| Need | Source | Status |
+|---|---|---|
+| Russell 1000 constituents | iShares IWB CSV | ✅ 1010 holdings |
+| FTSE 100 constituents | iShares ISF CSV | ✅ 100 holdings |
+| FTSE 250 constituents | Wikipedia scrape | ✅ 248 tickers |
+| AIM All-Share constituents | **hand-curated** | ⚠️ ~5 names (GAW, FDEV, TET, JET2, BOWL) — no free source for full list |
+| UK quotes (price + 30d avg vol) | Yahoo chart API | ✅ anonymous, works for AIM too |
+| UK news | Yahoo RSS per `.L` symbol | ✅ 21+ items/symbol |
+| GBP→USD FX | Frankfurter.dev | ✅ no key |
+| US insider (Form 4) | SEC EDGAR direct | ✅ 591 Form-4 in AAPL buffer |
+| UK fundamentals (mkt cap, free float, IPO date) | Yahoo v10 quoteSummary | ⚠️ crumb-protected; `yahoo-finance2` npm lib handles it, brittle |
+| UK earnings calendar | — | ❌ **no free source** |
+
+**Sample liquidity-filter run** (30 UK names, ≥$5M $ADV + ≥£1 price):
+- 30/30 Yahoo fetches succeeded after fixing trailing-dot EPICs (BP., RR., BA.)
+- 16/30 pass the filter → projected full UK universe ~187 names after filter
+- FTSE 100 almost all pass; FTSE 250 ~50/50; AIM mixed
+
+**Integration plan:**
+
+1. Land PR #36 (fail-partial) — prerequisite
+2. Create `src/universe/sources/free/` adapter layer:
+   - `ishares-iwb.ts` — Russell 1000 from iShares holdings CSV
+   - `ishares-isf.ts` — FTSE 100 from iShares holdings CSV
+   - `wikipedia-ftse250.ts` — FTSE 250 from Wikipedia scrape
+   - `aim-curated.ts` — hand-maintained AIM whitelist
+3. Wire into `src/universe/source-aggregator.ts` as additional source entries; old FMP `fetchFtse350Constituents` / `fetchAimAllShareConstituents` stay as fallback (will gracefully no-op per PR #36 fail-partial semantics).
+4. New fundamentals path for UK: since Yahoo v10 is crumb-protected, use iShares CSV `Market Value` column as an approximation for market cap (iShares reports each holding's market value in fund currency — good enough for the ≥£100M free-float filter within a ballpark).
+5. Accept gaps: no full AIM, no UK earnings calendar for v1.
+
+**Known fragility watch-list:**
+- `yahoo-finance2` breaks ~quarterly when Yahoo rotates crumbs
+- iShares CSV URL pattern differs US vs UK (US uses `1467271812596.ajax`, UK uses `1506575576011.ajax`); could change without notice
+- BlackRock/iShares ToS technically prohibits automated use (grey zone, fine for paper trading)
+- Wikipedia FTSE 250 lags quarterly reviews by ~1 week
 
 ## Step 3 — kickoff checklist
 
@@ -49,11 +99,17 @@ Tracked on GitHub with label `universe-followup`. Review before touching related
 gh issue list --label universe-followup
 ```
 
-Current (2026-04-18):
+Current (2026-04-20):
 - #20–#24: Step 1 (ETF exclusion, halt detection, SPAC, SEC flag, learning-loop exclude)
 - #25–#31: Step 2 (demotion rules 3/6, N+1 pre-filter, index predicate, dead enum, ingest hot path, tags parsing)
-- #32: Infrastructure — FTSE/LSE FMP paywall (BLOCKS Step 3 until resolved)
-- #33: Infrastructure — Drizzle migration pipeline silently skipping migrations
+- #32: Infrastructure — FTSE/LSE FMP paywall. **Resolution path chosen: free hybrid stack (Option 3 in research doc).** PoC verified on branch `poc/free-data-sources`. Integration PR pending.
+- #33: Infrastructure — Drizzle migration pipeline silently skipping migrations. Hotfixed; needs root-cause fix before next schema change.
+
+## Related PRs / branches
+
+- **PR #36** — `fix/universe-fail-partial`: generic fail-partial source aggregator + deactivation guard. Prerequisite for #32 integration.
+- **Branch `poc/free-data-sources`** — PoC scripts + research doc. No source code changes yet; integration PR to follow.
+- **PR #34** — this status doc (merged).
 
 ## Progress logs (per PR)
 
