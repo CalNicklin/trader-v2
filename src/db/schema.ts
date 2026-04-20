@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
 	index,
 	integer,
+	primaryKey,
 	real,
 	sqliteTable,
 	text,
@@ -533,6 +534,24 @@ export const symbolProfiles = sqliteTable(
 			table.symbol,
 			table.exchange,
 		),
+	}),
+);
+
+export const symbolCiks = sqliteTable(
+	"symbol_ciks",
+	{
+		symbol: text("symbol").notNull(),
+		exchange: text("exchange").notNull(),
+		cik: integer("cik").notNull(),
+		entityName: text("entity_name"),
+		source: text("source").notNull().default("sec_company_tickers"),
+		fetchedAt: text("fetched_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.symbol, table.exchange] }),
+		cikIdx: index("symbol_ciks_cik_idx").on(table.cik),
 	}),
 );
 
