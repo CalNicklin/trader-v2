@@ -58,4 +58,9 @@ if (suite === "all" || suite === "research-agent") {
 	await runResearchAgentEvals({ trials, saveDir: "src/evals/research-agent/results" });
 }
 
+if (suite === "all" || suite === "catalyst-dispatch") {
+	const { runCatalystDispatchEvals } = await import("./catalyst-dispatch/suite.ts");
+	await runCatalystDispatchEvals({ trials, saveDir: "src/evals/catalyst-dispatch/results" });
+}
+
 console.log(`\nTotal duration: ${Date.now() - start}ms`);
