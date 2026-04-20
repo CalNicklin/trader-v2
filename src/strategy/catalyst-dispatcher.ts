@@ -93,7 +93,14 @@ export interface EnqueueOptions {
 	_debounceMs?: number;
 }
 
-export function enqueueCatalystDispatch(
+type EnqueueFn = (
+	symbol: string,
+	exchange: string,
+	newsEventId: number,
+	options?: EnqueueOptions,
+) => void;
+
+function defaultEnqueue(
 	symbol: string,
 	exchange: string,
 	newsEventId: number,
@@ -118,6 +125,27 @@ export function enqueueCatalystDispatch(
 	}, debounceMs);
 
 	state.debounceTimers.set(symbol, { timer, newsEventId, exchange });
+}
+
+let activeEnqueue: EnqueueFn = defaultEnqueue;
+
+export function enqueueCatalystDispatch(
+	symbol: string,
+	exchange: string,
+	newsEventId: number,
+	options: EnqueueOptions = {},
+): void {
+	activeEnqueue(symbol, exchange, newsEventId, options);
+}
+
+/**
+ * Test-only: replace the enqueue implementation. Returns the previous impl
+ * so tests can restore it (pairs well with try/finally).
+ */
+export function __setEnqueueForTesting(fn: EnqueueFn): EnqueueFn {
+	const prev = activeEnqueue;
+	activeEnqueue = fn;
+	return prev;
 }
 
 function makeDefaultRunner(

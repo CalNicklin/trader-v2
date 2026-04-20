@@ -1,6 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
+import { getConfig } from "../config.ts";
 import { getDb } from "../db/client.ts";
-import { newsEvents } from "../db/schema.ts";
+import { newsEvents, strategies } from "../db/schema.ts";
+import { enqueueCatalystDispatch } from "../strategy/catalyst-dispatcher.ts";
 import { injectSymbol } from "../strategy/universe.ts";
 import { createChildLogger } from "../utils/logger.ts";
 import { type ClassificationResult, onTradeableClassification } from "./classifier.ts";
@@ -12,6 +14,29 @@ import { storeNewsEvent } from "./sentiment-writer.ts";
 const log = createChildLogger({ module: "news-ingest" });
 
 type ClassifyFn = (headline: string, symbol: string) => Promise<ClassificationResult | null>;
+
+/**
+ * True if `symbol` appears in any graduated (probation/active/core) strategy's
+ * universe. Gates catalyst dispatch — we don't spend Haiku budget on symbols
+ * no live strategy could act on.
+ */
+async function isSymbolInGraduatedUniverse(symbol: string): Promise<boolean> {
+	const db = getDb();
+	const grads = await db
+		.select({ universe: strategies.universe })
+		.from(strategies)
+		.where(inArray(strategies.status, ["probation", "active", "core"]));
+	for (const g of grads) {
+		if (!g.universe) continue;
+		try {
+			const list: string[] = JSON.parse(g.universe);
+			if (list.some((u) => u === symbol || u.startsWith(`${symbol}:`))) return true;
+		} catch {
+			// ignore malformed universe JSON
+		}
+	}
+	return false;
+}
 
 /**
  * Check if a headline has already been ingested (dedup by exact headline match).
@@ -124,6 +149,22 @@ export async function processArticle(
 			{ symbols: article.symbols, urgency: result.urgency },
 			"High-urgency symbols injected into universes",
 		);
+	}
+
+	// Catalyst-triggered dispatch: fire intraday dispatch for high-urgency
+	// tradeable news on a symbol any graduated strategy holds in its universe.
+	if (getConfig().CATALYST_DISPATCH_ENABLED && result.tradeable && result.urgency === "high") {
+		const primary = article.symbols[0];
+		if (primary && (await isSymbolInGraduatedUniverse(primary))) {
+			enqueueCatalystDispatch(primary, exchange, newsEventId, {
+				news: {
+					headline: article.headline,
+					sentiment: result.sentiment,
+					urgency: result.urgency,
+					eventType: result.eventType,
+				},
+			});
+		}
 	}
 
 	// Fire-and-forget research analysis for tradeable articles
