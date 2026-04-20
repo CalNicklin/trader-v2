@@ -7,6 +7,7 @@ import {
 	strategies,
 	watchlist,
 } from "../db/schema";
+import { getCatalystMetrics } from "../strategy/catalyst-dispatcher";
 import { getDailySpend } from "../utils/budget";
 
 export interface HealthData {
@@ -30,6 +31,11 @@ export interface HealthData {
 		unenrichedCount: number;
 		oldestPromotionHours: number | null;
 		enrichmentFailedCount: number;
+	};
+	catalyst: {
+		dispatchesToday: number;
+		capHit: boolean;
+		lastDispatchedAt: string | null;
 	};
 }
 
@@ -134,6 +140,7 @@ export async function getHealthData(): Promise<HealthData> {
 			oldestPromotionHours,
 			enrichmentFailedCount,
 		},
+		catalyst: getCatalystMetrics(),
 	};
 }
 

@@ -601,3 +601,29 @@ export const catalystEvents = sqliteTable(
 		typeFiredIdx: index("catalyst_events_type_fired_idx").on(table.eventType, table.firedAt),
 	}),
 );
+
+// ── Dispatch Decisions ──────────────────────────────────────────────────────
+
+export const dispatchDecisions = sqliteTable(
+	"dispatch_decisions",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		strategyId: integer("strategy_id").notNull(),
+		symbol: text("symbol").notNull(),
+		action: text("action", { enum: ["activate", "skip"] }).notNull(),
+		reasoning: text("reasoning").notNull(),
+		source: text("source", { enum: ["scheduled", "catalyst"] }).notNull(),
+		sourceNewsEventId: integer("source_news_event_id"),
+		createdAt: text("created_at")
+			.notNull()
+			.$defaultFn(() => new Date().toISOString()),
+		expiresAt: text("expires_at").notNull(),
+	},
+	(table) => ({
+		activeIdx: index("dispatch_decisions_active_idx").on(table.expiresAt, table.action),
+		strategySymbolIdx: index("dispatch_decisions_strategy_symbol_idx").on(
+			table.strategyId,
+			table.symbol,
+		),
+	}),
+);

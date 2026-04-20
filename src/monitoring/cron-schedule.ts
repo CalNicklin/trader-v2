@@ -77,6 +77,9 @@ export const CRON_SCHEDULE: Record<string, CronEntry> = {
 	weekly_digest: { cron: "30 17 * * 0" },
 	strategy_evolution: { cron: "0 18 * * 0" },
 	self_improvement: { cron: "0 19 * * 0" },
+
+	// Dispatch decisions cleanup (nightly post-close)
+	dispatch_decisions_cleanup: { cron: "20 22 * * 1-5" },
 };
 
 function formatDuration(ms: number): string {

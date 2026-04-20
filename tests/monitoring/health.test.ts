@@ -34,6 +34,22 @@ describe("health data collector", () => {
 		expect(data.timestamp).toBeDefined();
 	});
 
+	test("exposes catalyst dispatch counters", async () => {
+		const { resetCatalystStateForTesting, markDispatched } = await import(
+			"../../src/strategy/catalyst-dispatcher.ts"
+		);
+		resetCatalystStateForTesting();
+		const now = Date.now();
+		markDispatched("AAPL", now);
+
+		const { getHealthData } = await import("../../src/monitoring/health");
+		const data = await getHealthData();
+		expect(data.catalyst.dispatchesToday).toBe(1);
+		expect(data.catalyst.capHit).toBe(false);
+		expect(data.catalyst.lastDispatchedAt).toBe(new Date(now).toISOString());
+		resetCatalystStateForTesting();
+	});
+
 	test("counts active strategies correctly", async () => {
 		const { getDb } = await import("../../src/db/client.ts");
 		const db = getDb();

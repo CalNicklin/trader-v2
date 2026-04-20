@@ -218,6 +218,13 @@ export function startScheduler(): void {
 		}),
 	);
 
+	// ── Dispatch decisions cleanup (nightly, post-close) ─────────────────
+	tasks.push(
+		cron.schedule("20 22 * * 1-5", () => runJob("dispatch_decisions_cleanup"), {
+			timezone: "Europe/London",
+		}),
+	);
+
 	log.info({ jobCount: tasks.length }, "Scheduler started");
 }
 

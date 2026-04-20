@@ -9,37 +9,30 @@ import { createChildLogger } from "../utils/logger.ts";
 import { withRetry } from "../utils/retry.ts";
 import { recordUsage } from "../utils/token-tracker.ts";
 import { buildDispatchPrompt } from "./dispatch-prompt.ts";
+import {
+	type DispatchDecisionInput,
+	expireScheduledDecisions,
+	writeScheduledDecisions,
+} from "./dispatch-store.ts";
 import type { RegimeSignals } from "./regime.ts";
 
 const log = createChildLogger({ module: "dispatch" });
 
-export interface DispatchDecision {
-	strategyId: number;
-	symbol: string;
-	action: "activate" | "skip";
-	reasoning: string;
-}
+export interface DispatchDecision extends DispatchDecisionInput {}
 
 interface DispatchResponse {
 	decisions: DispatchDecision[];
 }
 
-let latestDecisions: DispatchDecision[] = [];
-
-export function getLatestDispatchDecisions(): DispatchDecision[] {
-	return latestDecisions;
-}
-
-export function clearDispatchDecisions(): void {
-	latestDecisions = [];
-}
+/** Safety-net TTL for scheduled rows. The next scheduled runDispatch explicitly
+ * invalidates these rows, so this only matters when dispatch itself fails. */
+const SCHEDULED_TTL_MS = 6 * 60 * 60 * 1000;
 
 export function parseDispatchResponse(
 	raw: string,
 	validStrategyIds?: Set<number>,
 ): DispatchDecision[] {
 	try {
-		// Strip markdown code fences if present (model often wraps JSON in ```json ... ```)
 		let cleaned = raw.trim();
 		if (cleaned.startsWith("```")) {
 			cleaned = cleaned.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
@@ -47,15 +40,22 @@ export function parseDispatchResponse(
 		const parsed: DispatchResponse = JSON.parse(cleaned);
 		if (!parsed.decisions || !Array.isArray(parsed.decisions)) return [];
 
-		return parsed.decisions.filter((d) => {
-			if (!d.strategyId || !d.symbol || !d.action) return false;
-			if (d.action !== "activate" && d.action !== "skip") return false;
-			if (validStrategyIds && !validStrategyIds.has(d.strategyId)) {
-				log.warn({ strategyId: d.strategyId }, "Dispatch references unknown strategy, skipping");
-				return false;
-			}
-			return true;
-		});
+		return parsed.decisions
+			.filter((d) => {
+				if (typeof d.strategyId !== "number" || !d.symbol || !d.action) return false;
+				if (d.action !== "activate" && d.action !== "skip") return false;
+				if (validStrategyIds && !validStrategyIds.has(d.strategyId)) {
+					log.warn({ strategyId: d.strategyId }, "Dispatch references unknown strategy, skipping");
+					return false;
+				}
+				return true;
+			})
+			.map((d) => ({
+				strategyId: d.strategyId,
+				symbol: d.symbol,
+				action: d.action,
+				reasoning: d.reasoning ?? "",
+			}));
 	} catch {
 		log.error("Failed to parse dispatch response");
 		return [];
@@ -130,7 +130,10 @@ export async function runDispatch(): Promise<DispatchDecision[]> {
 	const validIds = new Set(graduatedStrategies.map((s) => s.id));
 	const decisions = parseDispatchResponse(rawText, validIds);
 
-	latestDecisions = decisions;
+	// Expire prior scheduled decisions, then write the fresh set to dispatch_decisions.
+	await expireScheduledDecisions();
+	const expiresAt = new Date(Date.now() + SCHEDULED_TTL_MS).toISOString();
+	await writeScheduledDecisions(decisions, expiresAt);
 
 	log.info(
 		{

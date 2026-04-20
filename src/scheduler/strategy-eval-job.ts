@@ -30,37 +30,47 @@ export async function filterUniverseByExchanges(
 	return kept;
 }
 
+/**
+ * Fetch quote + indicators + aggregated news signal for a symbol. Returns
+ * null if the quote cache is empty or has no last price. Shared by the
+ * scheduled evaluator and the catalyst-triggered evaluator kick.
+ */
+export async function fetchEvalInput(
+	symbol: string,
+	exchange: string,
+): Promise<{ quote: QuoteFields; indicators: Awaited<ReturnType<typeof getIndicators>> } | null> {
+	const cached = await getQuoteFromCache(symbol, exchange);
+	if (!cached || cached.last == null) return null;
+
+	const indicators = await getIndicators(symbol, exchange);
+	const newsSignal = await getAggregatedNewsSignal(symbol, exchange);
+
+	const quote: QuoteFields = {
+		last: cached.last,
+		bid: cached.bid,
+		ask: cached.ask,
+		volume: cached.volume,
+		avgVolume: cached.avgVolume,
+		changePercent: cached.changePercent,
+		newsSentiment: newsSignal.sentiment,
+		newsEarningsSurprise: newsSignal.earningsSurprise,
+		newsGuidanceChange: newsSignal.guidanceChange,
+		newsManagementTone: newsSignal.managementTone,
+		newsRegulatoryRisk: newsSignal.regulatoryRisk,
+		newsAcquisitionLikelihood: newsSignal.acquisitionLikelihood,
+		newsCatalystType: newsSignal.catalystType,
+		newsExpectedMoveDuration: newsSignal.expectedMoveDuration,
+	};
+
+	return { quote, indicators };
+}
+
 export async function runStrategyEvaluation(options?: {
 	exchanges?: Exchange[];
 	allowNewEntries?: boolean;
 }): Promise<void> {
 	await evaluateAllStrategies(
-		async (symbol, exchange) => {
-			const cached = await getQuoteFromCache(symbol, exchange);
-			if (!cached || cached.last == null) return null;
-
-			const indicators = await getIndicators(symbol, exchange);
-			const newsSignal = await getAggregatedNewsSignal(symbol, exchange);
-
-			const quote: QuoteFields = {
-				last: cached.last,
-				bid: cached.bid,
-				ask: cached.ask,
-				volume: cached.volume,
-				avgVolume: cached.avgVolume,
-				changePercent: cached.changePercent,
-				newsSentiment: newsSignal.sentiment,
-				newsEarningsSurprise: newsSignal.earningsSurprise,
-				newsGuidanceChange: newsSignal.guidanceChange,
-				newsManagementTone: newsSignal.managementTone,
-				newsRegulatoryRisk: newsSignal.regulatoryRisk,
-				newsAcquisitionLikelihood: newsSignal.acquisitionLikelihood,
-				newsCatalystType: newsSignal.catalystType,
-				newsExpectedMoveDuration: newsSignal.expectedMoveDuration,
-			};
-
-			return { quote, indicators };
-		},
+		fetchEvalInput,
 		options
 			? { exchanges: options.exchanges, allowNewEntries: options.allowNewEntries }
 			: undefined,
