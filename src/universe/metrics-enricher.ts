@@ -2,6 +2,7 @@ import { inArray } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { quotesCache } from "../db/schema.ts";
 import { createChildLogger } from "../utils/logger.ts";
+import { fetchYahooUkQuotes, type YahooUkQuote } from "./enrichers/yahoo-uk.ts";
 import type { FilterCandidate } from "./filters.ts";
 import {
 	fetchSymbolProfiles,
@@ -18,13 +19,20 @@ const log = createChildLogger({ module: "universe-metrics-enricher" });
 // Strategy:
 //   - US candidates (russell_1000): fetch FMP profile for market-cap + free-float
 //     + listing-age, with a `symbol_profiles` cache (last-known-good on failure).
-//   - UK candidates (ftse_350, aim_allshare): skip profile fetch — FMP lacks
-//     reliable LSE/AIM coverage. These fields stay null; the liquidity filter
-//     treats freeFloatUsd as optional and listingAgeDays as optional.
-//   - All candidates get price, volume, and spread from quotes_cache
-//     (populated by IBKR market-data for all exchanges).
+//   - UK candidates (ftse_350, aim_allshare): at refresh time, quotes_cache is
+//     usually empty for fresh candidates, so we pull price + 30d avg volume
+//     from Yahoo chart and compute avg-dollar-volume with GBP→USD FX. No FMP
+//     profile fetch (FMP paywalled LSE/FTSE post-Aug-2025). freeFloatUsd +
+//     listingAgeDays stay null — the liquidity filter treats them as optional.
+//   - All candidates also get quotes_cache data if present (IBKR-populated);
+//     when a UK row has both Yahoo and quotes_cache, the metrics_enricher
+//     prefers quotes_cache for price/spread (live) and Yahoo for $ADV
+//     (30-day averaged).
 export interface EnrichOptions {
 	fetchImpl?: FetchLike;
+	// Override Yahoo UK enricher; defaults to live Yahoo chart API.
+	// Tests pass `() => new Map()` to disable the enricher entirely.
+	yahooUkEnricher?: (rows: ConstituentRow[]) => Promise<Map<string, YahooUkQuote>>;
 }
 
 interface QuoteRow {
@@ -44,8 +52,29 @@ export async function enrichWithMetrics(
 
 	const profiles = await resolveProfiles(rows, options.fetchImpl ?? fetch);
 	const quotes = await loadQuotes(rows);
+	const yahooUk = await safeYahooUk(rows, options.yahooUkEnricher);
 
-	return rows.map((r) => enrichOne(r, profiles, quotes));
+	return rows.map((r) => enrichOne(r, profiles, quotes, yahooUk));
+}
+
+// Wrap Yahoo enrichment in a try/catch so the refresh as a whole survives a
+// Yahoo outage. Empty map on failure → UK rows fall back to quotes_cache
+// (likely empty on first refresh → filter rejects as missing_data, which is
+// the same "fail gracefully" behaviour as a missing FMP profile).
+async function safeYahooUk(
+	rows: ConstituentRow[],
+	override?: (rows: ConstituentRow[]) => Promise<Map<string, YahooUkQuote>>,
+): Promise<Map<string, YahooUkQuote>> {
+	const enricher = override ?? fetchYahooUkQuotes;
+	try {
+		return await enricher(rows);
+	} catch (err) {
+		log.warn(
+			{ err: err instanceof Error ? err.message : String(err) },
+			"Yahoo UK enrichment failed — UK rows will lack price/volume",
+		);
+		return new Map();
+	}
 }
 
 // ---- helpers ----
@@ -134,15 +163,25 @@ function enrichOne(
 	row: ConstituentRow,
 	profiles: Map<string, SymbolProfile>,
 	quotes: Map<string, QuoteRow>,
+	yahooUk: Map<string, YahooUkQuote>,
 ): FilterCandidate {
 	const key = keyOf(row.symbol, row.exchange);
 	const profile = profiles.get(key) ?? null;
 	const quote = quotes.get(key) ?? null;
+	const yahoo = yahooUk.get(key) ?? null;
 
-	const price = quote?.last ?? null;
+	// Price priority: live quotes_cache > Yahoo 30d last close.
+	const price = quote?.last ?? yahoo?.priceGbpPence ?? null;
 
+	// avgDollarVolume: for UK rows prefer Yahoo's pre-computed USD value (handles
+	// GBp→USD FX correctly). For US rows (or UK rows with quotes_cache data) fall
+	// back to the native-unit computation. Note: the native-unit fallback is only
+	// correct for USD-denominated rows (russell_1000); UK rows without Yahoo data
+	// will have nonsense dollar volume and get filtered out as low_dollar_volume,
+	// which is the desired safe-default behaviour.
 	const avgDollarVolume =
-		quote?.avgVolume != null && quote?.last != null ? quote.avgVolume * quote.last : null;
+		yahoo?.avgDollarVolumeUsd ??
+		(quote?.avgVolume != null && quote?.last != null ? quote.avgVolume * quote.last : null);
 
 	const spreadBps =
 		quote?.bid != null && quote?.ask != null && quote.bid > 0 && quote.ask > 0
