@@ -43,6 +43,12 @@ const envSchema = z.object({
 		.default("false")
 		.transform((v) => v === "true"),
 
+	// Catalyst-triggered dispatch kill switch (default OFF)
+	CATALYST_DISPATCH_ENABLED: z
+		.enum(["true", "false"])
+		.default("false")
+		.transform((v) => v === "true"),
+
 	// HTTP server
 	HTTP_PORT: z.coerce.number().default(3847),
 
