@@ -131,8 +131,19 @@ function enrichOne(
 		usProfile?.avgDollarVolumeUsd ??
 		(quote?.avgVolume != null && quote?.last != null ? quote.avgVolume * quote.last : null);
 
+	// Spread is only trustworthy for UK rows — IBKR refreshes bid/ask during the
+	// UK quote-refresh job. US rows get `last` from Yahoo v8 (which doesn't
+	// publish bid/ask), so quotes_cache.bid/ask for US symbols are stale
+	// artefacts from the pre-FMP-removal era and must not feed the filter.
+	// Crossed markets (bid > ask) are treated as no-signal rather than negative.
+	const isUk = row.exchange === "LSE" || row.exchange === "AIM";
 	const spreadBps =
-		quote?.bid != null && quote?.ask != null && quote.bid > 0 && quote.ask > 0
+		isUk &&
+		quote?.bid != null &&
+		quote?.ask != null &&
+		quote.bid > 0 &&
+		quote.ask > 0 &&
+		quote.ask >= quote.bid
 			? ((quote.ask - quote.bid) / ((quote.ask + quote.bid) / 2)) * 10_000
 			: null;
 

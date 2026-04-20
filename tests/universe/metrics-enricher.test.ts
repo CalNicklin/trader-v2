@@ -233,4 +233,81 @@ describe("enrichWithMetrics", () => {
 		// sharesOutstanding × priceUsd = 50M × 10 = 500M
 		expect(result[0]?.freeFloatUsd).toBe(5e8);
 	});
+
+	test("US row: spreadBps is null even when quotes_cache has bid/ask (stale artefact)", async () => {
+		const { enrichWithMetrics } = await import("../../src/universe/metrics-enricher.ts");
+		const { getDb } = await import("../../src/db/client.ts");
+		const { quotesCache } = await import("../../src/db/schema.ts");
+
+		// Stale bid/ask left over from pre-FMP-removal era. Spread here is
+		// ~74 bps, which would falsely reject NFLX under MAX_SPREAD_BPS=25.
+		await getDb().insert(quotesCache).values({
+			symbol: "NFLX",
+			exchange: "NASDAQ",
+			last: 94.71,
+			avgVolume: 40_000_000,
+			bid: 98.76,
+			ask: 99.5,
+			updatedAt: new Date().toISOString(),
+		});
+
+		const rows: ConstituentRow[] = [
+			{ symbol: "NFLX", exchange: "NASDAQ", indexSource: "russell_1000" },
+		];
+		const result = await enrichWithMetrics(rows, {
+			yahooUkEnricher: async () => new Map(),
+			usProfileEnricher: async () => new Map(),
+		});
+
+		expect(result[0]?.spreadBps).toBeNull();
+	});
+
+	test("UK row: spreadBps computed from fresh quotes_cache bid/ask (IBKR)", async () => {
+		const { enrichWithMetrics } = await import("../../src/universe/metrics-enricher.ts");
+		const { getDb } = await import("../../src/db/client.ts");
+		const { quotesCache } = await import("../../src/db/schema.ts");
+
+		await getDb().insert(quotesCache).values({
+			symbol: "HSBA",
+			exchange: "LSE",
+			last: 700,
+			avgVolume: 10_000_000,
+			bid: 699,
+			ask: 701,
+			updatedAt: new Date().toISOString(),
+		});
+
+		const rows: ConstituentRow[] = [{ symbol: "HSBA", exchange: "LSE", indexSource: "ftse_350" }];
+		const result = await enrichWithMetrics(rows, {
+			yahooUkEnricher: async () => new Map(),
+			usProfileEnricher: async () => new Map(),
+		});
+
+		// (701 - 699) / 700 * 10000 = ~28.57 bps
+		expect(result[0]?.spreadBps).toBeCloseTo(28.57, 1);
+	});
+
+	test("UK row: crossed market (bid > ask) yields spreadBps null, not negative", async () => {
+		const { enrichWithMetrics } = await import("../../src/universe/metrics-enricher.ts");
+		const { getDb } = await import("../../src/db/client.ts");
+		const { quotesCache } = await import("../../src/db/schema.ts");
+
+		await getDb().insert(quotesCache).values({
+			symbol: "VOD",
+			exchange: "LSE",
+			last: 75,
+			avgVolume: 20_000_000,
+			bid: 75.5,
+			ask: 75.2,
+			updatedAt: new Date().toISOString(),
+		});
+
+		const rows: ConstituentRow[] = [{ symbol: "VOD", exchange: "LSE", indexSource: "ftse_350" }];
+		const result = await enrichWithMetrics(rows, {
+			yahooUkEnricher: async () => new Map(),
+			usProfileEnricher: async () => new Map(),
+		});
+
+		expect(result[0]?.spreadBps).toBeNull();
+	});
 });
