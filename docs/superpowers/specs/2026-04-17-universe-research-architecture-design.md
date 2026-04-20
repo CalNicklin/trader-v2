@@ -1,7 +1,7 @@
 # Universe Research Architecture — Design Spec
 
 **Date:** 2026-04-17
-**Status:** Draft for review
+**Status:** Implementation in progress — see [`docs/universe-rollout-status.md`](../../universe-rollout-status.md) for live rollout state, blockers, and next-step kickoff checklist.
 **Motivation:** Today (2026-04-17) the system produced 0 trades despite 20+ tradeable news classifications and 5+ high-confidence research hits, because every one of those signals had to land on a symbol in a hand-picked 25-symbol seed universe. This spec replaces the static seed universe with a layered, research-driven universe architecture that mirrors how real trading desks discover and trade stocks.
 
 ## The problem in one sentence
