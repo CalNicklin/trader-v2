@@ -1,12 +1,10 @@
 import { createChildLogger } from "../utils/logger.ts";
 import type { FilterCandidate } from "./filters.ts";
 import { enrichWithMetrics as defaultEnrichWithMetrics } from "./metrics-enricher.ts";
-import {
-	type ConstituentRow,
-	fetchAimAllShareConstituents as defaultFetchAim,
-	fetchFtse350Constituents as defaultFetchFtse,
-	fetchRussell1000Constituents as defaultFetchRussell,
-} from "./sources.ts";
+import { fetchAimCurated as defaultFetchAim } from "./sources/aim-curated.ts";
+import { fetchFtse350Combined as defaultFetchFtse } from "./sources/ftse-350-combined.ts";
+import { fetchIwbConstituents as defaultFetchRussell } from "./sources/ishares-iwb.ts";
+import type { ConstituentRow } from "./sources.ts";
 
 const log = createChildLogger({ module: "source-aggregator" });
 

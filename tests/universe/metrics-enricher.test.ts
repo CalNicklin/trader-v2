@@ -94,6 +94,9 @@ describe("enrichWithMetrics", () => {
 					json: async () => [],
 				};
 			},
+			// Disable Yahoo enrichment for this test so we can verify the
+			// quotes_cache-only fallback path.
+			yahooUkEnricher: async () => new Map(),
 		});
 
 		expect(fetchCalled).toBe(false);
@@ -101,7 +104,40 @@ describe("enrichWithMetrics", () => {
 		expect(result[0]?.freeFloatUsd).toBeNull();
 		expect(result[0]?.listingAgeDays).toBeNull();
 		expect(result[0]?.price).toBe(700);
+		// quotes_cache-only path: computes in native units. This is incorrect
+		// for UK (pence × shares, not USD), but when Yahoo enrichment is
+		// available the correct FX-converted value is used instead.
 		expect(result[0]?.avgDollarVolume).toBe(10_000_000 * 700);
+	});
+
+	test("UK candidate with Yahoo enrichment uses FX-converted avg dollar volume", async () => {
+		const { enrichWithMetrics } = await import("../../src/universe/metrics-enricher.ts");
+
+		const rows: ConstituentRow[] = [{ symbol: "HSBA", exchange: "LSE", indexSource: "ftse_350" }];
+		const result = await enrichWithMetrics(rows, {
+			fetchImpl: async () => ({
+				ok: true,
+				status: 200,
+				statusText: "OK",
+				json: async () => [],
+			}),
+			yahooUkEnricher: async () =>
+				new Map([
+					[
+						"HSBA:LSE",
+						{
+							symbol: "HSBA",
+							exchange: "LSE",
+							priceGbpPence: 1348,
+							avgVolume30d: 30_000_000,
+							avgDollarVolumeUsd: 543_123_456, // pre-computed with FX
+						},
+					],
+				]),
+		});
+
+		expect(result[0]?.price).toBe(1348); // pence, matches quotes_cache convention
+		expect(result[0]?.avgDollarVolume).toBe(543_123_456); // USD, FX-correct
 	});
 
 	test("US candidate with no cache triggers profile fetch and upserts result", async () => {
