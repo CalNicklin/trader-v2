@@ -27,7 +27,7 @@
 | 11 | Wire catalyst dispatch into news ingest | completed | 8de8cc7 |
 | 12 | Health / monitoring exposure | completed | 043b60f |
 | 13 | Eval suite for catalyst dispatch | completed | fce68c2 |
-| 14 | Deploy-disabled verification + PR | pending | |
+| 14 | Deploy-disabled verification + PR | completed | 2195c76, PR #48 |
 
 (Task 15 is a manual post-merge rollout step — not executed by the agent.)
 
