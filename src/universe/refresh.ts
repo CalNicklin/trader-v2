@@ -14,6 +14,10 @@ export interface RefreshInput {
 	// Symbols that must NOT be removed even if they fail filters (e.g. open positions).
 	// Keyed as `${symbol}:${exchange}`.
 	exemptSymbols?: string[];
+	// Index sources that failed to fetch this cycle — their symbols must NOT
+	// be deactivated (otherwise every failed-source cycle purges them). See
+	// `src/universe/source-aggregator.ts` fail-partial logic.
+	skipDeactivationForIndexSources?: string[];
 }
 
 export interface RefreshResult {
@@ -25,6 +29,7 @@ export interface RefreshResult {
 export async function refreshInvestableUniverse(input: RefreshInput): Promise<RefreshResult> {
 	const db = getDb();
 	const exempt = new Set(input.exemptSymbols ?? []);
+	const skipSources = new Set(input.skipDeactivationForIndexSources ?? []);
 
 	const candidates = await input.fetchCandidates();
 	const { passed, rejected } = applyLiquidityFilters(candidates);
@@ -74,10 +79,12 @@ export async function refreshInvestableUniverse(input: RefreshInput): Promise<Re
 				});
 		}
 
-		// Deactivate previous entries that aren't in the new passed set and aren't exempt
+		// Deactivate previous entries that aren't in the new passed set and aren't exempt.
+		// Skip rows whose indexSource failed to fetch this cycle (fail-partial guard).
 		for (const prev of previous) {
 			const k = `${prev.symbol}:${prev.exchange}`;
 			if (passedSet.has(k) || exempt.has(k)) continue;
+			if (skipSources.has(prev.indexSource)) continue;
 			await tx
 				.update(investableUniverse)
 				.set({ active: false, lastRefreshed: now })
@@ -87,7 +94,7 @@ export async function refreshInvestableUniverse(input: RefreshInput): Promise<Re
 						eq(investableUniverse.exchange, prev.exchange),
 					),
 				);
-			removedSymbols.push(prev);
+			removedSymbols.push({ symbol: prev.symbol, exchange: prev.exchange });
 		}
 
 		// Write snapshot inside the transaction so it's atomic with the universe writes

@@ -105,4 +105,49 @@ describe("refreshInvestableUniverse", () => {
 			.all();
 		expect(rows[0]?.active).toBe(true);
 	});
+
+	test("does not deactivate symbols whose indexSource is in skipDeactivationForIndexSources", async () => {
+		const { refreshInvestableUniverse } = await import("../../src/universe/refresh.ts");
+		const { getDb } = await import("../../src/db/client.ts");
+		const { investableUniverse } = await import("../../src/db/schema.ts");
+		const { eq } = await import("drizzle-orm");
+
+		// Seed a UK-index row that won't appear in the new passed set
+		await getDb()
+			.insert(investableUniverse)
+			.values({
+				symbol: "SHEL",
+				exchange: "LSE",
+				indexSource: "ftse_350" as const,
+				active: true,
+			});
+
+		// US-only candidate — UK source failed this refresh
+		const result = await refreshInvestableUniverse({
+			fetchCandidates: async () => [
+				{
+					symbol: "AAPL",
+					exchange: "NASDAQ",
+					indexSource: "russell_1000",
+					marketCapUsd: 3e12,
+					avgDollarVolume: 1e10,
+					price: 200,
+					freeFloatUsd: 2e12,
+					spreadBps: 2,
+					listingAgeDays: 10000,
+				},
+			],
+			snapshotDate: "2026-04-20",
+			skipDeactivationForIndexSources: ["ftse_350", "aim_allshare"],
+		});
+
+		// UK row should stay active — its source failed so we don't purge it
+		const uk = await getDb()
+			.select()
+			.from(investableUniverse)
+			.where(eq(investableUniverse.symbol, "SHEL"))
+			.all();
+		expect(uk[0]?.active).toBe(true);
+		expect(result.removed).toBe(0);
+	});
 });
