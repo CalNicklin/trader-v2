@@ -120,6 +120,13 @@
       "when": 1776513484021,
       "tag": "0016_yellow_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1776685314683,
+      "tag": "0017_gorgeous_red_wolf",
+      "breakpoints": true
     }
   ]
 }
