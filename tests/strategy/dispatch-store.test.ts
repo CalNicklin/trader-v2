@@ -115,9 +115,7 @@ describe("dispatch-store", () => {
 	});
 
 	test("writeScheduledDecisions inserts rows with source=scheduled", async () => {
-		const { writeScheduledDecisions } = await import(
-			"../../src/strategy/dispatch-store.ts"
-		);
+		const { writeScheduledDecisions } = await import("../../src/strategy/dispatch-store.ts");
 		const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
 		await writeScheduledDecisions(
 			[
@@ -132,18 +130,14 @@ describe("dispatch-store", () => {
 	});
 
 	test("writeScheduledDecisions with empty array is a no-op", async () => {
-		const { writeScheduledDecisions } = await import(
-			"../../src/strategy/dispatch-store.ts"
-		);
+		const { writeScheduledDecisions } = await import("../../src/strategy/dispatch-store.ts");
 		await writeScheduledDecisions([], new Date(Date.now() + 60_000).toISOString());
 		const rows = await getActiveDecisions();
 		expect(rows).toEqual([]);
 	});
 
 	test("writeCatalystDecisions inserts rows with source=catalyst and news event id", async () => {
-		const { writeCatalystDecisions } = await import(
-			"../../src/strategy/dispatch-store.ts"
-		);
+		const { writeCatalystDecisions } = await import("../../src/strategy/dispatch-store.ts");
 		const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
 		await writeCatalystDecisions(
 			[{ strategyId: 1, symbol: "AAPL", action: "activate", reasoning: "x" }],
@@ -177,9 +171,7 @@ describe("dispatch-store", () => {
 
 	test("cleanupExpiredDecisions deletes rows with expires_at older than 24h ago", async () => {
 		const db = getDb();
-		const { cleanupExpiredDecisions } = await import(
-			"../../src/strategy/dispatch-store.ts"
-		);
+		const { cleanupExpiredDecisions } = await import("../../src/strategy/dispatch-store.ts");
 		const veryOld = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
 		const recentExpired = new Date(Date.now() - 60 * 1000).toISOString();
 		await db.insert(dispatchDecisions).values([
