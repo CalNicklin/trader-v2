@@ -4,7 +4,8 @@
 **Plan:** `docs/superpowers/plans/2026-04-20-catalyst-triggered-dispatch.md`
 **Progress log:** `docs/progress/2026-04-20-catalyst-triggered-dispatch.md`
 **PR:** [#48](https://github.com/CalNicklin/2/pull/48) — merged 2026-04-20
-**Flag:** `CATALYST_DISPATCH_ENABLED` — default `false`; currently **off**
+**Flag:** `CATALYST_DISPATCH_ENABLED` — default `false`; currently **off** (Phase B)
+**Deployed commit:** `112a8bf` (includes PRs #48 + #49); verified 2026-04-21 06:00 UTC.
 
 ## Why it exists
 
@@ -29,22 +30,35 @@ Strategy evaluation is gated by dispatch. Dispatch only runs 4× per day (08:05,
 
 ## Rollout checklist
 
-### Phase A — Day 0 (right after deploy)
+### Phase A — Day 0 (right after deploy) — ✅ **complete 2026-04-21**
 
 1. **Verify migration 0018 applied on prod.** Issue [#32](https://github.com/CalNicklin/trader-v2/issues/32) means this cannot be assumed.
    ```bash
-   ./scripts/vps-ssh.sh "sqlite3 /opt/trader-v2/data/trader.db 'SELECT id, hash FROM __drizzle_migrations ORDER BY id DESC LIMIT 3;'"
+   ./scripts/vps-ssh.sh "sqlite3 /opt/trader-v2/data/trader.db 'SELECT COUNT(*) FROM __drizzle_migrations;'"
    ./scripts/vps-ssh.sh "sqlite3 /opt/trader-v2/data/trader.db \"SELECT name FROM sqlite_master WHERE name='dispatch_decisions';\""
    ```
-   Pass: idx 18 present **and** `dispatch_decisions` table exists. If the table is missing, **stop and hotfix before any more activity** — the evaluator will now crash on every tick because it reads via `getActiveDecisions()`.
+   Pass: journal count 19 **and** `dispatch_decisions` table exists. If the table is missing, **stop and hotfix before any more activity** — the evaluator will crash on every tick because it reads via `getActiveDecisions()`.
 
 2. **Service restarts cleanly.**
    ```bash
    ./scripts/vps-status.sh
    ```
-   Pass: `systemctl status` active, `/health` 200.
+   Pass: `systemctl status` active, `/health` 200, `/health.catalyst` present.
 
-### Phase B — First 24 h (flag OFF, structural path only)
+### Phase A — actual 2026-04-21 post-mortem
+
+Phase A surfaced a latent incident: PR #48 (and #46, #49) had not actually deployed to prod. Deploys had been silently failing since 2026-04-20 14:24 UTC because two untracked files on the prod working tree (`scripts/backfill-news-classifications.ts`, `scripts/repromote-tradeable-news.ts`) blocked every `git pull` with "untracked working tree files would be overwritten by merge — Aborting".
+
+- ~14 h of stacked-up unmerged commits: #46, #48, #49.
+- False alarm during diagnosis: operator assumed issue #32 had recurred and manually `CREATE TABLE`'d `dispatch_decisions`. That was wrong — the code wasn't deployed yet, the migration had never attempted. The premature table was `DROP`'d before CI re-ran so `db:migrate` could apply 0018 cleanly.
+- Fix: `rm` the two untracked files on prod → re-run the failed workflow → 19 migrations applied, table + indexes present, `/health.catalyst` populated.
+
+Lessons documented in `docs/rollout-monitoring.md` §4:
+1. CI deploy health is a daily check (`gh run list --limit 5 --branch main`).
+2. Never create files directly on the prod working tree — use a PR so CI deploys them properly.
+3. Consider a post-deploy `/health` probe in the GitHub Actions workflow to turn silent-failed-deploys into visible-broken-builds.
+
+### Phase B — First 24 h (flag OFF, structural path only) — **in progress, started 2026-04-21 06:00 UTC**
 
 3. **`dispatch_decisions` populates from the next scheduled dispatch.** After the next 14:35 BST (or 08:05 next day):
    ```bash
