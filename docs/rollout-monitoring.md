@@ -41,14 +41,22 @@ PRs [#44](https://github.com/CalNicklin/trader-v2/pull/44) (FMP removed) + [#46]
 - [ ] Yahoo RSS per-symbol polling still returns items for LSE (silent failure mode would starve UK news flow).
 - [ ] iShares CSV fetchers still work. PR [#36](https://github.com/CalNicklin/trader-v2/pull/36) fail-partial mitigates partial failure, but a total outage would shrink the universe.
 
-## 4. Drizzle migration pipeline — issue [#32](https://github.com/CalNicklin/trader-v2/issues/32)
+## 4. CI/CD deploy health — **daily check**
+
+Added 2026-04-21 after PR #46, #48, #49 all stacked up unmerged to prod for ~14 h because of a git-pull conflict on the VPS working tree. Failures were silent (no alert).
+
+- [ ] **Daily:** `gh run list --limit 5 --branch main` — every entry should say `success`. Any `failure` blocks every subsequent deploy because the git state on the VPS rolls forward in-place.
+- [ ] **Root cause of the 2026-04-20 incident:** two ad-hoc scripts (`scripts/backfill-news-classifications.ts`, `scripts/repromote-tradeable-news.ts`) had been `scp`'d or created in place on the prod working tree, then committed to main via PR #45. The subsequent `git pull` refused to overwrite the untracked files ("The following untracked working tree files would be overwritten by merge — Aborting"). Fix: `rm` the files on prod, re-run the workflow. **Rule to avoid repeat: never create or edit files directly on the VPS working tree** — if you need a one-shot script, put it in a PR first, let CI deploy it, then run it. `scp` / ad-hoc `ssh` file creation stacks up conflicts that silently freeze deploys.
+- [ ] Consider adding a post-deploy health probe to GitHub Actions that fails the workflow if `/health` doesn't return 200 after the restart. Would turn this from "silent 14 h drift" into a broken-build alarm on the very first failed deploy.
+
+## 5. Drizzle migration pipeline — issue [#32](https://github.com/CalNicklin/trader-v2/issues/32)
 
 Not yet root-caused. `migrate()` silently skipped migrations 0014–0016 on prod once. Hotfixed, but still load-bearing for every PR that ships a schema change.
 
 - [ ] **Every PR adding a migration needs a post-deploy assertion** that `__drizzle_migrations` contains the new idx. PR #48 is the first post-incident schema change — confirms whether the hotfix held.
 - [ ] Consider adding a startup-time sanity check (diff the journal against `__drizzle_migrations`) before next schema change.
 
-## 5. Data-stack fragility (background watch)
+## 6. Data-stack fragility (background watch)
 
 Per `docs/universe-rollout-status.md` §"Known fragility watch-list". Weekly glance, not daily.
 
@@ -59,9 +67,10 @@ Per `docs/universe-rollout-status.md` §"Known fragility watch-list". Weekly gla
 
 ## How to use this doc
 
-- **Daily ops:** skim §1 and §3 checklists; they have the most active alerts.
-- **Before merging any schema change:** re-read §4.
-- **Weekly:** glance at §5 fragility list in case a source has rotated.
+- **Daily ops:** skim §1 + §3 checklists; run §4 CI health check.
+- **Before merging any schema change:** re-read §5.
+- **Weekly:** glance at §6 fragility list in case a source has rotated.
 - **Before starting Step 3:** read `docs/universe-rollout-status.md` end to end.
+- **Never create files directly on the prod working tree** — see §4 for why.
 
 When a rollout phase is finished, move the item to that rollout's own status doc rather than leaving stale content here. This board is for **what is currently being watched**, not an archive.
