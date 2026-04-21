@@ -1,6 +1,7 @@
 # Universe Rollout — Status & Next Steps
 
 **Parent spec:** `docs/superpowers/specs/2026-04-17-universe-research-architecture-design.md`
+**Cross-cutting monitoring board:** `docs/rollout-monitoring.md`
 
 Four-tier architecture replacing hand-picked 25-symbol seed universes. **Steps 1 / 1a / 2 shipped**; Steps 3 / 4 / 5 pending.
 
