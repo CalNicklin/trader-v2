@@ -8,6 +8,7 @@ import {
 	checkExpectancyKill,
 	enforcePopulationCap,
 } from "./population";
+import { checkSlowBleederPause } from "./slow-bleeder";
 import type { TournamentResult } from "./types";
 
 const log = createChildLogger({ module: "evolution:tournament" });
@@ -159,6 +160,18 @@ export async function runDailyTournaments(): Promise<void> {
 		log.info(
 			{ phase: "daily_tournament", paused: circuitBreakerPaused.length },
 			"Circuit breaker pauses executed",
+		);
+	}
+
+	// TRA-13 — slow-bleeder soft-demote (tag-coupled). Runs after circuit
+	// breaker so consecutive-loss pauses take precedence; the slow-bleeder
+	// gate is a structural backstop for strategies that don't trip the
+	// streak or DD kill.
+	const slowBleederPaused = await checkSlowBleederPause();
+	if (slowBleederPaused.length > 0) {
+		log.info(
+			{ phase: "daily_tournament", paused: slowBleederPaused.length },
+			"Slow-bleeder soft-demotes executed",
 		);
 	}
 
