@@ -124,7 +124,10 @@ export async function getRecentTradeClusters(lookbackDays = 7): Promise<Strategy
 
 		if (trades.length < 3) continue; // skip strategies with insufficient data
 
-		// Fetch pattern tags from prior trade reviews
+		// Fetch pattern tags from prior trade reviews.
+		// TRA-39: exclude quarantined (pre-TRA-37) trade_review rows — their
+		// direction labels were inverted by the buggy reviewer prompt and
+		// would bias the pattern clusters fed to the pattern-analysis LLM.
 		const insights = await db
 			.select({ tradeId: tradeInsights.tradeId, tags: tradeInsights.tags })
 			.from(tradeInsights)
@@ -132,6 +135,7 @@ export async function getRecentTradeClusters(lookbackDays = 7): Promise<Strategy
 				and(
 					eq(tradeInsights.strategyId, strategy.id),
 					eq(tradeInsights.insightType, "trade_review"),
+					eq(tradeInsights.quarantined, 0),
 				),
 			);
 

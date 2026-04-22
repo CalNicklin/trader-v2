@@ -15,19 +15,30 @@ export async function computeHitRates(): Promise<Record<ConfigType, number>> {
 		graduation: 0,
 	};
 
+	// TRA-39: hit-rate denominators must exclude quarantined insights. Counting
+	// direction-inverted rows as "actioned" or "improved" inflates the
+	// perceived quality of the pre-fix reviewer prompts.
 	for (const configType of ["trade_review", "pattern_analysis", "graduation"] as const) {
 		const total = await db
 			.select({ count: sql<number>`count(*)` })
 			.from(tradeInsights)
 			.where(
-				and(eq(tradeInsights.insightType, configType), isNotNull(tradeInsights.ledToImprovement)),
+				and(
+					eq(tradeInsights.insightType, configType),
+					isNotNull(tradeInsights.ledToImprovement),
+					eq(tradeInsights.quarantined, 0),
+				),
 			);
 
 		const improved = await db
 			.select({ count: sql<number>`count(*)` })
 			.from(tradeInsights)
 			.where(
-				and(eq(tradeInsights.insightType, configType), eq(tradeInsights.ledToImprovement, true)),
+				and(
+					eq(tradeInsights.insightType, configType),
+					eq(tradeInsights.ledToImprovement, true),
+					eq(tradeInsights.quarantined, 0),
+				),
 			);
 
 		const totalCount = total[0]?.count ?? 0;
