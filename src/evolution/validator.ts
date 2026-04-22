@@ -1,5 +1,9 @@
 import { tokenize } from "../strategy/expr-eval";
 import { ARCHETYPE_STOP_LOSS_FLOOR, inferArchetype } from "./archetype";
+import {
+	MECHANISM_FAILURE_MIN_REVIEWS,
+	MECHANISM_FAILURE_RATE_THRESHOLD,
+} from "./mechanism-failure";
 import type { MutationProposal, StrategyPerformance, ValidatedMutation } from "./types";
 
 export const PARAMETER_RANGES: Record<string, { min: number; max: number }> = {
@@ -123,6 +127,44 @@ export function validateMutation(
 			valid: false,
 			reason: `stop_loss_pct ${rawStopLoss} below ${archetype} archetype floor ${minStopLoss}`,
 		};
+	}
+
+	// 1c. TRA-10 ratio gate. Block spawn when the parent's last-30d
+	// non-quarantined `trade_review` rows show a high mechanism-failure rate.
+	// Uses a ratio, not a count, so parents with many reviews aren't more
+	// penalised than parents with few. Min 4 reviews before the gate engages
+	// to keep noise out.
+	const stats = parent.mechanismFailureStats;
+	if (
+		stats &&
+		stats.totalReviews >= MECHANISM_FAILURE_MIN_REVIEWS &&
+		stats.failureRate >= MECHANISM_FAILURE_RATE_THRESHOLD
+	) {
+		return {
+			valid: false,
+			reason: `parent has high mechanism-failure rate (${stats.failureRate.toFixed(2)} across ${stats.totalReviews} reviews ≥ ${MECHANISM_FAILURE_RATE_THRESHOLD})`,
+		};
+	}
+
+	// 1d. TRA-10 filter-removal rule. Reject any parameter tweak / new_variant
+	// that removes a numeric gate the parent had set > 0 — Strategy 5's
+	// pathology was exactly this (tone_score_min loosened 0.6 → 0).
+	const parentParamsForFilterCheck = parent.parameters ?? {};
+	for (const [key, parentValue] of Object.entries(parentParamsForFilterCheck)) {
+		if (typeof parentValue !== "number" || parentValue <= 0) continue;
+		const childValue = proposal.parameters[key];
+		if (childValue === undefined) {
+			return {
+				valid: false,
+				reason: `child removes parent filter ${key} (was ${parentValue}, now absent)`,
+			};
+		}
+		if (childValue === 0) {
+			return {
+				valid: false,
+				reason: `child loosens parent filter ${key} to zero (was ${parentValue})`,
+			};
+		}
 	}
 
 	// 2. Reject if > 5 parameters

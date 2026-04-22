@@ -2,6 +2,7 @@ import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { paperTrades, strategies, strategyMetrics, tradeInsights } from "../db/schema";
 import { createChildLogger } from "../utils/logger";
+import { getMechanismFailureStats } from "./mechanism-failure";
 import type {
 	MetricsSummary,
 	MissedOpportunity,
@@ -115,6 +116,11 @@ export async function getStrategyPerformance(
 		}
 	}
 
+	// TRA-10 — tag-rate gate input. Quarantined rows are excluded inside
+	// `getMechanismFailureStats`. Computed here so the validator can read it
+	// off `parent.mechanismFailureStats` without a second DB round-trip.
+	const mechanismFailureStats = await getMechanismFailureStats(strategyId);
+
 	return {
 		id: strategy.id,
 		name: strategy.name,
@@ -130,6 +136,7 @@ export async function getStrategyPerformance(
 		virtualBalance: strategy.virtualBalance,
 		insightSummary,
 		suggestedActions,
+		mechanismFailureStats,
 	};
 }
 
