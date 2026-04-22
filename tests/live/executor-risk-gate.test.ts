@@ -11,8 +11,8 @@ describe("risk gate integration (live executor pattern)", () => {
 			exchange: "NASDAQ",
 			sector: null,
 			borrowFeeAnnualPct: null,
-			openPositionCount: 3, // Already at max
-			openPositionSectors: [null, null, null],
+			openPositionCount: 6, // Already at max (TRA-12)
+			openPositionSectors: [null, null, null, null, null, null],
 		});
 		expect(result.allowed).toBe(false);
 	});

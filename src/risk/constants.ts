@@ -4,7 +4,11 @@
 export const HARD_STOP_LOSS_PCT = 0.05; // 5% — flat kill floor per trade
 export const RISK_PER_TRADE_PCT = 0.01; // 1% of account balance
 export const MIN_POSITION_VALUE = 50; // USD — below this, spreads eat edge
-export const MAX_CONCURRENT_POSITIONS = 3;
+// Per-strategy gross position cap. Counts longs + shorts equally (regime-
+// agnostic — not a sector concentration filter). Strategy 2's 2026-04-08 kill
+// had 7 correlated shorts force-closed within 300ms; a cap of 6 would have
+// blocked the 7th entry (TRA-12).
+export const MAX_CONCURRENT_POSITIONS = 6;
 export const MAX_SHORT_SIZE_RATIO = 0.75; // 75% of max long size
 export const BORROW_FEE_CAP_ANNUAL_PCT = 0.05; // 5% annualized
 export const LOSS_COOLDOWN_HOURS = 4; // hours before re-entering a symbol after a losing exit
