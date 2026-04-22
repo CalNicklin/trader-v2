@@ -33,9 +33,14 @@ export function startServer(port: number): void {
 	log.info({ port }, "HTTP server started");
 }
 
-export function stopServer(): void {
+export async function stopServer(): Promise<void> {
 	if (_server) {
-		_server.stop(true);
+		// Bun's `stop(true)` returns a Promise that resolves once the socket is
+		// actually closed — tests that start another server on a new port
+		// immediately after must await this, otherwise the OS may still be
+		// holding the previous port and the next Bun.serve throws EADDRINUSE
+		// (seen in CI on 2026-04-22).
+		await _server.stop(true);
 		_server = null;
 		log.info("HTTP server stopped");
 	}
