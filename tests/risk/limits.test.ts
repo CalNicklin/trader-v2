@@ -34,17 +34,17 @@ describe("risk/limits", () => {
 
 	describe("checkConcurrentPositions", () => {
 		test("allows when under limit", () => {
-			const result = checkConcurrentPositions(2);
+			const result = checkConcurrentPositions(5);
 			expect(result.allowed).toBe(true);
 		});
 
 		test("rejects when at limit", () => {
-			const result = checkConcurrentPositions(3);
+			const result = checkConcurrentPositions(6);
 			expect(result.allowed).toBe(false);
 		});
 
 		test("rejects when over limit", () => {
-			const result = checkConcurrentPositions(5);
+			const result = checkConcurrentPositions(8);
 			expect(result.allowed).toBe(false);
 		});
 

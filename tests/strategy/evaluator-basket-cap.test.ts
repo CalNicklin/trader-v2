@@ -21,6 +21,20 @@ describe("evaluator basket-cap enforcement", () => {
 		expect(tickWouldBreachCap(1, 2, 3)).toBe(false);
 	});
 
+	test("default MAX_CONCURRENT_POSITIONS is 6 (TRA-12)", async () => {
+		const { MAX_CONCURRENT_POSITIONS } = await import("../../src/risk/constants.ts");
+		expect(MAX_CONCURRENT_POSITIONS).toBe(6);
+	});
+
+	test("tickWouldBreachCap defaults to the exported constant", async () => {
+		const { tickWouldBreachCap } = await import("../../src/risk/basket-cap.ts");
+		// With cap defaulted to 6: 6 proposals from empty book allowed; 7 rejected.
+		expect(tickWouldBreachCap(0, 6)).toBe(false);
+		expect(tickWouldBreachCap(0, 7)).toBe(true);
+		expect(tickWouldBreachCap(3, 4)).toBe(true);
+		expect(tickWouldBreachCap(3, 3)).toBe(false);
+	});
+
 	test("evaluator rejects tick when 7 entries are proposed simultaneously", async () => {
 		const { strategies } = await import("../../src/db/schema.ts");
 		await db.insert(strategies).values({
