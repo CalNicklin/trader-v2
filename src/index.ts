@@ -81,7 +81,7 @@ async function shutdown(signal: string) {
 		// Broker modules may not be loaded if live trading was disabled
 	}
 	const { stopServer } = await import("./monitoring/server.ts");
-	stopServer();
+	await stopServer();
 	closeDb();
 	log.info("Shutdown complete");
 	process.exit(0);

@@ -12,8 +12,8 @@ describe("HTTP server", () => {
 		migrate(db, { migrationsFolder: "./drizzle/migrations" });
 	});
 
-	afterEach(() => {
-		stopServer();
+	afterEach(async () => {
+		await stopServer();
 	});
 
 	test("GET /health returns JSON health data", async () => {
