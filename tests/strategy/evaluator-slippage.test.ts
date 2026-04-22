@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { QuoteFields } from "../../src/strategy/context.ts";
 import type { SymbolIndicators } from "../../src/strategy/historical.ts";
 
@@ -33,6 +33,14 @@ describe("evaluator — TRA-6 slippage wiring", () => {
 		db = getDb();
 		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
 		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+	});
+
+	// Restore the preload default (0) so other test files don't pick up a leaked
+	// non-zero haircut via process-wide env state.
+	afterEach(async () => {
+		process.env.PAPER_SLIPPAGE_BPS = "0";
+		const { resetConfigForTesting } = await import("../../src/config.ts");
+		resetConfigForTesting();
 	});
 
 	test("entry_long proposal carries slipped-up fill price (BUY pays more)", async () => {
