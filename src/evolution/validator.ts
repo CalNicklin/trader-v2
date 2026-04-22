@@ -1,4 +1,5 @@
 import { tokenize } from "../strategy/expr-eval";
+import { ARCHETYPE_STOP_LOSS_FLOOR, inferArchetype } from "./archetype";
 import type { MutationProposal, StrategyPerformance, ValidatedMutation } from "./types";
 
 export const PARAMETER_RANGES: Record<string, { min: number; max: number }> = {
@@ -110,6 +111,18 @@ export function validateMutation(
 	const rawStopLoss = proposal.parameters.stop_loss_pct;
 	if (rawStopLoss === undefined || rawStopLoss === null || rawStopLoss <= 0) {
 		return { valid: false, reason: "stop_loss_pct must be non-zero" };
+	}
+
+	// 1b. TRA-8 per-archetype floor. Archetype is inferred from the parent's
+	// name (see `src/evolution/archetype.ts`). Forward-only — parents
+	// themselves are not retro-patched.
+	const archetype = inferArchetype(parent.name);
+	const minStopLoss = ARCHETYPE_STOP_LOSS_FLOOR[archetype];
+	if (rawStopLoss < minStopLoss) {
+		return {
+			valid: false,
+			reason: `stop_loss_pct ${rawStopLoss} below ${archetype} archetype floor ${minStopLoss}`,
+		};
 	}
 
 	// 2. Reject if > 5 parameters
