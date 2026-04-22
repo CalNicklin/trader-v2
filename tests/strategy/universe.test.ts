@@ -11,6 +11,8 @@ describe("universe management", () => {
 		db = getDb();
 		const { migrate } = await import("drizzle-orm/bun-sqlite/migrator");
 		migrate(db, { migrationsFolder: "./drizzle/migrations" });
+		const { _clearInjections } = await import("../../src/strategy/universe.ts");
+		_clearInjections();
 	});
 
 	test("UNIVERSE_CAP is 50", async () => {
@@ -37,6 +39,44 @@ describe("universe management", () => {
 		const result = validateUniverse(["AAPL", "MSFT", "AAPL", "GOOGL", "MSFT"]);
 		expect(result).toHaveLength(3);
 		expect(result).toEqual(["AAPL", "MSFT", "GOOGL"]);
+	});
+
+	test("validateUniverse dedupes bare symbol and SYM:NASDAQ as the same entry", async () => {
+		// Regression for TRA-36: base universe "AMD" + injected "AMD:NASDAQ" must
+		// collapse to one entry so the evaluator doesn't process the same
+		// (symbol, exchange) pair twice and open duplicate positions in a tick.
+		const { validateUniverse } = await import("../../src/strategy/universe.ts");
+		const result = validateUniverse(["AMD", "TSLA", "AMD:NASDAQ", "TSLA:NASDAQ"]);
+		expect(result).toHaveLength(2);
+		expect(result).toEqual(["AMD", "TSLA"]);
+	});
+
+	test("validateUniverse keeps explicit exchange qualifier when it comes first", async () => {
+		const { validateUniverse } = await import("../../src/strategy/universe.ts");
+		const result = validateUniverse(["AMD:NASDAQ", "AMD"]);
+		expect(result).toEqual(["AMD:NASDAQ"]);
+	});
+
+	test("validateUniverse keeps cross-exchange listings as distinct entries", async () => {
+		// e.g. BP dual-listing — NYSE and LSE are separate (symbol, exchange) pairs.
+		const { validateUniverse } = await import("../../src/strategy/universe.ts");
+		const result = validateUniverse(["BP:NYSE", "BP:LSE"]);
+		expect(result).toHaveLength(2);
+		expect(result).toEqual(["BP:NYSE", "BP:LSE"]);
+	});
+
+	test("buildEffectiveUniverse does not double-count base symbol already matched by injection", async () => {
+		// Regression for TRA-36: if a strategy's base universe already contains
+		// a bare "AMD", a subsequent injectSymbol("AMD","NASDAQ") must not add
+		// a second "AMD:NASDAQ" entry.
+		const { buildEffectiveUniverse, injectSymbol, _clearInjections } = await import(
+			"../../src/strategy/universe.ts"
+		);
+		_clearInjections();
+		injectSymbol("AMD", "NASDAQ", 60_000);
+		const result = await buildEffectiveUniverse(["AMD", "MSFT"]);
+		const amdLike = result.filter((s) => s === "AMD" || s === "AMD:NASDAQ");
+		expect(amdLike).toHaveLength(1);
 	});
 
 	test("filterByLiquidity removes symbols below avg volume threshold", async () => {
