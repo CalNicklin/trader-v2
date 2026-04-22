@@ -13,6 +13,14 @@ export interface StrategyPerformance {
 	virtualBalance: number;
 	insightSummary: string[];
 	suggestedActions: SuggestedAction[];
+	/** TRA-10 ratio gate — populated by `getStrategyPerformance` from
+	 * non-quarantined `trade_review` insights in the last 30 days. Optional
+	 * because non-evolution callers may not need it; validator treats missing
+	 * stats as zero reviews (gate disengaged). */
+	mechanismFailureStats?: {
+		totalReviews: number;
+		failureRate: number;
+	};
 }
 
 export interface SuggestedAction {
