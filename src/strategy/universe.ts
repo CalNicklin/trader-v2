@@ -18,12 +18,22 @@ interface InjectedSymbol {
 
 const injectedSymbols: InjectedSymbol[] = [];
 
+// Must match the evaluator's implicit-exchange convention (see
+// `src/strategy/evaluator.ts`): bare symbols without a `":"` qualifier default
+// to NASDAQ. Dedup normalises both forms to the same key so bare "AMD" and an
+// injected "AMD:NASDAQ" collapse to one entry — otherwise the evaluator would
+// process the same (symbol, exchange) pair twice in a tick and open duplicate
+// positions when the basket cap happened to fit (TRA-36).
+const DEFAULT_EXCHANGE = "NASDAQ";
+
 export function validateUniverse(symbols: string[]): string[] {
 	const seen = new Set<string>();
 	const deduped: string[] = [];
 	for (const s of symbols) {
-		if (!seen.has(s)) {
-			seen.add(s);
+		const [sym, ex] = s.includes(":") ? s.split(":") : [s, DEFAULT_EXCHANGE];
+		const key = `${sym}:${ex}`;
+		if (!seen.has(key)) {
+			seen.add(key);
 			deduped.push(s);
 		}
 	}
