@@ -1,4 +1,5 @@
 // src/risk/position-sizer.ts
+import { exceedsEdgeBudget, MAX_ONE_WAY_FRICTION_BPS } from "../paper/friction.ts";
 import { getTradeFriction } from "../utils/fx.ts";
 import {
 	MAX_SHORT_SIZE_RATIO,
@@ -92,6 +93,15 @@ export function calcAtrPositionSize(input: PositionSizeInput): PositionSizeResul
 	if (positionValue < MIN_POSITION_VALUE) {
 		return skippedResult(
 			`Position value $${positionValue.toFixed(2)} below minimum $${MIN_POSITION_VALUE}`,
+		);
+	}
+
+	// TRA-15 break-even-bps gate. Rejects entries where the fixed commission
+	// floor drives effective one-way friction above the 75 bps edge budget —
+	// e.g. 1-share LSE buys where £1 commission dominates a <£133 notional.
+	if (exceedsEdgeBudget(exchange, side, positionValue)) {
+		return skippedResult(
+			`FRICTION_EXCEEDS_EDGE_BUDGET: one-way friction on ${positionValue.toFixed(2)} ${exchange} exceeds ${MAX_ONE_WAY_FRICTION_BPS}bps`,
 		);
 	}
 

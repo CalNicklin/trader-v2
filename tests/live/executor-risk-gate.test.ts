@@ -19,7 +19,7 @@ describe("risk gate integration (live executor pattern)", () => {
 
 	test("provides ATR-based quantity and stop-loss", () => {
 		const result = checkTradeRiskGate({
-			accountBalance: 500,
+			accountBalance: 50_000,
 			price: 50,
 			atr14: 2,
 			side: "BUY",
