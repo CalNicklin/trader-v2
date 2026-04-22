@@ -11,6 +11,7 @@ import {
 	openPaperPosition,
 	WouldBreachCooldownError,
 } from "../paper/manager.ts";
+import { applyEntrySlippage, applyExitSlippage, getPaperSlippageBps } from "../paper/slippage.ts";
 import { tickWouldBreachCap } from "../risk/basket-cap.ts";
 import {
 	HARD_STOP_LOSS_PCT,
@@ -74,6 +75,7 @@ async function evaluateTimeBasedExit(
 		id: number;
 		symbol: string;
 		exchange: string;
+		side: string;
 		entryPrice: number;
 		openedAt: string;
 		quantity: number;
@@ -95,7 +97,9 @@ async function evaluateTimeBasedExit(
 	});
 
 	if (evalExpr(signals.exit, ctx)) {
-		const exitPrice = position.currentPrice ?? position.entryPrice;
+		const rawExitPrice = position.currentPrice ?? position.entryPrice;
+		const exitSide: "BUY" | "SELL" = position.side === "SELL" ? "BUY" : "SELL";
+		const exitPrice = applyExitSlippage(rawExitPrice, exitSide, getPaperSlippageBps());
 		log.info(
 			{ strategy: strategy.name, symbol: position.symbol, positionId: position.id, exitPrice },
 			"Time-based exit fired (no quote data available)",
@@ -172,10 +176,11 @@ export async function evaluateStrategyForSymbol(
 					},
 					"Hard stop-loss kill floor triggered — force-closing position",
 				);
+				const exitSide = openPosition.side === "BUY" ? "SELL" : "BUY";
 				await closePaperPosition({
 					positionId: openPosition.id,
 					strategyId: strategy.id,
-					exitPrice: currentPrice,
+					exitPrice: applyExitSlippage(currentPrice, exitSide, getPaperSlippageBps()),
 					signalType: "hard_stop",
 					reasoning: `Hard stop-loss kill floor: position down ${(lossPct * 100).toFixed(2)}% (limit ${HARD_STOP_LOSS_PCT * 100}%)`,
 				});
@@ -198,10 +203,11 @@ export async function evaluateStrategyForSymbol(
 				log.info({ strategy: strategy.name, symbol, signal: "exit" }, "Exit signal fired");
 
 				if (input.quote.last != null) {
+					const exitSide = openPosition.side === "BUY" ? "SELL" : "BUY";
 					await closePaperPosition({
 						positionId: openPosition.id,
 						strategyId: strategy.id,
-						exitPrice: input.quote.last,
+						exitPrice: applyExitSlippage(input.quote.last, exitSide, getPaperSlippageBps()),
 						signalType: "exit",
 						reasoning: `Exit signal: ${signals.exit}`,
 					});
@@ -245,8 +251,17 @@ export async function evaluateStrategyForSymbol(
 
 		const { quantity, stopLossPrice } = gateResult.sizing!;
 		if (quantity > 0) {
+			const fillPrice = applyEntrySlippage(price, "BUY", getPaperSlippageBps());
 			log.info(
-				{ strategy: strategy.name, symbol, signal: "entry_long", quantity, price, stopLossPrice },
+				{
+					strategy: strategy.name,
+					symbol,
+					signal: "entry_long",
+					quantity,
+					price,
+					fillPrice,
+					stopLossPrice,
+				},
 				"Entry long signal fired (risk-gated) — proposing open",
 			);
 			return {
@@ -256,7 +271,7 @@ export async function evaluateStrategyForSymbol(
 					symbol,
 					exchange,
 					side: "BUY",
-					price,
+					price: fillPrice,
 					quantity,
 					signalType: "entry_long",
 					reasoning: `Entry signal: ${signals.entry_long}`,
@@ -287,6 +302,7 @@ export async function evaluateStrategyForSymbol(
 
 		const { quantity, stopLossPrice } = gateResult.sizing!;
 		if (quantity > 0) {
+			const fillPrice = applyEntrySlippage(price, "SELL", getPaperSlippageBps());
 			log.info(
 				{
 					strategy: strategy.name,
@@ -294,6 +310,7 @@ export async function evaluateStrategyForSymbol(
 					signal: "entry_short",
 					quantity,
 					price,
+					fillPrice,
 					stopLossPrice,
 				},
 				"Entry short signal fired (risk-gated) — proposing open",
@@ -305,7 +322,7 @@ export async function evaluateStrategyForSymbol(
 					symbol,
 					exchange,
 					side: "SELL",
-					price,
+					price: fillPrice,
 					quantity,
 					signalType: "entry_short",
 					reasoning: `Entry signal: ${signals.entry_short}`,

@@ -49,6 +49,13 @@ const envSchema = z.object({
 		.default("false")
 		.transform((v) => v === "true"),
 
+	// Paper-engine slippage haircut in basis points (one-way, applied per fill).
+	// BUY entries fill at price * (1 + bps/10000); SELL entries at (1 - bps/10000).
+	// Exits mirror per side: closing a long (SELL) fills at (1 - bps/10000),
+	// closing a short (BUY) at (1 + bps/10000). Flat until recalibrated from
+	// real IBKR fills (TRA-6).
+	PAPER_SLIPPAGE_BPS: z.coerce.number().nonnegative().default(5),
+
 	// HTTP server
 	HTTP_PORT: z.coerce.number().default(3847),
 
