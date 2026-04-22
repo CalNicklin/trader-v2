@@ -589,17 +589,25 @@ export async function getLearningLoopData(filterType?: InsightType): Promise<Lea
 	const db = getDb();
 	const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
+	// TRA-39: every learning-loop count here is the "useful insight" count —
+	// quarantined rows (pre-TRA-37 direction-inverted trade_reviews) are
+	// excluded so the dashboard matches the filtered view the LLM consumers
+	// actually see.
+	const notQuarantined = sql`${tradeInsights.quarantined} = 0`;
+
 	const totalResult = db
 		.select({ count: sql<number>`count(*)` })
 		.from(tradeInsights)
-		.where(sql`${tradeInsights.createdAt} >= ${cutoff}`)
+		.where(sql`${tradeInsights.createdAt} >= ${cutoff} AND ${notQuarantined}`)
 		.get();
 	const insightsCount7d = totalResult?.count ?? 0;
 
 	const improvementResult = db
 		.select({ count: sql<number>`count(*)` })
 		.from(tradeInsights)
-		.where(sql`${tradeInsights.createdAt} >= ${cutoff} AND ${tradeInsights.ledToImprovement} = 1`)
+		.where(
+			sql`${tradeInsights.createdAt} >= ${cutoff} AND ${tradeInsights.ledToImprovement} = 1 AND ${notQuarantined}`,
+		)
 		.get();
 	const ledToImprovement = improvementResult?.count ?? 0;
 
@@ -607,7 +615,7 @@ export async function getLearningLoopData(filterType?: InsightType): Promise<Lea
 		.select({ count: sql<number>`count(*)` })
 		.from(tradeInsights)
 		.where(
-			sql`${tradeInsights.createdAt} >= ${cutoff} AND ${tradeInsights.insightType} = 'pattern_analysis'`,
+			sql`${tradeInsights.createdAt} >= ${cutoff} AND ${tradeInsights.insightType} = 'pattern_analysis' AND ${notQuarantined}`,
 		)
 		.get();
 	const patternsFound = patternsResult?.count ?? 0;
@@ -616,12 +624,14 @@ export async function getLearningLoopData(filterType?: InsightType): Promise<Lea
 		.select({ count: sql<number>`count(*)` })
 		.from(tradeInsights)
 		.where(
-			sql`${tradeInsights.createdAt} >= ${cutoff} AND ${tradeInsights.insightType} = 'missed_opportunity'`,
+			sql`${tradeInsights.createdAt} >= ${cutoff} AND ${tradeInsights.insightType} = 'missed_opportunity' AND ${notQuarantined}`,
 		)
 		.get();
 	const missedOpportunities = missedResult?.count ?? 0;
 
-	const insightWhere = filterType ? sql`${tradeInsights.insightType} = ${filterType}` : undefined;
+	const insightWhere = filterType
+		? sql`${tradeInsights.insightType} = ${filterType} AND ${notQuarantined}`
+		: notQuarantined;
 
 	const rows = db
 		.select({

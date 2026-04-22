@@ -81,7 +81,12 @@ export async function getStrategyPerformance(
 			suggestedAction: tradeInsights.suggestedAction,
 		})
 		.from(tradeInsights)
-		.where(eq(tradeInsights.strategyId, strategyId))
+		.where(
+			// TRA-39: skip quarantined rows (e.g. pre-TRA-37 direction-inverted
+			// trade_review insights). Quarantine flag is append-only; never
+			// include quarantined rows in evolution-prompt context.
+			and(eq(tradeInsights.strategyId, strategyId), eq(tradeInsights.quarantined, 0)),
+		)
 		.orderBy(desc(tradeInsights.createdAt))
 		.limit(10);
 

@@ -258,6 +258,11 @@ export const tradeInsights = sqliteTable("trade_insights", {
 	confidence: real("confidence"),
 	promptVersion: integer("prompt_version"),
 	ledToImprovement: integer("led_to_improvement", { mode: "boolean" }),
+	// TRA-39: flag rows derived from contaminated reasoning (e.g. pre-TRA-37
+	// `trade_review` insights whose direction labels were hallucinated).
+	// Consumers that feed LLM prompts or drive mutation decisions MUST filter
+	// `quarantined = 0`. Rows stay in the DB for audit.
+	quarantined: integer("quarantined").notNull().default(0),
 	createdAt: text("created_at")
 		.notNull()
 		.$defaultFn(() => new Date().toISOString()),
