@@ -15,10 +15,15 @@ const log = createChildLogger({ module: "trade-review" });
 const REVIEW_COST_PER_TRADE_USD = 0.0003;
 
 export function buildTradeReviewPrompt(trade: TradeForReview): string {
+	// `Direction` (not `Side`) — reviewer-LLMs previously read `Side: SELL` on
+	// a closed long and hallucinated "the strategy shorted", inverting every
+	// direction-dependent insight tag (TRA-37). Direction comes from the
+	// entry leg, not the exit leg.
+	const direction = trade.entrySide === "BUY" ? "LONG" : "SHORT";
 	const lines = [
 		`Strategy: ${trade.strategyName}`,
 		`Symbol: ${trade.symbol} (${trade.exchange})`,
-		`Side: ${trade.side}`,
+		`Direction: ${direction}`,
 		`Entry: ${trade.entryPrice} → Exit: ${trade.exitPrice}`,
 		`PnL: ${trade.pnl} (after ${trade.friction} friction)`,
 		`Hold: ${trade.holdDays} day(s)`,
@@ -163,13 +168,25 @@ export async function getTodaysClosedTrades(): Promise<TradeForReview[]> {
 			}
 		}
 
+		// Derive entry side from the entry trade. Fall back to the exit's
+		// opposite only if the entry trade genuinely can't be located — in
+		// practice `getTodaysClosedTrades` only yields exits with a matched
+		// entry, so this fallback is defensive.
+		const exitSide = trade.side as "BUY" | "SELL";
+		const entrySide: "BUY" | "SELL" = entryTrade
+			? (entryTrade.side as "BUY" | "SELL")
+			: exitSide === "BUY"
+				? "SELL"
+				: "BUY";
+
 		result.push({
 			tradeId: trade.id,
 			strategyId: trade.strategyId,
 			strategyName: strategyRow[0]?.name ?? "unknown",
 			symbol: trade.symbol,
 			exchange: trade.exchange,
-			side: trade.side as "BUY" | "SELL",
+			side: exitSide,
+			entrySide,
 			quantity: trade.quantity,
 			entryPrice,
 			exitPrice: trade.price,

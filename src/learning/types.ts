@@ -4,7 +4,14 @@ export interface TradeForReview {
 	strategyName: string;
 	symbol: string;
 	exchange: string;
+	/** Exit-leg side (BUY to close a short, SELL to close a long). Kept on the
+	 * shape for audit tools; consumers reasoning about position direction
+	 * should use `entrySide`, not `side`. */
 	side: "BUY" | "SELL";
+	/** Original entry-leg side — authoritative for position direction
+	 * (BUY = long, SELL = short). Populated from the entry trade's
+	 * `signalType` in `getTodaysClosedTrades`. */
+	entrySide: "BUY" | "SELL";
 	quantity: number;
 	entryPrice: number;
 	exitPrice: number;
