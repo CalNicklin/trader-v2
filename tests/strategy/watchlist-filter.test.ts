@@ -314,6 +314,40 @@ describe("compareUniverses (TRA-20)", () => {
 		expect(result).toBeNull();
 	});
 
+	test("bare static symbol and qualified watchlist symbol are treated as the same entry", async () => {
+		// Regression: the parity log must not count bare "AAPL" in the static
+		// universe and "AAPL:NASDAQ" on the watchlist as divergent — they
+		// describe the same (symbol, exchange) pair.
+		const { watchlist } = await import("../../src/db/schema.ts");
+		await db.insert(watchlist).values({
+			symbol: "AAPL",
+			exchange: "NASDAQ",
+			promotedAt: new Date().toISOString(),
+			lastCatalystAt: new Date().toISOString(),
+			promotionReasons: "news",
+			horizon: "days",
+			directionalBias: "long",
+			enrichedAt: new Date().toISOString(),
+			expiresAt: new Date(Date.now() + 86400000).toISOString(),
+		});
+
+		const { compareUniverses } = await import("../../src/strategy/watchlist-filter.ts");
+		const result = await compareUniverses({
+			id: 1,
+			universe: JSON.stringify(["AAPL"]),
+			watchlistFilter: JSON.stringify({
+				promotionReasons: ["news"],
+				enrichedRequired: true,
+				horizons: [],
+				directionalBiases: [],
+			}),
+		});
+		expect(result).not.toBeNull();
+		expect(result!.onlyStatic).toEqual([]);
+		expect(result!.onlyWatchlist).toEqual([]);
+		expect(result!.inBoth).toEqual(["AAPL"]); // keeps original spelling
+	});
+
 	test("computes symmetric difference and intersection", async () => {
 		const { watchlist } = await import("../../src/db/schema.ts");
 		await db.insert(watchlist).values([

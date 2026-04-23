@@ -165,6 +165,16 @@ export async function getEffectiveUniverseForStrategy(strategy: {
  * which source is live. Returns the divergence + sizes; caller decides what
  * to log and which to actually use.
  */
+/**
+ * Normalise a universe entry to `"SYMBOL:EXCHANGE"`. Static universes carry
+ * bare `"AAPL"` (implicit NASDAQ), watchlist entries always carry the
+ * qualified form; the diff needs them on the same footing to avoid spurious
+ * "divergence" between the two views of the same symbol.
+ */
+function normaliseUniverseEntry(spec: string): string {
+	return spec.includes(":") ? spec : `${spec}:NASDAQ`;
+}
+
 export async function compareUniverses(strategy: {
 	id: number;
 	universe: string | null;
@@ -179,17 +189,30 @@ export async function compareUniverses(strategy: {
 	const filter = parseWatchlistFilter(strategy.watchlistFilter);
 	if (!filter) return null;
 
-	const staticUniverse: string[] = strategy.universe ? JSON.parse(strategy.universe) : [];
-	const watchlistUniverse = await getWatchlistUniverse(filter);
+	const staticUniverseRaw: string[] = strategy.universe ? JSON.parse(strategy.universe) : [];
+	const watchlistUniverseRaw = await getWatchlistUniverse(filter);
 
-	const staticSet = new Set(staticUniverse);
-	const watchlistSet = new Set(watchlistUniverse);
+	// Normalise for diff so bare "AAPL" matches "AAPL:NASDAQ" from the
+	// watchlist path. Return the raw entries (unchanged) so the log keeps the
+	// caller's original spelling.
+	const staticNormalised = staticUniverseRaw.map(normaliseUniverseEntry);
+	const watchlistNormalised = watchlistUniverseRaw.map(normaliseUniverseEntry);
+	const staticSet = new Set(staticNormalised);
+	const watchlistSet = new Set(watchlistNormalised);
 
-	const onlyStatic = staticUniverse.filter((s) => !watchlistSet.has(s));
-	const onlyWatchlist = watchlistUniverse.filter((s) => !staticSet.has(s));
-	const inBoth = staticUniverse.filter((s) => watchlistSet.has(s));
+	const onlyStatic = staticUniverseRaw.filter((_, i) => !watchlistSet.has(staticNormalised[i]!));
+	const onlyWatchlist = watchlistUniverseRaw.filter(
+		(_, i) => !staticSet.has(watchlistNormalised[i]!),
+	);
+	const inBoth = staticUniverseRaw.filter((_, i) => watchlistSet.has(staticNormalised[i]!));
 
-	return { staticUniverse, watchlistUniverse, onlyStatic, onlyWatchlist, inBoth };
+	return {
+		staticUniverse: staticUniverseRaw,
+		watchlistUniverse: watchlistUniverseRaw,
+		onlyStatic,
+		onlyWatchlist,
+		inBoth,
+	};
 }
 
 export function logUniverseComparison(
