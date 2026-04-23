@@ -2,9 +2,38 @@
 
 One-page index of everything currently in the watch window. Each section links to its own detailed doc where one exists.
 
-Last refreshed: 2026-04-20.
+Last refreshed: 2026-04-23.
 
-## 1. Catalyst-triggered dispatch — **most recent, highest priority**
+## 1. Universe Rollout Step 3 — **most recent, parity window open**
+
+Activated 2026-04-23 09:34 UTC. `news_sentiment_mr_v1` now reads from the live watchlist instead of its static `universe` column. Flag: `USE_WATCHLIST=true`.
+
+- [ ] **Days 1–5 post-activation:** log the `evaluator:universe-compare` line every eval cycle. Verify zero `universe_empty` ticks. Confirm trade count not materially regressed vs pre-activation baseline.
+  ```bash
+  ./scripts/vps-logs.sh --since "1 hour ago" | grep universe-compare | tail -5
+  ```
+- [ ] **Rollback drill (mental):** flip `USE_WATCHLIST=false` in `/opt/trader-v2/.env`, restart — strategy reverts to static column in under 60s.
+- [ ] **UK blind spot follow-up:** watchlist has zero UK symbols today. Strategy 1's 10 UK exposures disappear under the filter. Decide before Step 5: UK-specific watchlist coverage, compat shim, or accept the loss. Ticket not yet filed.
+- [ ] At T+5 trading days: close TRA-20 or roll back. Unblocks TRA-21 (Step 4) on success.
+
+Detailed status + criteria: `docs/universe-rollout-status.md` §"Step 3 — active parity window".
+
+## 2. AI-semi observation tier (TRA-11) — **new, 21-day window open**
+
+Shipped 2026-04-23 via PR #67. Zero-size observation. Writes `gate_diagnostic` rows on high-urgency tradeable news from NVDA/AVGO/AMZN/MSFT/GOOGL/META; nightly sweep at 23:15 UK measures T+5 trading day basket moves.
+
+- [ ] **Week 1:** confirm the observer is firing. Expect a handful of fires per week.
+  ```bash
+  ./scripts/vps-ssh.sh "sqlite3 /opt/trader-v2/data/trader.db 'SELECT COUNT(*), MIN(fired_at), MAX(fired_at) FROM gate_diagnostic;'"
+  ```
+- [ ] **Nightly:** verify the 23:15 UK sweep runs without error and fills `measured_at` on rows past 5 trading days.
+- [ ] **T+21 (2026-05-14):** compute hit-rate. Decision:
+  - ≥55% of in-window fires produce avg basket move ≥ +2% → file sized-tier seed ticket (`catalyst_long_semi_v1`).
+  - <55% → archive data as null-day denominator; retire the tier.
+
+Detailed spec: `docs/superpowers/specs/2026-04-23-ai-semi-observation-tier-design.md`.
+
+## 3. Catalyst-triggered dispatch — settled baseline
 
 PR [#48](https://github.com/CalNicklin/trader-v2/pull/48) merged 2026-04-20. Detailed rollout checklist: **`docs/catalyst-dispatch-rollout-status.md`**.
 

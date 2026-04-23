@@ -3,7 +3,7 @@
 **Parent spec:** `docs/superpowers/specs/2026-04-17-universe-research-architecture-design.md`
 **Cross-cutting monitoring board:** `docs/rollout-monitoring.md`
 
-Four-tier architecture replacing hand-picked 25-symbol seed universes. **Steps 1 / 1a / 2 shipped**; Steps 3 / 4 / 5 pending.
+Four-tier architecture replacing hand-picked 25-symbol seed universes. **Steps 1 / 1a / 2 shipped; Step 3 activated 2026-04-23, parity window open**; Steps 4 / 5 pending.
 
 ## Status by step
 
@@ -12,9 +12,37 @@ Four-tier architecture replacing hand-picked 25-symbol seed universes. **Steps 1
 | 1 — Investable Universe | #17 | **Shipped 2026-04-17** | Tier 1 tables, weekly refresh, snapshots, liquidity filters, `/health` section |
 | 1a — Metrics enrichers | #18 | **Shipped 2026-04-17** | FMP profile enrichment with last-known-good cache; filter loosened for US-only |
 | 2 — Active Watchlist | #19 | **Shipped 2026-04-18** | Tier 2 tables, catalyst-promoted watchlist with async Opus enrichment, 4 scheduler jobs, hooks in classifier/research-agent/pattern-analysis, `/health` section, eval suite |
-| 3 — Migrate `news_sentiment_mr_v1` | — | **Next** | Replace static `universe` field on that strategy with `watchlist_filter` JSON; env flag `USE_WATCHLIST` for rollback |
-| 4 — Migrate `earnings_drift_v1` + `earnings_drift_aggressive_v1` | — | Pending | These gain earnings-calendar auto-promotion natively |
+| 3 — Migrate `news_sentiment_mr_v1` | #63 (spec) + #64 (impl) + #65 (fix) | **Activated 2026-04-23 09:34 UTC — parity window day 1 of 5** | `watchlist_filter` JSON read-path; `USE_WATCHLIST=true`; dual-write `evaluator:universe-compare` log line active |
+| 4 — Migrate `earnings_drift_v1` + `earnings_drift_aggressive_v1` | — | Blocked on Step 3 parity completion (earliest 2026-04-28) | These gain earnings-calendar auto-promotion natively |
 | 5 — Retire legacy static universes | — | Pending | Drop the `universe` column from seeds after 30d stable watchlist operation |
+
+## Step 3 — active parity window (TRA-20)
+
+**Activated** 2026-04-23 09:34 UTC: `strategies.watchlist_filter` set on strategy 1 + `USE_WATCHLIST=true` on the VPS.
+
+Live observations (first day, pre-US and into overlap):
+- Watchlist size stable at **9** (vs static **20** — filter drops UK names and symbols without recent news/research catalysts)
+- Shared entries: **7** NASDAQ mega-caps
+- Only-watchlist adds: **NFLX, PYPL** — fresh catalysts not in seed universe
+- Only-static drops: 5 US (GOOGL, META, JPM, V, JNJ) + 8 UK/AIM
+- **Zero `universe_empty` ticks** across 30+ eval cycles
+- Strategy 1 has executed 3 exits via the watchlist path (TSLA +2.6%, JPM ~flat, META +2.0%) — plumbing verified
+
+**Normalization fix:** PR #65 corrected an early log-display bug where bare `"AAPL"` vs `"AAPL:NASDAQ"` counted as divergent. All logs from 2026-04-23 11:33 UTC onward use the corrected diff.
+
+**Criteria to close (see TRA-20):** 5 trading days of data; watchlist trade count ≥50% of static baseline; no Sharpe DD widening >20%; zero catastrophic-miss ticks.
+
+**UK blind spot flagged:** zero UK symbols on the current watchlist (promotions are earnings/news-driven and US-language-heavy). Strategy 1 loses its 10 UK exposures under the watchlist filter today. Worth revisiting before TRA-22 retires the static universe — may need UK-specific watchlist coverage or a compat shim.
+
+## Parallel observation tier — AI-semi (TRA-11)
+
+Not a step of this rollout proper, but operating on the same Tier-1/Tier-2 infrastructure:
+
+- **Shipped** 2026-04-23 as PR #67 (spec: PR #66).
+- 13-symbol AI-semi-supply-chain basket (AVGO/MRVL/TSM/ASML/AMAT/KLAC/LRCX/SMCI/MU/WDC/ANET/ADI/INTC) run in **zero-size observation mode**.
+- Fires on high-urgency tradeable news from NVDA / AVGO / AMZN / MSFT / GOOGL / META.
+- Nightly sweep at 23:15 UK measures T+5 trading day basket moves.
+- **Pre-registered activation threshold:** ≥55% of 21-day-window fires produce avg basket move ≥ +2%. Review 2026-05-14.
 
 ## Prerequisites before starting Step 3
 
