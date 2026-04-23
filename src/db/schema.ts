@@ -18,7 +18,11 @@ export const strategies = sqliteTable("strategies", {
 	description: text("description").notNull(),
 	parameters: text("parameters").notNull(), // JSON
 	signals: text("signals"), // JSON: { entry_long, entry_short, exit }
-	universe: text("universe"), // JSON: string[]
+	universe: text("universe"), // JSON: string[] — static universe (compat fallback)
+	// TRA-20 Step 3. Non-null = this strategy reads from watchlist filtered by
+	// this JSON payload (see `WatchlistFilter` type + spec); null = static
+	// `universe` column (existing behaviour). Gated by `USE_WATCHLIST` env flag.
+	watchlistFilter: text("watchlist_filter"), // JSON: WatchlistFilter | null
 	status: text("status", {
 		enum: ["paper", "probation", "active", "core", "retired", "paused"],
 	})

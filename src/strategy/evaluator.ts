@@ -26,6 +26,11 @@ import { getActiveDecisions } from "./dispatch-store.ts";
 import { evalExpr } from "./expr-eval.ts";
 import type { SymbolIndicators } from "./historical.ts";
 import { buildEffectiveUniverse, filterByLiquidity } from "./universe.ts";
+import {
+	compareUniverses,
+	getEffectiveUniverseForStrategy,
+	logUniverseComparison,
+} from "./watchlist-filter.ts";
 
 const log = createChildLogger({ module: "evaluator" });
 
@@ -411,7 +416,9 @@ export async function evaluateAllStrategies(
 	const weeklyDrawdownActive = await isWeeklyDrawdownActive();
 
 	for (const strategy of activeStrategies) {
-		if (!strategy.universe) continue;
+		// A strategy must have *either* a static universe or a watchlist_filter —
+		// nothing to evaluate against otherwise.
+		if (!strategy.universe && !strategy.watchlistFilter) continue;
 
 		// Per-strategy circuit breaker: skip if balance is too depleted to trade meaningfully
 		if (strategy.virtualBalance < STRATEGY_MIN_VIABLE_BALANCE) {
@@ -426,7 +433,36 @@ export async function evaluateAllStrategies(
 			continue;
 		}
 
-		const rawUniverse: string[] = JSON.parse(strategy.universe);
+		// TRA-20 Step 3 — route universe read through the watchlist filter when
+		// `USE_WATCHLIST=true` and the strategy has a filter set, else fall
+		// back to the static `universe` column. Dual-write the comparison for
+		// the 5-day parity period regardless of which source drove the tick.
+		const { universe: rawUniverse, source: universeSource } = await getEffectiveUniverseForStrategy(
+			{
+				id: strategy.id,
+				universe: strategy.universe,
+				watchlistFilter: strategy.watchlistFilter,
+			},
+		);
+
+		if (strategy.watchlistFilter) {
+			const cmp = await compareUniverses({
+				id: strategy.id,
+				universe: strategy.universe,
+				watchlistFilter: strategy.watchlistFilter,
+			});
+			if (cmp) {
+				logUniverseComparison(strategy.id, cmp, universeSource);
+			}
+		}
+
+		if (rawUniverse.length === 0) {
+			log.warn(
+				{ strategy: strategy.name, source: universeSource },
+				"universe_empty — no symbols to evaluate this tick",
+			);
+			continue;
+		}
 
 		// Apply universe management: merge injections, cap at 50, filter liquidity
 		const withInjections = await buildEffectiveUniverse(rawUniverse);

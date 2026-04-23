@@ -56,6 +56,16 @@ const envSchema = z.object({
 	// real IBKR fills (TRA-6).
 	PAPER_SLIPPAGE_BPS: z.coerce.number().nonnegative().default(5),
 
+	// Universe Rollout Step 3 (TRA-20). When true AND a strategy has a
+	// non-null `watchlist_filter`, the evaluator reads its universe from the
+	// live watchlist instead of the static `universe` column. Rollback-safe
+	// kill-switch — flip to `false` to revert all migrated strategies to
+	// their static universes without a code change.
+	USE_WATCHLIST: z
+		.enum(["true", "false"])
+		.default("false")
+		.transform((v) => v === "true"),
+
 	// HTTP server
 	HTTP_PORT: z.coerce.number().default(3847),
 

@@ -141,6 +141,13 @@
       "when": 1777493820000,
       "tag": "0019_quarantine_tra37",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1777579200000,
+      "tag": "0020_watchlist_filter",
+      "breakpoints": true
     }
   ]
 }
