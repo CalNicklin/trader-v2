@@ -192,6 +192,12 @@ export function startScheduler(): void {
 			timezone: "Europe/London",
 		}),
 	);
+	// TRA-11 — AI-semi measurement sweep, nightly post-close (23:15 UK).
+	tasks.push(
+		cron.schedule("15 23 * * 1-5", () => runJob("ai_semi_measurement"), {
+			timezone: "Europe/London",
+		}),
+	);
 
 	// ── Pre-market & maintenance ────────────────────────────────────────
 	tasks.push(

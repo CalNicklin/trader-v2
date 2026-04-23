@@ -148,6 +148,13 @@
       "when": 1777579200000,
       "tag": "0020_watchlist_filter",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1777665600000,
+      "tag": "0021_gate_diagnostic",
+      "breakpoints": true
     }
   ]
 }

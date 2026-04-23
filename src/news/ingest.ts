@@ -2,6 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { getConfig } from "../config.ts";
 import { getDb } from "../db/client.ts";
 import { newsEvents, strategies } from "../db/schema.ts";
+import { observeAiSemiGate } from "../jobs/ai-semi-observer.ts";
 import { enqueueCatalystDispatch } from "../strategy/catalyst-dispatcher.ts";
 import { injectSymbol } from "../strategy/universe.ts";
 import { createChildLogger } from "../utils/logger.ts";
@@ -149,6 +150,19 @@ export async function processArticle(
 			{ symbols: article.symbols, urgency: result.urgency },
 			"High-urgency symbols injected into universes",
 		);
+	}
+
+	// TRA-11 AI-semi observation tier — record a gate-fire if the trigger
+	// symbol matches and the event is high-urgency + tradeable. Zero-size
+	// observation only; never opens a position. Failures are logged and
+	// swallowed inside `observeAiSemiGate`.
+	for (const symbol of article.symbols) {
+		void observeAiSemiGate({
+			triggerSymbol: symbol,
+			triggerNewsEventId: newsEventId,
+			tradeable: result.tradeable,
+			urgency: result.urgency,
+		});
 	}
 
 	// Catalyst-triggered dispatch: fire intraday dispatch for high-urgency

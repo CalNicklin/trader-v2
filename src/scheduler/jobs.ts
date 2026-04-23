@@ -38,6 +38,7 @@ export type JobName =
 	| "volume_catalyst_uk"
 	| "watchlist_enrich"
 	| "watchlist_demote"
+	| "ai_semi_measurement"
 	| "dispatch_decisions_cleanup";
 
 const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
@@ -75,6 +76,7 @@ const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	volume_catalyst_uk: "catalyst_uk",
 	watchlist_enrich: "enrichment",
 	watchlist_demote: "demotion",
+	ai_semi_measurement: "analysis",
 	dispatch_decisions_cleanup: "maintenance",
 };
 
@@ -349,6 +351,14 @@ async function executeJob(name: JobName): Promise<void> {
 		case "watchlist_demote": {
 			const { runWatchlistDemoteJob } = await import("./watchlist-demote-job.ts");
 			await runWatchlistDemoteJob();
+			break;
+		}
+
+		case "ai_semi_measurement": {
+			// TRA-11 — measures T+5d basket move on unmeasured gate fires.
+			const { runAiSemiMeasurementSweep } = await import("../jobs/ai-semi-observer.ts");
+			const result = await runAiSemiMeasurementSweep();
+			log.info({ job: name, ...result }, "AI-semi measurement sweep complete");
 			break;
 		}
 

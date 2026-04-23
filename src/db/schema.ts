@@ -636,3 +636,32 @@ export const dispatchDecisions = sqliteTable(
 		),
 	}),
 );
+
+// ── Gate Diagnostic (TRA-11 observation mode) ───────────────────────────────
+
+// Records each gate-fire for an observation-mode universe tier (zero-size by
+// design) along with the T+0 basket snapshot and the T+5d measurement. Used
+// to build a null-day denominator for survivorship-risky proposals like
+// TRA-11's AI-semi supplychain tier.
+export const gateDiagnostic = sqliteTable(
+	"gate_diagnostic",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		gateName: text("gate_name").notNull(), // e.g. "ai_semi_supplychain_v1"
+		triggerSymbol: text("trigger_symbol").notNull(),
+		triggerNewsEventId: integer("trigger_news_event_id").notNull(),
+		firedAt: text("fired_at").notNull(),
+		// JSON: Record<symbol, price | null>. Populated synchronously on fire.
+		basketSnapshotAtFire: text("basket_snapshot_at_fire").notNull(),
+		// JSON: Record<symbol, price | null>. Null until the nightly sweep
+		// measures it at T+5 trading days.
+		basketSnapshotAt5d: text("basket_snapshot_at_5d"),
+		basketAvgMovePct: real("basket_avg_move_pct"),
+		basketHitThreshold: integer("basket_hit_threshold", { mode: "boolean" }),
+		measuredAt: text("measured_at"),
+	},
+	(table) => ({
+		gateFiredIdx: index("gate_diagnostic_gate_fired_idx").on(table.gateName, table.firedAt),
+		unmeasuredIdx: index("gate_diagnostic_unmeasured_idx").on(table.measuredAt, table.firedAt),
+	}),
+);
