@@ -44,18 +44,19 @@ describe("risk/position-sizer", () => {
 
 		test("basic short position sizing (75% cap)", () => {
 			const result = calcAtrPositionSize({
-				accountBalance: 500,
+				accountBalance: 50_000,
 				price: 50,
 				atr14: 2.5,
 				side: "SELL",
 				exchange: "NASDAQ",
 			});
 
-			// risk = 500 * 0.01 = 5, short cap = 5 * 0.75 = 3.75
+			// risk = 50_000 * 0.01 = 500, short cap = 500 * 0.75 = 375
 			// stop_distance = 2.5 * 1 = 2.5
-			// shares = 3.75 / 2.5 = 1.5 -> floor = 1
-			// position_value = 1 * 50 = 50
-			expect(result.quantity).toBe(1);
+			// friction per share = 50 * 0.002 = 0.1
+			// shares = 375 / (2.5 + 0.1) ≈ 144.23 -> floor = 144
+			// (notional ~ $7,200 clears the TRA-15 75bps gate)
+			expect(result.quantity).toBe(144);
 			expect(result.stopLossPrice).toBe(52.5); // 50 + 2.5
 		});
 
