@@ -21,27 +21,30 @@ async function boot() {
 	await ensureSeedStrategies();
 	log.info("Seed strategies verified");
 
-	// Connect to IBKR if live trading enabled
-	if (config.LIVE_TRADING_ENABLED) {
-		try {
-			const { connect, waitForConnection } = await import("./broker/connection.ts");
-			const { startOrderMonitoring } = await import("./broker/order-monitor.ts");
-			const { getDb: getDatabase } = await import("./db/client.ts");
+	// Connect to IBKR on every boot — UK quote path (LSE/AIM via ibkrQuote)
+	// needs the broker connection regardless of LIVE_TRADING_ENABLED.
+	// Order monitoring only starts when the live-trading flag is on.
+	try {
+		const { connect, waitForConnection } = await import("./broker/connection.ts");
 
-			log.info("Live trading enabled — connecting to IBKR...");
-			await connect();
+		log.info("Connecting to IBKR for market data...");
+		await connect();
 
-			const connected = await waitForConnection(30000);
-			if (connected) {
+		const connected = await waitForConnection(30000);
+		if (connected) {
+			log.info("IBKR connected");
+			if (config.LIVE_TRADING_ENABLED) {
+				const { startOrderMonitoring } = await import("./broker/order-monitor.ts");
 				const { getApi } = await import("./broker/connection.ts");
+				const { getDb: getDatabase } = await import("./db/client.ts");
 				startOrderMonitoring(getApi(), getDatabase());
-				log.info("IBKR connected and order monitoring started");
-			} else {
-				log.warn("IBKR connection timeout — scheduler jobs will check connection");
+				log.info("Live trading enabled — order monitoring started");
 			}
-		} catch (err) {
-			log.error({ error: err }, "IBKR connection failed — live trading will retry via scheduler");
+		} else {
+			log.warn("IBKR connection timeout — scheduler jobs will check connection");
 		}
+	} catch (err) {
+		log.error({ error: err }, "IBKR connection failed — scheduler will retry on next tick");
 	}
 
 	// Run position reconciliation on boot
