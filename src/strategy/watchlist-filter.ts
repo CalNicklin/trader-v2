@@ -131,13 +131,25 @@ export async function getWatchlistUniverse(filter: WatchlistFilter): Promise<str
 }
 
 /**
+ * TRA-40. Minimum watchlist-filter match count before we trust the watchlist
+ * path. Re-exported for tests; prod reads this from config at call time.
+ */
+export const WATCHLIST_MIN_ACTIVATION_SYMBOLS = 5;
+
+/**
  * Core public entrypoint. Given a strategy row, return the list of symbols
  * that should drive evaluation this tick.
  *
  * Dispatch logic:
  * - If `USE_WATCHLIST=false` OR `watchlistFilter` is null/empty → static
  *   `universe` column (existing behaviour, unchanged).
- * - Else → watchlist-filtered symbols.
+ * - Else: query the watchlist-filtered symbols.
+ *   - If the filter produces fewer than `WATCHLIST_MIN_ACTIVATION_SYMBOLS`
+ *     symbols (config-gated), fall back to the static universe with
+ *     `source: "static_fallback"`. This was TRA-20's undoing — the news/
+ *     research filter drained to zero every morning after the demotion
+ *     sweep, so the strategy couldn't trade.
+ *   - Otherwise return the watchlist-filtered symbols.
  *
  * The returned list is then fed to `buildEffectiveUniverse` +
  * `filterByLiquidity` by the caller, exactly as before.
@@ -146,7 +158,11 @@ export async function getEffectiveUniverseForStrategy(strategy: {
 	id: number;
 	universe: string | null;
 	watchlistFilter: string | null;
-}): Promise<{ universe: string[]; source: "static" | "watchlist" }> {
+}): Promise<{
+	universe: string[];
+	source: "static" | "watchlist" | "static_fallback";
+	watchlistSize?: number;
+}> {
 	const config = getConfig();
 	const filter = parseWatchlistFilter(strategy.watchlistFilter);
 
@@ -156,6 +172,16 @@ export async function getEffectiveUniverseForStrategy(strategy: {
 	}
 
 	const watchlistUniverse = await getWatchlistUniverse(filter);
+
+	if (watchlistUniverse.length < config.WATCHLIST_MIN_ACTIVATION_SYMBOLS) {
+		const staticUniverse: string[] = strategy.universe ? JSON.parse(strategy.universe) : [];
+		return {
+			universe: staticUniverse,
+			source: "static_fallback",
+			watchlistSize: watchlistUniverse.length,
+		};
+	}
+
 	return { universe: watchlistUniverse, source: "watchlist" };
 }
 
@@ -218,7 +244,7 @@ export async function compareUniverses(strategy: {
 export function logUniverseComparison(
 	strategyId: number,
 	cmp: NonNullable<Awaited<ReturnType<typeof compareUniverses>>>,
-	source: "static" | "watchlist",
+	source: "static" | "watchlist" | "static_fallback",
 ): void {
 	log.info(
 		{

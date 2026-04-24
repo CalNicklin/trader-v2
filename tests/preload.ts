@@ -13,3 +13,7 @@ process.env.LIVE_TRADING_ENABLED = "false";
 // Signal-logic tests assert specific fill prices and should not pick up a
 // haircut unless they explicitly set this env.
 process.env.PAPER_SLIPPAGE_BPS = "0";
+// TRA-40. Disable the watchlist fallback threshold in tests by default so
+// pre-TRA-40 tests that assert specific small-watchlist behaviour keep
+// passing. The TRA-40 fallback tests set this to 5 explicitly.
+process.env.WATCHLIST_MIN_ACTIVATION_SYMBOLS = "0";

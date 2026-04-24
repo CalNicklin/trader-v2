@@ -66,6 +66,15 @@ const envSchema = z.object({
 		.default("false")
 		.transform((v) => v === "true"),
 
+	// TRA-40. Minimum watchlist-filtered symbol count required before the
+	// evaluator trusts the watchlist path. When the filter produces fewer
+	// symbols than this, `getEffectiveUniverseForStrategy` falls back to
+	// the static `universe` column with `source: "static_fallback"`. Resolves
+	// the morning-emptiness failure mode that caused TRA-20 rollback — the
+	// 22:55 UK demotion sweep + overnight news-poll pause drains filtered
+	// tiers until ~mid-morning. Zero disables the fallback (pre-TRA-40 behaviour).
+	WATCHLIST_MIN_ACTIVATION_SYMBOLS: z.coerce.number().nonnegative().default(5),
+
 	// HTTP server
 	HTTP_PORT: z.coerce.number().default(3847),
 
