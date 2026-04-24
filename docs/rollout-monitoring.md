@@ -2,21 +2,15 @@
 
 One-page index of everything currently in the watch window. Each section links to its own detailed doc where one exists.
 
-Last refreshed: 2026-04-23.
+Last refreshed: 2026-04-24.
 
-## 1. Universe Rollout Step 3 — **most recent, parity window open**
+## 1. Universe Rollout Step 3 — **rolled back, blocked on TRA-40 filter redesign**
 
-Activated 2026-04-23 09:34 UTC. `news_sentiment_mr_v1` now reads from the live watchlist instead of its static `universe` column. Flag: `USE_WATCHLIST=true`.
+Activated 2026-04-23 09:34 UTC, rolled back 2026-04-24 07:48 UTC after the pre-registered `watchlistUniverseSize=0 while staticUniverseSize≥5` criterion tripped on day 2. Flag: `USE_WATCHLIST=false`. Root cause: strategy 1's `news/research + enriched + days` filter drains every morning because the 22:55 UK demotion sweep + news-poll overnight pause leave the filter's target tier empty until mid-morning. Detailed timeline + root cause in `docs/universe-rollout-status.md` §"Step 3 — activated 2026-04-23, rolled back 2026-04-24".
 
-- [ ] **Days 1–5 post-activation:** log the `evaluator:universe-compare` line every eval cycle. Verify zero `universe_empty` ticks. Confirm trade count not materially regressed vs pre-activation baseline.
-  ```bash
-  ./scripts/vps-logs.sh --since "1 hour ago" | grep universe-compare | tail -5
-  ```
-- [ ] **Rollback drill (mental):** flip `USE_WATCHLIST=false` in `/opt/trader-v2/.env`, restart — strategy reverts to static column in under 60s.
-- [ ] **UK blind spot follow-up:** watchlist has zero UK symbols today. Strategy 1's 10 UK exposures disappear under the filter. Decide before Step 5: UK-specific watchlist coverage, compat shim, or accept the loss. Ticket not yet filed.
-- [ ] At T+5 trading days: close TRA-20 or roll back. Unblocks TRA-21 (Step 4) on success.
-
-Detailed status + criteria: `docs/universe-rollout-status.md` §"Step 3 — active parity window".
+- [ ] **TRA-40** — filter redesign. Recommended approach: evaluator-level fallback (`if watchlist.size < N, use static`). Re-activate TRA-20 after this ships.
+- [ ] **TRA-21** — Step 4 (earnings_drift migration) moved ahead in parallel. Earnings filter is not subject to the Step 3 failure mode (earnings rows dominate the watchlist).
+- [ ] **UK blind spot** — zero UK symbols ever on the watchlist. Follow-up before TRA-22 retires the static column.
 
 ## 2. AI-semi observation tier (TRA-11) — **new, 21-day window open**
 

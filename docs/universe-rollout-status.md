@@ -3,7 +3,7 @@
 **Parent spec:** `docs/superpowers/specs/2026-04-17-universe-research-architecture-design.md`
 **Cross-cutting monitoring board:** `docs/rollout-monitoring.md`
 
-Four-tier architecture replacing hand-picked 25-symbol seed universes. **Steps 1 / 1a / 2 shipped; Step 3 activated 2026-04-23, parity window open**; Steps 4 / 5 pending.
+Four-tier architecture replacing hand-picked 25-symbol seed universes. **Steps 1 / 1a / 2 shipped; Step 3 rolled back 2026-04-24 pending filter redesign (TRA-40); Step 4 moved ahead in parallel**; Step 5 pending.
 
 ## Status by step
 
@@ -12,27 +12,41 @@ Four-tier architecture replacing hand-picked 25-symbol seed universes. **Steps 1
 | 1 — Investable Universe | #17 | **Shipped 2026-04-17** | Tier 1 tables, weekly refresh, snapshots, liquidity filters, `/health` section |
 | 1a — Metrics enrichers | #18 | **Shipped 2026-04-17** | FMP profile enrichment with last-known-good cache; filter loosened for US-only |
 | 2 — Active Watchlist | #19 | **Shipped 2026-04-18** | Tier 2 tables, catalyst-promoted watchlist with async Opus enrichment, 4 scheduler jobs, hooks in classifier/research-agent/pattern-analysis, `/health` section, eval suite |
-| 3 — Migrate `news_sentiment_mr_v1` | #63 (spec) + #64 (impl) + #65 (fix) | **Activated 2026-04-23 09:34 UTC — parity window day 1 of 5** | `watchlist_filter` JSON read-path; `USE_WATCHLIST=true`; dual-write `evaluator:universe-compare` log line active |
-| 4 — Migrate `earnings_drift_v1` + `earnings_drift_aggressive_v1` | — | Blocked on Step 3 parity completion (earliest 2026-04-28) | These gain earnings-calendar auto-promotion natively |
+| 3 — Migrate `news_sentiment_mr_v1` | #63 + #64 + #65 | **⚠️ Rolled back 2026-04-24 07:48 UTC — pending TRA-40 filter redesign** | Activation tripped the "watchlist=0 while static≥5" criterion on day 2 (overnight demotion sweep drains news/research tier faster than morning enrichment refills). `USE_WATCHLIST=false`, strategy running on static again. |
+| 4 — Migrate `earnings_drift_v1` + `earnings_drift_aggressive_v1` | — | **Proceeding in parallel with TRA-20 redesign** | Earnings-tagged watchlist rows are plentiful (150+ active) — not subject to the Step 3 failure mode. |
 | 5 — Retire legacy static universes | — | Pending | Drop the `universe` column from seeds after 30d stable watchlist operation |
 
-## Step 3 — active parity window (TRA-20)
+## Step 3 — activated 2026-04-23, rolled back 2026-04-24 (TRA-20)
 
-**Activated** 2026-04-23 09:34 UTC: `strategies.watchlist_filter` set on strategy 1 + `USE_WATCHLIST=true` on the VPS.
+### Timeline
+- **2026-04-23 09:34 UTC** — activated (`strategies.watchlist_filter` set on strategy 1 + `USE_WATCHLIST=true`).
+- **2026-04-23 intraday** — watchlist size stable at 9 vs static 20, 7 shared; strategy 1 executed 3 profitable exits via watchlist path (TSLA +2.6%, JPM ~flat, META +2.0%); no `universe_empty` ticks during session hours. Normalization bug caught and fixed (PR #65).
+- **2026-04-23 21:55 UTC** — nightly demotion sweep cleared most news/research rows.
+- **2026-04-23 20:00 UK → 2026-04-24 06:00 UK** — news polling paused (cron window). First enrichment at 08:00 UK. No fresh promotions during this window.
+- **2026-04-24 05:10 UTC** — Anthropic credit exhaustion started; classifier 400s (amplified failure, not root cause).
+- **2026-04-24 07:13 UTC onward** — `watchlistUniverseSize=0 while staticUniverseSize=20` for 3+ consecutive eval cycles. Pre-registered "catastrophic miss" criterion tripped.
+- **2026-04-24 07:48 UTC** — rolled back per spec: `USE_WATCHLIST=false`, service restarted.
+- **Post-rollback** — credit topped up; 10 stuck headlines and 3 research-agent jobs backfilled; evaluator running on static universe as before.
 
-Live observations (first day, pre-US and into overlap):
-- Watchlist size stable at **9** (vs static **20** — filter drops UK names and symbols without recent news/research catalysts)
-- Shared entries: **7** NASDAQ mega-caps
-- Only-watchlist adds: **NFLX, PYPL** — fresh catalysts not in seed universe
-- Only-static drops: 5 US (GOOGL, META, JPM, V, JNJ) + 8 UK/AIM
-- **Zero `universe_empty` ticks** across 30+ eval cycles
-- Strategy 1 has executed 3 exits via the watchlist path (TSLA +2.6%, JPM ~flat, META +2.0%) — plumbing verified
+### Root cause
 
-**Normalization fix:** PR #65 corrected an early log-display bug where bare `"AAPL"` vs `"AAPL:NASDAQ"` counted as divergent. All logs from 2026-04-23 11:33 UTC onward use the corrected diff.
+Strategy 1's filter (`news/research + enriched + intraday|days`) is incompatible with the normal overnight watchlist cycle. Even without credit issues, the 22:55 UK demotion sweep drains the news/research tier; no new enriched rows can arrive until 08:00 UK; the morning session therefore starts empty every day. Of the 32 active news/research-tagged rows, only 4 are currently enriched + non-demoted — and all 4 have `horizon="weeks"` which the filter excludes.
 
-**Criteria to close (see TRA-20):** 5 trading days of data; watchlist trade count ≥50% of static baseline; no Sharpe DD widening >20%; zero catastrophic-miss ticks.
+Tracked in **TRA-40** — filter redesign options are:
+1. Widen filter (drop `enrichedRequired`, include `"weeks"`).
+2. Evaluator-level fallback: `if watchlist.size < N, use static`. (Recommended.)
+3. Demotion-rule review for the news/research tier.
+4. Warm-up state machine.
 
-**UK blind spot flagged:** zero UK symbols on the current watchlist (promotions are earnings/news-driven and US-language-heavy). Strategy 1 loses its 10 UK exposures under the watchlist filter today. Worth revisiting before TRA-22 retires the static universe — may need UK-specific watchlist coverage or a compat shim.
+### Roadmap impact
+
+- **TRA-20 itself** is on hold until TRA-40 ships.
+- **TRA-21 (Step 4)** is unblocked and moved ahead — the earnings_drift filter (`promotionReasons=["earnings"]`) is not subject to the same failure mode; earnings rows dominate the watchlist (150+ active vs ~5 news/research).
+- **TRA-22 (Step 5)** remains blocked behind both Step 3 and Step 4.
+
+### Other observations captured during the 1-day activation
+
+- **UK blind spot:** zero UK symbols on the current watchlist (promotions are US-language-heavy). Strategy 1 loses its 10 UK exposures under the watchlist filter. Worth revisiting before TRA-22 retires static — may need UK-specific watchlist coverage or compat shim. Follow-up ticket not yet filed.
 
 ## Parallel observation tier — AI-semi (TRA-11)
 
