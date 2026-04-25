@@ -2,15 +2,18 @@
 
 One-page index of everything currently in the watch window. Each section links to its own detailed doc where one exists.
 
-Last refreshed: 2026-04-24.
+Last refreshed: 2026-04-25.
 
-## 1. Universe Rollout Step 3 — **rolled back, blocked on TRA-40 filter redesign**
+## 1. Universe Rollout Step 3 — **re-activated 2026-04-24 11:00 UTC, parity day 1 of 5**
 
-Activated 2026-04-23 09:34 UTC, rolled back 2026-04-24 07:48 UTC after the pre-registered `watchlistUniverseSize=0 while staticUniverseSize≥5` criterion tripped on day 2. Flag: `USE_WATCHLIST=false`. Root cause: strategy 1's `news/research + enriched + days` filter drains every morning because the 22:55 UK demotion sweep + news-poll overnight pause leave the filter's target tier empty until mid-morning. Detailed timeline + root cause in `docs/universe-rollout-status.md` §"Step 3 — activated 2026-04-23, rolled back 2026-04-24".
+First activation 2026-04-23 09:34 UTC was rolled back 2026-04-24 07:48 UTC after `watchlistUniverseSize=0 while staticUniverseSize≥5` tripped on day 2 (filter drained every morning post-demotion sweep). TRA-40 shipped an evaluator-level fallback (`if watchlist.size < 5, use static`) and TRA-20 re-activated. Day 1 (Friday 2026-04-24) clean: source=watchlist all session, watchlist size 5 (right at the fallback floor), no flags, 1 entry executed (JNJ).
 
-- [ ] **TRA-40** — filter redesign. Recommended approach: evaluator-level fallback (`if watchlist.size < N, use static`). Re-activate TRA-20 after this ships.
-- [ ] **TRA-21** — Step 4 (earnings_drift migration) moved ahead in parallel. Earnings filter is not subject to the Step 3 failure mode (earnings rows dominate the watchlist).
-- [ ] **UK blind spot** — zero UK symbols ever on the watchlist. Follow-up before TRA-22 retires the static column.
+- [x] **TRA-40** — evaluator-level fallback (PR #70).
+- [x] **TRA-42** — IBKR connect on boot regardless of `LIVE_TRADING_ENABLED` (PR #71). Surfaced when LSE quote refresh went silent for ~50h post-flip.
+- [x] **TRA-41** — per-region cap-eviction (PR #72, deployed 2026-04-25 22:16 UTC). Splits the demotion sweep into UK pass at 17:00 London (cap 30) + US pass at 22:55 London (cap 120). Was: "UK blind spot" — diagnosis was wrong; pipeline already promotes ~3 UK names/day, they were being reaped by timezone-biased cap-eviction every night. **Acceptance window: 7 trading days. First UK pass fires Mon 2026-04-27 17:00 London. Watch:** `live UK rows ≥3 morning after the 22:55 UTC sweep`; avg overnight UK survivors ≥5 over the window.
+- [ ] **TRA-43** — UK quote-refresh cleanup (SMSN unresolvable, AIM excluded). Low-impact follow-up to TRA-42; not blocking parity.
+- [ ] **TRA-20 parity window:** 4 more trading days. Decision criteria in `docs/universe-rollout-status.md`.
+- [ ] **TRA-21 parity window** (Step 4, earnings_drift): activated 2026-04-24 08:44 UTC, day 1 of 5. Watchlist 149, source=watchlist, 1 exit executed (AMD).
 
 ## 2. AI-semi observation tier (TRA-11) — **new, 21-day window open**
 

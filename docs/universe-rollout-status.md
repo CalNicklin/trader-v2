@@ -38,15 +38,15 @@ Tracked in **TRA-40** — filter redesign options are:
 3. Demotion-rule review for the news/research tier.
 4. Warm-up state machine.
 
-### Roadmap impact
+### Roadmap impact (updated 2026-04-25)
 
-- **TRA-20 itself** is on hold until TRA-40 ships.
-- **TRA-21 (Step 4)** is unblocked and moved ahead — the earnings_drift filter (`promotionReasons=["earnings"]`) is not subject to the same failure mode; earnings rows dominate the watchlist (150+ active vs ~5 news/research).
-- **TRA-22 (Step 5)** remains blocked behind both Step 3 and Step 4.
+- **TRA-20** re-activated 2026-04-24 11:00 UTC after TRA-40 shipped. Parity day 1 of 5 closed clean.
+- **TRA-21 (Step 4)** activated 2026-04-24 08:44 UTC in parallel. Parity day 1 of 5 closed clean (149 / 20, source=watchlist all session, 1 exit).
+- **TRA-22 (Step 5)** — blocker condition (UK never persisting on the watchlist) **resolved by TRA-41 deploy 2026-04-25**. Now gated only on TRA-20 + TRA-21 acceptance + TRA-41 7-day acceptance.
 
 ### Other observations captured during the 1-day activation
 
-- **UK blind spot:** zero UK symbols on the current watchlist (promotions are US-language-heavy). Strategy 1 loses its 10 UK exposures under the watchlist filter. Worth revisiting before TRA-22 retires static — may need UK-specific watchlist coverage or compat shim. Follow-up ticket not yet filed.
+- **UK appeared empty at activation** — original framing said "zero UK symbols on the watchlist." Diagnosis was wrong. Investigation 2026-04-25 (TRA-41) found: pipeline promotes ~3 UK names/day (RIO, SHEL, AZN, HSBA, GAW, JET2, VOD), but `rankForCapEviction` sorts by `lastCatalystAt DESC` at the 22:55 UK sweep — every UK row's catalyst is structurally ≥5h older than typical US rows by then, so UK gets reaped to the tail every single night. **Fix: TRA-41 (PR #72, deployed 2026-04-25 22:16 UTC) split the sweep into per-region passes** — UK at 17:00 London (cap 30, post-LSE-close), US at 22:55 London (cap 120, post-US-session). 14 UK promotions over 5 days, 13 cap-evicted, 0 rule-based demotions — confirms pipeline-finding-them-then-throwing-them-away. Acceptance: 7 trading days post-deploy with avg overnight UK survivors ≥5.
 
 ## Parallel observation tier — AI-semi (TRA-11)
 
