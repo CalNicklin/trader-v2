@@ -19,9 +19,28 @@ export interface DemotionResult {
 	byReason: Record<string, number>;
 }
 
-export async function runDemotionSweep(now: Date): Promise<DemotionResult> {
+/**
+ * TRA-41: when `exchanges` is set, the sweep operates only on rows in those
+ * exchanges (both rule-based and cap-eviction). `cap` overrides the global
+ * `WATCHLIST_CAP_SOFT`. Production runs this twice — once for UK shortly
+ * after LSE close, once for US after the US session — so cap-eviction ranks
+ * each region against same-region peers without timezone bias.
+ */
+export interface RunDemotionOpts {
+	exchanges?: readonly string[];
+	cap?: number;
+}
+
+export async function runDemotionSweep(
+	now: Date,
+	opts: RunDemotionOpts = {},
+): Promise<DemotionResult> {
 	const db = getDb();
-	const rows = getActiveWatchlist();
+	const allRows = getActiveWatchlist();
+	const rows = opts.exchanges
+		? allRows.filter((r) => opts.exchanges!.includes(r.exchange))
+		: allRows;
+	const cap = opts.cap ?? WATCHLIST_CAP_SOFT;
 	const result: DemotionResult = { scanned: rows.length, demoted: 0, byReason: {} };
 
 	// Open paper positions: closedAt IS NULL — these symbols must never be demoted.
@@ -58,9 +77,9 @@ export async function runDemotionSweep(now: Date): Promise<DemotionResult> {
 		}
 	}
 
-	if (survivors.length > WATCHLIST_CAP_SOFT) {
+	if (survivors.length > cap) {
 		const ranked = rankForCapEviction(survivors);
-		const toEvict = ranked.slice(WATCHLIST_CAP_SOFT);
+		const toEvict = ranked.slice(cap);
 		for (const row of toEvict) {
 			if (openKeys.has(`${row.symbol}:${row.exchange}`)) continue;
 			await demoteRow(row.id, "cap_eviction", now);
@@ -69,7 +88,10 @@ export async function runDemotionSweep(now: Date): Promise<DemotionResult> {
 		}
 	}
 
-	log.info({ ...result }, "Demotion sweep complete");
+	log.info(
+		{ ...result, scope: opts.exchanges ?? "all", cap },
+		"Demotion sweep complete",
+	);
 	return result;
 }
 
