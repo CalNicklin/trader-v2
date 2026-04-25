@@ -88,10 +88,7 @@ export async function runDemotionSweep(
 		}
 	}
 
-	log.info(
-		{ ...result, scope: opts.exchanges ?? "all", cap },
-		"Demotion sweep complete",
-	);
+	log.info({ ...result, scope: opts.exchanges ?? "all", cap }, "Demotion sweep complete");
 	return result;
 }
 
