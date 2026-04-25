@@ -38,6 +38,7 @@ export type JobName =
 	| "volume_catalyst_uk"
 	| "watchlist_enrich"
 	| "watchlist_demote"
+	| "watchlist_demote_uk"
 	| "ai_semi_measurement"
 	| "dispatch_decisions_cleanup";
 
@@ -76,6 +77,7 @@ const JOB_LOCK_CATEGORY: Record<JobName, LockCategory> = {
 	volume_catalyst_uk: "catalyst_uk",
 	watchlist_enrich: "enrichment",
 	watchlist_demote: "demotion",
+	watchlist_demote_uk: "demotion",
 	ai_semi_measurement: "analysis",
 	dispatch_decisions_cleanup: "maintenance",
 };
@@ -349,8 +351,24 @@ async function executeJob(name: JobName): Promise<void> {
 		}
 
 		case "watchlist_demote": {
+			// TRA-41: US-scoped — runs at 22:55 UK after the US session.
 			const { runWatchlistDemoteJob } = await import("./watchlist-demote-job.ts");
-			await runWatchlistDemoteJob();
+			const { US_EXCHANGES, WATCHLIST_CAP_US } = await import("../watchlist/constants.ts");
+			await runWatchlistDemoteJob({
+				exchanges: US_EXCHANGES,
+				cap: WATCHLIST_CAP_US,
+			});
+			break;
+		}
+
+		case "watchlist_demote_uk": {
+			// TRA-41: UK-scoped — runs at 17:00 UK after the LSE close.
+			const { runWatchlistDemoteJob } = await import("./watchlist-demote-job.ts");
+			const { UK_EXCHANGES, WATCHLIST_CAP_UK } = await import("../watchlist/constants.ts");
+			await runWatchlistDemoteJob({
+				exchanges: UK_EXCHANGES,
+				cap: WATCHLIST_CAP_UK,
+			});
 			break;
 		}
 

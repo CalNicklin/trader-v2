@@ -9,6 +9,15 @@ export const FEEDBACK_MIN_CONFIDENCE = 0.8;
 // Watchlist state
 export const WATCHLIST_CAP_SOFT = 150;
 export const WATCHLIST_CAP_HARD = 300;
+// TRA-41: per-region cap eviction. UK names age faster on the wall clock
+// than US ones (LSE close 16:30 UK vs US close 21:00 UK), so a single sweep
+// at 22:55 UK with a global cap deterministically evicts UK every night.
+// Splitting the cap into two regional pools — each pass run shortly after
+// its market close — gives UK a fair share of the watchlist.
+export const WATCHLIST_CAP_UK = 30;
+export const WATCHLIST_CAP_US = 120;
+export const UK_EXCHANGES = ["LSE", "AIM"] as const;
+export const US_EXCHANGES = ["NASDAQ", "NYSE"] as const;
 export const DEFAULT_PROMOTION_TTL_HOURS = 72;
 
 // Enrichment

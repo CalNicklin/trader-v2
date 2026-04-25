@@ -186,7 +186,14 @@ export function startScheduler(): void {
 			timezone: "Europe/London",
 		}),
 	);
-	// Demotion — after enrichment post-close
+	// Demotion — TRA-41: per-region passes so cap-eviction ranks each region
+	// against same-region peers (avoids timezone bias against UK names).
+	// UK pass at 17:00 London (post-LSE-close); US pass at 22:55 London (post-US-session).
+	tasks.push(
+		cron.schedule("0 17 * * 1-5", () => runJob("watchlist_demote_uk"), {
+			timezone: "Europe/London",
+		}),
+	);
 	tasks.push(
 		cron.schedule("55 22 * * 1-5", () => runJob("watchlist_demote"), {
 			timezone: "Europe/London",
