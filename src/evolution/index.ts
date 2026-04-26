@@ -9,12 +9,14 @@ import { withRetry } from "../utils/retry";
 import { recordUsage } from "../utils/token-tracker";
 import { getPerformanceLandscape } from "./analyzer";
 import {
+	checkPausedForResumption,
 	MAX_POPULATION,
 	MIN_POPULATION,
 	MIN_TRADES_FOR_EVOLUTION,
 	RECOVERY_SPAWN_CAP,
 } from "./population";
 import { buildEvolutionPrompt, parseEvolutionResponse } from "./prompt";
+import { injectRecoverySeed } from "./recovery-seeds";
 import { spawnChild } from "./spawner";
 import type { TournamentResult } from "./types";
 import { validateMutation } from "./validator";
@@ -116,6 +118,12 @@ export async function runEvolutionCycle(): Promise<{
 	const drawdownKills: number[] = [];
 	const tournamentResults: TournamentResult[] = [];
 	const populationCulls: number[] = [];
+
+	// Step 3.5: Resume quarantine-paused strategies before assessing population
+	const resumed = await checkPausedForResumption();
+	if (resumed.length > 0) {
+		log.info({ resumed }, "Resumed paused strategies before evolution");
+	}
 
 	// Step 4: Get current performance landscape
 	const landscape = await getPerformanceLandscape();
@@ -263,6 +271,22 @@ export async function runEvolutionCycle(): Promise<{
 				{ err, proposalName: proposal.name, parentId: proposal.parentId },
 				"Failed to spawn child strategy, skipping",
 			);
+		}
+	}
+
+	// Recovery seed fallback: if evolution produced nothing and we're still below minimum,
+	// inject a predefined seed strategy to break the deadlock.
+	if (spawned.length === 0 && recoveryMode) {
+		const slotsRemaining = MAX_POPULATION - landscape.activePaperCount;
+		if (slotsRemaining > 0) {
+			const seedIds = await injectRecoverySeed(Math.min(RECOVERY_SPAWN_CAP, slotsRemaining));
+			spawned.push(...seedIds);
+			if (seedIds.length > 0) {
+				log.info(
+					{ seedIds },
+					"Injected recovery seeds after evolution produced no viable offspring",
+				);
+			}
 		}
 	}
 

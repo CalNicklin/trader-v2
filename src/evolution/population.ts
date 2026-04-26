@@ -12,6 +12,8 @@ import { createChildLogger } from "../utils/logger";
 import { computeBackHalfPnl, MIN_CLOSED_TRADES_FOR_BACK_HALF } from "./back-half-pnl";
 import { hasStableEdge } from "./has-stable-edge";
 
+const SEED_VIRTUAL_BALANCE = 10_000;
+
 const log = createChildLogger({ module: "evolution:population" });
 
 export const MAX_POPULATION = 8;
@@ -287,4 +289,80 @@ export async function checkConsecutiveLossPause(): Promise<number[]> {
 	}
 
 	return paused;
+}
+
+export async function checkPausedForResumption(): Promise<number[]> {
+	const db = getDb();
+
+	const pausedStrategies = await db
+		.select()
+		.from(strategies)
+		.where(eq(strategies.status, "paused"))
+		.all();
+
+	if (pausedStrategies.length === 0) return [];
+
+	const resumed: number[] = [];
+
+	for (const strategy of pausedStrategies) {
+		const lastPauseEvent = await db
+			.select()
+			.from(graduationEvents)
+			.where(
+				and(eq(graduationEvents.strategyId, strategy.id), eq(graduationEvents.event, "paused")),
+			)
+			.orderBy(desc(graduationEvents.createdAt))
+			.limit(1)
+			.get();
+
+		if (!lastPauseEvent?.evidence) continue;
+
+		let evidence: { reason?: string };
+		try {
+			evidence = JSON.parse(lastPauseEvent.evidence);
+		} catch {
+			continue;
+		}
+
+		const reason = evidence.reason ?? lastPauseEvent.evidence;
+		const isQuarantinePause =
+			reason.includes("quarantin") || reason.includes("TRA-5") || reason.includes("audit");
+
+		if (!isQuarantinePause) continue;
+
+		const tradeCount = await db
+			.select()
+			.from(paperTrades)
+			.where(eq(paperTrades.strategyId, strategy.id))
+			.all();
+
+		if (tradeCount.length > 0) continue;
+
+		await db
+			.update(strategies)
+			.set({
+				status: "paper" as const,
+				virtualBalance: SEED_VIRTUAL_BALANCE,
+			})
+			.where(eq(strategies.id, strategy.id));
+
+		await db.insert(graduationEvents).values({
+			strategyId: strategy.id,
+			event: "promoted" as const,
+			fromTier: "paused",
+			toTier: "paper",
+			evidence: JSON.stringify({
+				reason: "quarantine_resolved",
+				originalPauseReason: reason,
+			}),
+		});
+
+		log.info(
+			{ strategyId: strategy.id, name: strategy.name, originalReason: reason },
+			"Resumed quarantine-paused strategy with fresh balance",
+		);
+		resumed.push(strategy.id);
+	}
+
+	return resumed;
 }
