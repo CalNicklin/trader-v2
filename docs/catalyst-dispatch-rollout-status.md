@@ -58,7 +58,10 @@ Lessons documented in `docs/rollout-monitoring.md` §4:
 2. Never create files directly on the prod working tree — use a PR so CI deploys them properly.
 3. Consider a post-deploy `/health` probe in the GitHub Actions workflow to turn silent-failed-deploys into visible-broken-builds.
 
-### Phase B — First 24 h (flag OFF, structural path only) — **in progress, started 2026-04-21 06:00 UTC**
+### Phase B — First 24 h (flag OFF, structural path only) — **dormant since 2026-04-21**
+
+> **2026-04-27 status update:** Phase B verification is **blocked on strategy graduation**. `runDispatch` filters strategies to `status IN ('probation', 'active', 'core')` (`src/strategy/dispatch.ts:69`). The full population is currently `paper` (2) / `paused` (2) / `retired` (1) — zero graduated. So `dispatch_decisions` is empty (0 rows ever written), and dispatch jobs at 08:05 / 14:35 / 16:35 / 18:00 BST return in <10 ms with `"No graduated strategies — skipping dispatch"`. Phase B's checks 3–6 below will start producing real data only **after** at least one strategy graduates to probation. Until then, **all paper trading flows through `strategy_eval_uk` / `strategy_eval_us` cron** (every 10 min), and the post-13:30-UTC entry clustering observed in production reflects that path's signal-input distribution, not a dispatch issue.
+
 
 3. **`dispatch_decisions` populates from the next scheduled dispatch.** After the next 14:35 BST (or 08:05 next day):
    ```bash
