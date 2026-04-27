@@ -16,9 +16,10 @@ async function boot() {
 	migrate(db, { migrationsFolder: "./drizzle/migrations" });
 	log.info("Database connected and migrated");
 
-	// Ensure seed strategies exist
-	const { ensureSeedStrategies } = await import("./strategy/seed.ts");
+	// Ensure seed strategies exist and population floor is met
+	const { ensureSeedStrategies, ensurePopulationFloor } = await import("./strategy/seed.ts");
 	await ensureSeedStrategies();
+	await ensurePopulationFloor();
 	log.info("Seed strategies verified");
 
 	// Connect to IBKR on every boot — UK quote path (LSE/AIM via ibkrQuote)
