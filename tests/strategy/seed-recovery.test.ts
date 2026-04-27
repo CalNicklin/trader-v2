@@ -26,7 +26,7 @@ describe("recovery seeds", () => {
 			const hasEntry = signals.entry_long || signals.entry_short;
 			expect(hasEntry).toBeTruthy();
 
-			for (const [key, expr] of Object.entries(signals)) {
+			for (const expr of Object.values(signals)) {
 				expect(() => evalExpr(expr as string, {})).not.toThrow();
 			}
 		}
@@ -86,11 +86,7 @@ describe("ensurePopulationFloor", () => {
 		const inserted = await ensurePopulationFloor();
 		expect(inserted).toBeGreaterThan(0);
 
-		const allPaper = await db
-			.select()
-			.from(strategies)
-			.where(eq(strategies.status, "paper"))
-			.all();
+		const allPaper = await db.select().from(strategies).where(eq(strategies.status, "paper")).all();
 		expect(allPaper.length).toBeGreaterThanOrEqual(3);
 	});
 
@@ -131,7 +127,7 @@ describe("ensurePopulationFloor", () => {
 			generation: 1,
 		});
 
-		const inserted = await ensurePopulationFloor();
+		await ensurePopulationFloor();
 
 		const withName = await db
 			.select()
