@@ -1,11 +1,8 @@
-import { eq } from "drizzle-orm";
 import { getDb } from "../db/client.ts";
 import { strategies } from "../db/schema.ts";
 import { createChildLogger } from "../utils/logger.ts";
 
 const log = createChildLogger({ module: "seed" });
-
-const POPULATION_FLOOR = 4;
 
 export const SEED_STRATEGIES = [
 	{
@@ -155,126 +152,4 @@ export async function ensureSeedStrategies(): Promise<void> {
 	}
 
 	log.info({ count: SEED_STRATEGIES.length }, "Seed strategies inserted");
-}
-
-// ── Recovery seeds ────────────────────────────────────────────────────────────
-// Battle-tested momentum strategies based on strategy 3's winning formula
-// (positive sentiment + price momentum + volume confirmation) applied to
-// different sectors. Inserted when active paper count drops below POPULATION_FLOOR.
-
-export const RECOVERY_SEEDS = [
-	{
-		name: "catalyst_breakout_v1",
-		description:
-			"Momentum on strong catalyst-driven moves with volume confirmation. Targets major news events that drive multi-day trends in tech/semiconductor names.",
-		parameters: JSON.stringify({
-			hold_days: 5,
-			position_size_pct: 8,
-			stop_loss_pct: 5,
-		}),
-		signals: JSON.stringify({
-			entry_long: "news_sentiment > 0.5 AND change_percent > 1.5 AND volume_ratio > 2.0",
-			entry_short: "news_sentiment < -0.5 AND change_percent < -1.5 AND volume_ratio > 2.0",
-			exit: "hold_days >= 5 OR pnl_pct < -5 OR pnl_pct > 12",
-		}),
-		universe: JSON.stringify([
-			"NVDA",
-			"AMD",
-			"AVGO",
-			"INTC",
-			"MRVL",
-			"TSM",
-			"MU",
-			"QCOM",
-			"ANET",
-			"MSFT",
-			"GOOGL",
-			"META",
-			"AMZN",
-			"CRM",
-			"ADBE",
-		]),
-		status: "paper" as const,
-		virtualBalance: 10000,
-		generation: 1,
-		createdBy: "seed:recovery",
-	},
-	{
-		name: "sector_rotation_v1",
-		description:
-			"Capture rotation signals across financials, healthcare, energy, and consumer sectors using news sentiment and price momentum. Diversified universe for broader coverage.",
-		parameters: JSON.stringify({
-			hold_days: 4,
-			position_size_pct: 7,
-			stop_loss_pct: 4,
-		}),
-		signals: JSON.stringify({
-			entry_long: "news_sentiment > 0.4 AND change_percent > 1 AND volume_ratio > 1.5",
-			entry_short: "news_sentiment < -0.4 AND change_percent < -1 AND volume_ratio > 1.5",
-			exit: "hold_days >= 4 OR pnl_pct < -4 OR pnl_pct > 8",
-		}),
-		universe: JSON.stringify([
-			"JPM",
-			"GS",
-			"BAC",
-			"JNJ",
-			"LLY",
-			"ABBV",
-			"XOM",
-			"CVX",
-			"DAL",
-			"FDX",
-			"WMT",
-			"COST",
-			"V",
-			"MA",
-			"PFE",
-		]),
-		status: "paper" as const,
-		virtualBalance: 10000,
-		generation: 1,
-		createdBy: "seed:recovery",
-	},
-];
-
-export async function ensurePopulationFloor(): Promise<number> {
-	const db = getDb();
-
-	const activePaper = await db
-		.select({ id: strategies.id })
-		.from(strategies)
-		.where(eq(strategies.status, "paper"))
-		.all();
-
-	if (activePaper.length >= POPULATION_FLOOR) {
-		return 0;
-	}
-
-	const slotsNeeded = POPULATION_FLOOR - activePaper.length;
-	let inserted = 0;
-
-	for (const seed of RECOVERY_SEEDS) {
-		if (inserted >= slotsNeeded) break;
-
-		const existing = await db
-			.select({ id: strategies.id })
-			.from(strategies)
-			.where(eq(strategies.name, seed.name))
-			.get();
-
-		if (existing) continue;
-
-		await db.insert(strategies).values(seed);
-		inserted++;
-		log.info({ name: seed.name }, "Recovery seed strategy inserted");
-	}
-
-	if (inserted > 0) {
-		log.warn(
-			{ activePaper: activePaper.length, inserted },
-			"Population floor enforced: recovery seeds added",
-		);
-	}
-
-	return inserted;
 }
