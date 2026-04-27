@@ -30,6 +30,8 @@ ${PARAMETER_RANGES}
 
 Max 5 parameters per strategy.
 
+**REQUIRED:** Every \`parameter_tweak\` and \`new_variant\` proposal MUST include \`stop_loss_pct\` (1–10). The validator rejects proposals without it. For \`structural\` proposals, include a stop-loss equivalent in your custom parameters or in the exit signal expression.
+
 ## Output format
 
 Respond with a JSON array ONLY — no prose, no markdown outside the code block. Each element must conform to:
