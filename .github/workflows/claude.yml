@@ -97,16 +97,37 @@ jobs:
             Explore the codebase to understand how modules connect before editing.
             Make targeted improvements.
 
+            ### Branch policy — STRICT
+
+            **NEVER push directly to `main`.** Every change goes through a PR.
+
+            - **If you were triggered by a comment on an existing open PR**
+              (the `issue_comment` event payload contains `issue.pull_request`),
+              you MUST push your commits to that PR's head branch. Look up the
+              branch via `gh pr view <PR_NUMBER> --json headRefName` and check
+              that branch out before committing. Never open a duplicate PR with
+              the same change — append to the existing one so review stays in
+              one place.
+
+            - **If there is no existing PR** (workflow_dispatch, or an issue
+              comment on a non-PR issue), create a new branch
+              (`claude/<short-description>`) and open a fresh PR against `main`
+              with `gh pr create`.
+
+            - If a review comment asks you to address specific concerns and you
+              decide some of them shouldn't be addressed, post a reply
+              explaining the trade-off rather than silently dropping them.
+
             Before committing, you MUST run all three checks and fix any errors:
             1. `bunx tsc --noEmit` — TypeScript type check (fix unused imports, type errors)
             2. `bunx biome check src/ tests/` — Linter (fix formatting, lint issues)
             3. `bun test --preload ./tests/preload.ts` — Full test suite
 
-            Do NOT commit or create a PR until all three pass cleanly.
+            Do NOT commit or open a PR until all three pass cleanly.
 
             If you determine the system is performing well and no improvements are needed,
             commit a short summary to docs/self-improvement-log.md explaining your analysis
-            and why no changes were warranted.
+            and why no changes were warranted (still via a PR — not direct to main).
           claude_args: "--model claude-opus-4-6 --max-turns 50 --allowedTools 'Bash,Read,Write,Edit,Glob,Grep,WebSearch,WebFetch'"
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
